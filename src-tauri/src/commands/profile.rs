@@ -44,9 +44,9 @@ pub async fn profile_upsert(
     input: ProfileInput,
 ) -> AppResult<String> {
     // 输入校验
-    input.validate().map_err(|msg| {
-        AppError::new(crate::models::error::ErrorCode::InvalidArgument, msg)
-    })?;
+    input
+        .validate()
+        .map_err(|msg| AppError::new(crate::models::error::ErrorCode::InvalidArgument, msg))?;
 
     let now = chrono::Utc::now().timestamp_millis();
 

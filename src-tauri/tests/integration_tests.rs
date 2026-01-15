@@ -106,10 +106,8 @@ mod connection_tests {
         use std::net::TcpStream;
 
         // 连接到不存在的端口应该失败
-        let result = TcpStream::connect_timeout(
-            &"127.0.0.1:29999".parse().unwrap(),
-            Duration::from_secs(2),
-        );
+        let result =
+            TcpStream::connect_timeout(&"127.0.0.1:29999".parse().unwrap(), Duration::from_secs(2));
         assert!(result.is_err(), "连接不存在的端口应该超时");
     }
 
@@ -489,8 +487,7 @@ mod sftp_read_write_tests {
                 .open(std::path::Path::new(&test_file))
                 .expect("应该能打开文件");
             let mut content = String::new();
-            file.read_to_string(&mut content)
-                .expect("应该能读取内容");
+            file.read_to_string(&mut content).expect("应该能读取内容");
             assert_eq!(content, test_content, "读写内容应该一致");
         }
 
@@ -507,14 +504,11 @@ mod sftp_read_write_tests {
 
         let (_session, sftp) = create_sftp_session(&TEST_SERVER_1).unwrap();
         let mut file = sftp
-            .open(std::path::Path::new(
-                "/home/testuser/test-files/random.bin",
-            ))
+            .open(std::path::Path::new("/home/testuser/test-files/random.bin"))
             .expect("应该能打开二进制文件");
 
         let mut buffer = Vec::new();
-        file.read_to_end(&mut buffer)
-            .expect("应该能读取二进制内容");
+        file.read_to_end(&mut buffer).expect("应该能读取二进制内容");
 
         // 验证大小 (100 KB)
         assert_eq!(buffer.len(), 100 * 1024, "文件大小应该是 100 KB");
@@ -689,9 +683,7 @@ mod error_tests {
         }
 
         let (_session, sftp) = create_sftp_session(&TEST_SERVER_1).unwrap();
-        let result = sftp.create(std::path::Path::new(
-            "/home/testuser/readonly-dir/test.txt",
-        ));
+        let result = sftp.create(std::path::Path::new("/home/testuser/readonly-dir/test.txt"));
 
         assert!(result.is_err(), "在只读目录中创建文件应该失败");
     }
@@ -706,8 +698,10 @@ mod key_auth_tests {
 
     /// SSH 私钥路径 (Docker volume 挂载)
     const KEY_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../docker/ssh-keys/id_ed25519");
-    const KEY_WITH_PASSPHRASE_PATH: &str =
-        concat!(env!("CARGO_MANIFEST_DIR"), "/../docker/ssh-keys/id_ed25519_passphrase");
+    const KEY_WITH_PASSPHRASE_PATH: &str = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../docker/ssh-keys/id_ed25519_passphrase"
+    );
     const PASSPHRASE: &str = "testpass";
 
     fn create_session_with_key(
@@ -867,9 +861,7 @@ mod transfer_tests {
             let mut remote_file = sftp
                 .create(std::path::Path::new(&remote_path))
                 .expect("应该能创建远程文件");
-            remote_file
-                .write_all(content)
-                .expect("应该能写入远程文件");
+            remote_file.write_all(content).expect("应该能写入远程文件");
         }
 
         // 验证
@@ -939,9 +931,7 @@ mod transfer_tests {
 
         // 下载已存在的测试文件
         let mut remote_file = sftp
-            .open(std::path::Path::new(
-                "/home/testuser/test-files/hello.txt",
-            ))
+            .open(std::path::Path::new("/home/testuser/test-files/hello.txt"))
             .expect("应该能打开远程文件");
 
         let mut content = String::new();
@@ -962,9 +952,7 @@ mod transfer_tests {
         let (_session, sftp) = create_sftp_session(&TEST_SERVER_1).unwrap();
 
         let mut remote_file = sftp
-            .open(std::path::Path::new(
-                "/home/testuser/test-files/random.bin",
-            ))
+            .open(std::path::Path::new("/home/testuser/test-files/random.bin"))
             .expect("应该能打开二进制文件");
 
         let mut buffer = Vec::new();
@@ -1021,10 +1009,7 @@ mod transfer_tests {
             .as_millis();
 
         // 文件名含空格和中文
-        let remote_path = format!(
-            "/home/testuser/uploads/特殊文件 name_{}.txt",
-            timestamp
-        );
+        let remote_path = format!("/home/testuser/uploads/特殊文件 name_{}.txt", timestamp);
         let content = b"Special filename test";
 
         // 上传
@@ -1063,7 +1048,9 @@ mod transfer_tests {
             let mut remote_file = sftp
                 .create(std::path::Path::new(&remote_path))
                 .expect("应该能创建文件");
-            remote_file.write_all(b"original content").expect("应该能写入");
+            remote_file
+                .write_all(b"original content")
+                .expect("应该能写入");
         }
 
         // 覆盖上传
@@ -1080,7 +1067,9 @@ mod transfer_tests {
                 .open(std::path::Path::new(&remote_path))
                 .expect("应该能打开文件");
             let mut content = String::new();
-            remote_file.read_to_string(&mut content).expect("应该能读取");
+            remote_file
+                .read_to_string(&mut content)
+                .expect("应该能读取");
             assert_eq!(content, "new content", "内容应该被覆盖");
         }
 

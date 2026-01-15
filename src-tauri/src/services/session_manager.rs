@@ -20,9 +20,7 @@ use zeroize::Zeroize;
 
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::profile::{AuthType, Profile};
-use crate::services::security_service::{
-    credential_get, verify_hostkey, HostKeyVerifyResult,
-};
+use crate::services::security_service::{credential_get, verify_hostkey, HostKeyVerifyResult};
 use crate::services::storage_service::Database;
 
 /// 托管的 SSH 会话
@@ -153,7 +151,8 @@ impl SessionManager {
             "获取到服务器指纹"
         );
 
-        let verify_result = verify_hostkey(db, &profile.host, profile.port, &key_type, &fingerprint)?;
+        let verify_result =
+            verify_hostkey(db, &profile.host, profile.port, &key_type, &fingerprint)?;
 
         match verify_result {
             HostKeyVerifyResult::FirstConnection(_) => {
@@ -233,9 +232,10 @@ impl SessionManager {
 
     /// 获取会话（同时更新最后活动时间）
     pub fn get_session(&self, session_id: &str) -> AppResult<Arc<ManagedSession>> {
-        let sessions = self.sessions.read().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "会话池锁获取失败")
-        })?;
+        let sessions = self
+            .sessions
+            .read()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "会话池锁获取失败"))?;
 
         let session = sessions
             .get(session_id)
@@ -250,9 +250,10 @@ impl SessionManager {
 
     /// 关闭会话
     pub fn close_session(&self, session_id: &str) -> AppResult<()> {
-        let mut sessions = self.sessions.write().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "会话池锁获取失败")
-        })?;
+        let mut sessions = self
+            .sessions
+            .write()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "会话池锁获取失败"))?;
 
         if let Some(session) = sessions.remove(session_id) {
             // SSH Session 会在 drop 时自动关闭
@@ -268,9 +269,10 @@ impl SessionManager {
 
     /// 获取所有会话 ID
     pub fn list_sessions(&self) -> AppResult<Vec<String>> {
-        let sessions = self.sessions.read().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "会话池锁获取失败")
-        })?;
+        let sessions = self
+            .sessions
+            .read()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "会话池锁获取失败"))?;
 
         Ok(sessions.keys().cloned().collect())
     }
@@ -377,7 +379,10 @@ impl SessionManager {
     ) -> AppResult<ConnectResult> {
         tracing::debug!("正在创建 SFTP 通道");
         let sftp = session.sftp().map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("无法创建 SFTP 通道: {}", e))
+            AppError::new(
+                ErrorCode::RemoteIoError,
+                format!("无法创建 SFTP 通道: {}", e),
+            )
         })?;
 
         let home_path = self.get_home_path(&session)?;
@@ -396,9 +401,10 @@ impl SessionManager {
         });
 
         {
-            let mut sessions = self.sessions.write().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "会话池锁获取失败")
-            })?;
+            let mut sessions = self
+                .sessions
+                .write()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "会话池锁获取失败"))?;
             sessions.insert(session_id.clone(), managed_session);
         }
 
@@ -411,9 +417,9 @@ impl SessionManager {
 
     /// 获取 HostKey 信息
     fn get_host_key_info(&self, session: &Session) -> AppResult<(String, String)> {
-        let (key, key_type) = session.host_key().ok_or_else(|| {
-            AppError::new(ErrorCode::Unknown, "无法获取服务器主机密钥")
-        })?;
+        let (key, key_type) = session
+            .host_key()
+            .ok_or_else(|| AppError::new(ErrorCode::Unknown, "无法获取服务器主机密钥"))?;
 
         let key_type_str = match key_type {
             ssh2::HostKeyType::Rsa => "ssh-rsa",
@@ -446,12 +452,8 @@ impl SessionManager {
         self.check_auth_lockout(&profile.id)?;
 
         let result = match profile.auth_type {
-            AuthType::Password => {
-                self.auth_password(session, &profile.username, profile, password)
-            }
-            AuthType::Key => {
-                self.auth_key(session, &profile.username, profile, passphrase)
-            }
+            AuthType::Password => self.auth_password(session, &profile.username, profile, password),
+            AuthType::Key => self.auth_key(session, &profile.username, profile, passphrase),
         };
 
         // 记录认证结果
@@ -466,9 +468,10 @@ impl SessionManager {
 
     /// 检查是否被锁定
     fn check_auth_lockout(&self, profile_id: &str) -> AppResult<()> {
-        let failures = self.auth_failures.read().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "认证锁获取失败")
-        })?;
+        let failures = self
+            .auth_failures
+            .read()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "认证锁获取失败"))?;
 
         if let Some(record) = failures.get(profile_id) {
             if record.count >= AUTH_FAILURE_THRESHOLD {
@@ -478,7 +481,8 @@ impl SessionManager {
                     return Err(AppError::new(
                         ErrorCode::AuthFailed,
                         format!("认证失败次数过多，请等待 {} 秒后重试", remaining),
-                    ).with_retryable(false));
+                    )
+                    .with_retryable(false));
                 }
             }
         }
@@ -489,10 +493,12 @@ impl SessionManager {
     /// 记录认证失败
     fn record_auth_failure(&self, profile_id: &str) {
         if let Ok(mut failures) = self.auth_failures.write() {
-            let record = failures.entry(profile_id.to_string()).or_insert(AuthFailureRecord {
-                count: 0,
-                last_failure: Instant::now(),
-            });
+            let record = failures
+                .entry(profile_id.to_string())
+                .or_insert(AuthFailureRecord {
+                    count: 0,
+                    last_failure: Instant::now(),
+                });
             record.count += 1;
             record.last_failure = Instant::now();
 
@@ -559,9 +565,10 @@ impl SessionManager {
     ) -> AppResult<()> {
         tracing::debug!(username = %username, "正在进行 Key 认证");
 
-        let key_path = profile.private_key_path.as_ref().ok_or_else(|| {
-            AppError::auth_failed("未配置私钥路径")
-        })?;
+        let key_path = profile
+            .private_key_path
+            .as_ref()
+            .ok_or_else(|| AppError::auth_failed("未配置私钥路径"))?;
 
         let key_path = Path::new(key_path);
         if !key_path.exists() {
@@ -598,12 +605,7 @@ impl SessionManager {
         };
 
         let has_passphrase = passphrase.is_some();
-        let result = session.userauth_pubkey_file(
-            username,
-            None,
-            key_path,
-            passphrase.as_deref(),
-        );
+        let result = session.userauth_pubkey_file(username, None, key_path, passphrase.as_deref());
 
         // 使用后立即清零 passphrase
         if let Some(ref mut pp) = passphrase {
@@ -631,18 +633,18 @@ impl SessionManager {
     /// 获取远程 home 目录
     fn get_home_path(&self, session: &Session) -> AppResult<String> {
         // 执行 echo $HOME 获取 home 目录
-        let mut channel = session.channel_session().map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("无法创建通道: {}", e))
-        })?;
+        let mut channel = session
+            .channel_session()
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("无法创建通道: {}", e)))?;
 
-        channel.exec("echo $HOME").map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("无法执行命令: {}", e))
-        })?;
+        channel
+            .exec("echo $HOME")
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("无法执行命令: {}", e)))?;
 
         let mut output = String::new();
-        channel.read_to_string(&mut output).map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("无法读取输出: {}", e))
-        })?;
+        channel
+            .read_to_string(&mut output)
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("无法读取输出: {}", e)))?;
 
         channel.wait_close().ok();
 

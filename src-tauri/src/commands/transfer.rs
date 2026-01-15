@@ -197,9 +197,7 @@ pub async fn transfer_get(
 
 /// 清理已完成的任务
 #[tauri::command]
-pub async fn transfer_cleanup(
-    transfer_manager: State<'_, Arc<TransferManager>>,
-) -> AppResult<()> {
+pub async fn transfer_cleanup(transfer_manager: State<'_, Arc<TransferManager>>) -> AppResult<()> {
     transfer_manager.cleanup_completed().await;
     Ok(())
 }

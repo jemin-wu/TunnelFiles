@@ -20,8 +20,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::transfer_task::{
-    TransferDirection, TransferProgressPayload, TransferStatus, TransferStatusPayload,
-    TransferTask,
+    TransferDirection, TransferProgressPayload, TransferStatus, TransferStatusPayload, TransferTask,
 };
 use crate::services::session_manager::{ManagedSession, SessionManager};
 
@@ -153,7 +152,10 @@ impl TransferManager {
         // 验证本地文件存在
         let path = Path::new(&local_path);
         if !path.exists() {
-            return Err(AppError::not_found(format!("本地文件不存在: {}", local_path)));
+            return Err(AppError::not_found(format!(
+                "本地文件不存在: {}",
+                local_path
+            )));
         }
         if !path.is_file() {
             return Err(AppError::new(
@@ -436,11 +438,15 @@ impl TransferManager {
     /// 收集上传文件信息
     ///
     /// 返回 (文件信息列表, 唯一父目录集合)
+    #[allow(clippy::type_complexity)]
     fn collect_upload_file_infos(
         files: &[(String, String)],
         remote_base: &str,
         dir_name: &str,
-    ) -> AppResult<(Vec<(String, String, String, u64)>, std::collections::HashSet<String>)> {
+    ) -> AppResult<(
+        Vec<(String, String, String, u64)>,
+        std::collections::HashSet<String>,
+    )> {
         let mut file_infos = Vec::with_capacity(files.len());
         let mut unique_parents = std::collections::HashSet::new();
 
@@ -472,12 +478,7 @@ impl TransferManager {
                 })?
                 .len();
 
-            file_infos.push((
-                local_file_path.clone(),
-                remote_file_path,
-                file_name,
-                total,
-            ));
+            file_infos.push((local_file_path.clone(), remote_file_path, file_name, total));
         }
 
         Ok((file_infos, unique_parents))
@@ -661,9 +662,10 @@ impl TransferManager {
 
         // 获取信号量许可
         let semaphore = self.semaphore.clone();
-        let _permit = semaphore.acquire().await.map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "无法获取传输许可")
-        })?;
+        let _permit = semaphore
+            .acquire()
+            .await
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取传输许可"))?;
 
         // 更新状态为 Running
         self.update_status(&task_id, TransferStatus::Running).await;
@@ -674,14 +676,12 @@ impl TransferManager {
             let app = app.clone();
             let task = task_clone.clone();
             let cancel_token = cancel_token.clone();
-            move || {
-                match task.direction {
-                    TransferDirection::Upload => {
-                        Self::do_upload_sync(&app, &session.sftp, &task, &cancel_token)
-                    }
-                    TransferDirection::Download => {
-                        Self::do_download_sync(&app, &session.sftp, &task, &cancel_token)
-                    }
+            move || match task.direction {
+                TransferDirection::Upload => {
+                    Self::do_upload_sync(&app, &session.sftp, &task, &cancel_token)
+                }
+                TransferDirection::Download => {
+                    Self::do_download_sync(&app, &session.sftp, &task, &cancel_token)
                 }
             }
         })
@@ -756,16 +756,14 @@ impl TransferManager {
         })?;
 
         // 创建远程文件
-        let mut remote_file = sftp
-            .create(Path::new(remote_path))
-            .map_err(|e| {
-                let msg = format!("无法创建远程文件: {}", e);
-                if msg.contains("Permission denied") {
-                    AppError::permission_denied("无权限写入远程文件")
-                } else {
-                    AppError::new(ErrorCode::RemoteIoError, msg).with_retryable(true)
-                }
-            })?;
+        let mut remote_file = sftp.create(Path::new(remote_path)).map_err(|e| {
+            let msg = format!("无法创建远程文件: {}", e);
+            if msg.contains("Permission denied") {
+                AppError::permission_denied("无权限写入远程文件")
+            } else {
+                AppError::new(ErrorCode::RemoteIoError, msg).with_retryable(true)
+            }
+        })?;
 
         let mut buffer = vec![0u8; CHUNK_SIZE];
         let mut progress = ProgressTracker::new(app, task_id, total);
@@ -887,10 +885,7 @@ impl TransferManager {
     }
 
     /// 重试失败的任务
-    pub async fn retry_task(
-        &self,
-        task_id: &str,
-    ) -> AppResult<String> {
+    pub async fn retry_task(&self, task_id: &str) -> AppResult<String> {
         let task = {
             let tasks = self.tasks.read().await;
             let internal = tasks
@@ -1286,7 +1281,9 @@ mod tests {
             .await
             .unwrap();
 
-        manager.update_status(&task_id, TransferStatus::Running).await;
+        manager
+            .update_status(&task_id, TransferStatus::Running)
+            .await;
 
         let task = manager.get_task(&task_id).await.unwrap();
         assert_eq!(task.status, TransferStatus::Running);
@@ -1308,7 +1305,9 @@ mod tests {
             .unwrap();
 
         let before = chrono::Utc::now().timestamp_millis();
-        manager.update_status(&task_id, TransferStatus::Success).await;
+        manager
+            .update_status(&task_id, TransferStatus::Success)
+            .await;
         let after = chrono::Utc::now().timestamp_millis();
 
         let task = manager.get_task(&task_id).await.unwrap();
@@ -1395,7 +1394,9 @@ mod tests {
             .unwrap();
 
         // 标记为成功
-        manager.update_status(&task_id, TransferStatus::Success).await;
+        manager
+            .update_status(&task_id, TransferStatus::Success)
+            .await;
 
         // 取消应该静默成功
         let result = manager.cancel_task(&task_id).await;
@@ -1432,7 +1433,9 @@ mod tests {
             .unwrap();
 
         manager.update_status(&task1, TransferStatus::Success).await;
-        manager.update_status(&task2, TransferStatus::Canceled).await;
+        manager
+            .update_status(&task2, TransferStatus::Canceled)
+            .await;
 
         manager.cleanup_completed().await;
 
@@ -1527,7 +1530,9 @@ mod tests {
 
         let original = manager.get_task(&task_id).await.unwrap();
 
-        manager.update_status(&task_id, TransferStatus::Failed).await;
+        manager
+            .update_status(&task_id, TransferStatus::Failed)
+            .await;
         let new_task_id = manager.retry_task(&task_id).await.unwrap();
         let new_task = manager.get_task(&new_task_id).await.unwrap();
 
@@ -1593,10 +1598,7 @@ mod tests {
         let results: Vec<_> = futures::future::join_all(handles).await;
 
         // 所有应该成功
-        let task_ids: Vec<String> = results
-            .into_iter()
-            .map(|r| r.unwrap().unwrap())
-            .collect();
+        let task_ids: Vec<String> = results.into_iter().map(|r| r.unwrap().unwrap()).collect();
 
         assert_eq!(task_ids.len(), 10);
 
@@ -1703,11 +1705,8 @@ mod tests {
         assert_eq!(manager.semaphore.available_permits(), 0);
 
         // 尝试获取更多应该超时
-        let result = tokio::time::timeout(
-            Duration::from_millis(100),
-            manager.semaphore.acquire(),
-        )
-        .await;
+        let result =
+            tokio::time::timeout(Duration::from_millis(100), manager.semaphore.acquire()).await;
 
         assert!(result.is_err()); // 超时错误
 
@@ -1716,13 +1715,11 @@ mod tests {
         assert_eq!(manager.semaphore.available_permits(), 1);
 
         // 现在应该能立即获取
-        let _new_permit = tokio::time::timeout(
-            Duration::from_millis(100),
-            manager.semaphore.acquire(),
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let _new_permit =
+            tokio::time::timeout(Duration::from_millis(100), manager.semaphore.acquire())
+                .await
+                .unwrap()
+                .unwrap();
 
         assert_eq!(manager.semaphore.available_permits(), 0);
     }

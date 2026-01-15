@@ -87,7 +87,9 @@ impl SftpService {
         let path_obj = Path::new(&normalized);
 
         // 先检查路径是否存在且是目录
-        let stat = sftp.stat(path_obj).map_err(|e| map_sftp_error(e, &normalized))?;
+        let stat = sftp
+            .stat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
 
         if !stat.is_dir() {
             return Err(AppError::invalid_argument(format!(
@@ -97,9 +99,9 @@ impl SftpService {
         }
 
         // 读取目录内容
-        let dir_entries = sftp.readdir(path_obj).map_err(|e| {
-            AppError::from(e).with_detail(format!("读取目录失败: {}", normalized))
-        })?;
+        let dir_entries = sftp
+            .readdir(path_obj)
+            .map_err(|e| AppError::from(e).with_detail(format!("读取目录失败: {}", normalized)))?;
 
         // 转换为 FileEntry，过滤 . 和 ..
         let mut entries: Vec<FileEntry> = dir_entries
@@ -187,7 +189,8 @@ impl SftpService {
         let to_path = Path::new(&to_normalized);
 
         // 检查源路径是否存在
-        sftp.stat(from_path).map_err(|e| map_sftp_error(e, &from_normalized))?;
+        sftp.stat(from_path)
+            .map_err(|e| map_sftp_error(e, &from_normalized))?;
 
         // 检查目标是否已存在
         if sftp.stat(to_path).is_ok() {
@@ -205,7 +208,7 @@ impl SftpService {
 
         // 执行重命名
         sftp.rename(from_path, to_path, None)
-            .map_err(|e| AppError::from(e))?;
+            .map_err(AppError::from)?;
 
         Ok(())
     }
@@ -232,7 +235,9 @@ impl SftpService {
         }
 
         // 使用 lstat 获取链接自身信息（不跟随符号链接）
-        let lstat = sftp.lstat(path_obj).map_err(|e| map_sftp_error(e, &normalized))?;
+        let lstat = sftp
+            .lstat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
 
         // 检查是否是符号链接
         let is_symlink = lstat
@@ -298,7 +303,9 @@ impl SftpService {
         let path_obj = Path::new(&normalized);
 
         // 确认是目录（使用 lstat 检查是否为符号链接）
-        let lstat = sftp.lstat(path_obj).map_err(|e| map_sftp_error(e, &normalized))?;
+        let lstat = sftp
+            .lstat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
 
         // 检查是否是符号链接
         let is_symlink = lstat
@@ -309,7 +316,9 @@ impl SftpService {
             return Err(AppError::invalid_argument("不支持下载符号链接"));
         }
 
-        let stat = sftp.stat(path_obj).map_err(|e| map_sftp_error(e, &normalized))?;
+        let stat = sftp
+            .stat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
         if !stat.is_dir() {
             return Err(AppError::invalid_argument(format!(
                 "指定的路径是文件而非目录: {}",
@@ -390,7 +399,9 @@ impl SftpService {
         let path_obj = Path::new(&normalized);
 
         // 使用 stat 而非 lstat，自动解析符号链接
-        let file_stat = sftp.stat(path_obj).map_err(|e| map_sftp_error(e, &normalized))?;
+        let file_stat = sftp
+            .stat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
 
         // 提取文件名
         let name = path_obj
@@ -471,8 +482,14 @@ mod tests {
 
     #[test]
     fn test_normalize_path_dot_dot() {
-        assert_eq!(SftpService::normalize_path("/home/user/../data"), "/home/data");
-        assert_eq!(SftpService::normalize_path("/home/../home/user"), "/home/user");
+        assert_eq!(
+            SftpService::normalize_path("/home/user/../data"),
+            "/home/data"
+        );
+        assert_eq!(
+            SftpService::normalize_path("/home/../home/user"),
+            "/home/user"
+        );
         assert_eq!(SftpService::normalize_path("/home/user/../../etc"), "/etc");
     }
 

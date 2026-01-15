@@ -17,8 +17,13 @@ vi.mock("@tauri-apps/api/webview", () => ({
   }),
 }));
 
+vi.mock("@tauri-apps/plugin-fs", () => ({
+  stat: vi.fn().mockResolvedValue({ isDirectory: false }),
+}));
+
 vi.mock("@/lib/transfer", () => ({
   uploadFile: vi.fn(),
+  uploadDirectory: vi.fn(),
   getTransfer: vi.fn(),
 }));
 
@@ -29,6 +34,15 @@ vi.mock("sonner", () => ({
     info: vi.fn(),
     warning: vi.fn(),
   },
+}));
+
+vi.mock("@/hooks/useToast", () => ({
+  useToast: () => ({
+    error: vi.fn(),
+    success: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  }),
 }));
 
 describe("useDropUpload", () => {

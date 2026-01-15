@@ -7,8 +7,8 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::models::error::AppResult;
-use crate::services::storage_service::Database;
 use crate::services::security_service::trust_hostkey;
+use crate::services::storage_service::Database;
 
 /// 信任 HostKey 输入
 #[derive(Debug, serde::Deserialize)]

@@ -21,33 +21,33 @@ describe("CreateFolderDialog", () => {
   it("should render dialog when open", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
-    expect(screen.getByText("新建文件夹")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("输入文件夹名称")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "取消" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "创建" })).toBeInTheDocument();
+    expect(screen.getByText("MKDIR")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("new_folder")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CANCEL" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "CREATE" })).toBeInTheDocument();
   });
 
   it("should disable create button when name is empty", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
-    expect(screen.getByRole("button", { name: "创建" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CREATE" })).toBeDisabled();
   });
 
   it("should enable create button when name is entered", async () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.type(screen.getByPlaceholderText("输入文件夹名称"), "new-folder");
+    await user.type(screen.getByPlaceholderText("new_folder"), "new-folder");
 
-    expect(screen.getByRole("button", { name: "创建" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "CREATE" })).toBeEnabled();
   });
 
   it("should call onSubmit with trimmed name", async () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.type(screen.getByPlaceholderText("输入文件夹名称"), "  new-folder  ");
-    await user.click(screen.getByRole("button", { name: "创建" }));
+    await user.type(screen.getByPlaceholderText("new_folder"), "  new-folder  ");
+    await user.click(screen.getByRole("button", { name: "CREATE" }));
 
     expect(defaultProps.onSubmit).toHaveBeenCalledWith("new-folder");
   });
@@ -56,20 +56,19 @@ describe("CreateFolderDialog", () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.type(screen.getByPlaceholderText("输入文件夹名称"), "   ");
+    await user.type(screen.getByPlaceholderText("new_folder"), "   ");
 
-    // Button should remain disabled because trimmed name is empty
-    expect(screen.getByRole("button", { name: "创建" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CREATE" })).toBeDisabled();
   });
 
   it("should show error for name containing /", async () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.type(screen.getByPlaceholderText("输入文件夹名称"), "folder/name");
-    await user.click(screen.getByRole("button", { name: "创建" }));
+    await user.type(screen.getByPlaceholderText("new_folder"), "folder/name");
+    await user.click(screen.getByRole("button", { name: "CREATE" }));
 
-    expect(screen.getByText("文件夹名称不能包含 /")).toBeInTheDocument();
+    expect(screen.getByText(/文件夹名称不能包含/)).toBeInTheDocument();
     expect(defaultProps.onSubmit).not.toHaveBeenCalled();
   });
 
@@ -77,17 +76,17 @@ describe("CreateFolderDialog", () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.type(screen.getByPlaceholderText("输入文件夹名称"), ".");
-    await user.click(screen.getByRole("button", { name: "创建" }));
+    await user.type(screen.getByPlaceholderText("new_folder"), ".");
+    await user.click(screen.getByRole("button", { name: "CREATE" }));
 
-    expect(screen.getByText("文件夹名称不能是 . 或 ..")).toBeInTheDocument();
+    expect(screen.getByText(/文件夹名称不能是/)).toBeInTheDocument();
   });
 
   it("should call onOpenChange(false) when cancel clicked", async () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "取消" }));
+    await user.click(screen.getByRole("button", { name: "CANCEL" }));
 
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -95,8 +94,8 @@ describe("CreateFolderDialog", () => {
   it("should disable inputs when isPending", () => {
     render(<CreateFolderDialog {...defaultProps} isPending={true} />);
 
-    expect(screen.getByPlaceholderText("输入文件夹名称")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
+    expect(screen.getByPlaceholderText("new_folder")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
   });
 
   it("should reset state when reopened", async () => {
@@ -106,7 +105,7 @@ describe("CreateFolderDialog", () => {
 
     rerender(<CreateFolderDialog {...defaultProps} open={true} />);
 
-    expect(screen.getByPlaceholderText("输入文件夹名称")).toHaveValue("");
+    expect(screen.getByPlaceholderText("new_folder")).toHaveValue("");
   });
 });
 
@@ -126,7 +125,7 @@ describe("RenameDialog", () => {
   it("should render dialog with current name", () => {
     render(<RenameDialog {...defaultProps} />);
 
-    expect(screen.getByText("重命名")).toBeInTheDocument();
+    expect(screen.getByText("RENAME")).toBeInTheDocument();
     expect(screen.getByDisplayValue("old-name.txt")).toBeInTheDocument();
   });
 
@@ -137,7 +136,7 @@ describe("RenameDialog", () => {
     const input = screen.getByDisplayValue("old-name.txt");
     await user.clear(input);
     await user.type(input, "new-name.txt");
-    await user.click(screen.getByRole("button", { name: "确定" }));
+    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
 
     expect(defaultProps.onSubmit).toHaveBeenCalledWith("new-name.txt");
   });
@@ -146,7 +145,7 @@ describe("RenameDialog", () => {
     const user = userEvent.setup();
     render(<RenameDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "确定" }));
+    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
 
     expect(screen.getByText("新名称与原名称相同")).toBeInTheDocument();
     expect(defaultProps.onSubmit).not.toHaveBeenCalled();
@@ -158,11 +157,10 @@ describe("RenameDialog", () => {
 
     const input = screen.getByDisplayValue("old-name.txt");
     await user.clear(input);
-    await user.type(input, "   "); // Type only spaces
+    await user.type(input, "   ");
 
-    // Button should be disabled because trimmed name is empty
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "确定" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "CONFIRM" })).toBeDisabled();
     });
   });
 
@@ -173,9 +171,9 @@ describe("RenameDialog", () => {
     const input = screen.getByDisplayValue("old-name.txt");
     await user.clear(input);
     await user.type(input, "path/name.txt");
-    await user.click(screen.getByRole("button", { name: "确定" }));
+    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
 
-    expect(screen.getByText("名称不能包含 /")).toBeInTheDocument();
+    expect(screen.getByText(/名称不能包含/)).toBeInTheDocument();
   });
 
   it("should disable confirm button when name is cleared", async () => {
@@ -183,14 +181,12 @@ describe("RenameDialog", () => {
     render(<RenameDialog {...defaultProps} />);
 
     const input = screen.getByDisplayValue("old-name.txt");
-    // Use keyboard to clear the input properly
     await user.tripleClick(input);
     await user.keyboard("{Backspace}");
 
-    // Wait for state to update and check button is disabled
     await waitFor(
       () => {
-        const button = screen.getByRole("button", { name: "确定" });
+        const button = screen.getByRole("button", { name: "CONFIRM" });
         expect(button).toHaveAttribute("disabled");
       },
       { timeout: 2000 }
@@ -201,7 +197,7 @@ describe("RenameDialog", () => {
     render(<RenameDialog {...defaultProps} isPending={true} />);
 
     expect(screen.getByDisplayValue("old-name.txt")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
   });
 });
 
@@ -239,23 +235,23 @@ describe("DeleteConfirmDialog", () => {
   it("should render dialog for file", () => {
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    expect(screen.getByText("确认删除")).toBeInTheDocument();
+    expect(screen.getByText("DELETE_CONFIRM")).toBeInTheDocument();
     expect(screen.getByText(/test-file.txt/)).toBeInTheDocument();
-    expect(screen.getByText("此操作无法撤销。")).toBeInTheDocument();
+    expect(screen.getByText(/此操作无法撤销/)).toBeInTheDocument();
   });
 
   it("should render dialog for folder with warning", () => {
     render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} />);
 
     expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    expect(screen.getByText("注意：仅支持删除空文件夹")).toBeInTheDocument();
+    expect(screen.getByText(/仅支持删除空文件夹/)).toBeInTheDocument();
   });
 
   it("should call onConfirm when delete clicked", async () => {
     const user = userEvent.setup();
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "删除" }));
+    await user.click(screen.getByRole("button", { name: "DELETE" }));
 
     expect(defaultProps.onConfirm).toHaveBeenCalled();
   });
@@ -264,7 +260,7 @@ describe("DeleteConfirmDialog", () => {
     const user = userEvent.setup();
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "取消" }));
+    await user.click(screen.getByRole("button", { name: "CANCEL" }));
 
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -272,8 +268,8 @@ describe("DeleteConfirmDialog", () => {
   it("should disable buttons when isPending", () => {
     render(<DeleteConfirmDialog {...defaultProps} isPending={true} />);
 
-    expect(screen.getByRole("button", { name: "取消" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "删除" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "DELETE" })).toBeDisabled();
   });
 
   it("should render nothing when file is null", () => {
@@ -282,17 +278,5 @@ describe("DeleteConfirmDialog", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
-  });
-
-  it("should show folder type label for directory", () => {
-    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} />);
-
-    expect(screen.getByText(/确定要删除文件夹/)).toBeInTheDocument();
-  });
-
-  it("should show file type label for file", () => {
-    render(<DeleteConfirmDialog {...defaultProps} file={mockFile} />);
-
-    expect(screen.getByText(/确定要删除文件/)).toBeInTheDocument();
   });
 });

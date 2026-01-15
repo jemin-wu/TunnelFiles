@@ -4,8 +4,8 @@
 //! - session_disconnect: 断开连接
 //! - session_connect_after_trust: HostKey 确认后继续连接
 
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::models::error::{AppError, AppResult};
@@ -58,23 +58,16 @@ use crate::models::profile::Profile;
 use crate::services::session_manager::ConnectResult;
 
 /// 准备连接所需的数据
-fn prepare_connection(
-    db: &Database,
-    profile_id: &str,
-) -> AppResult<(Profile, u64)> {
-    let profile = db.profile_get(profile_id)?
+fn prepare_connection(db: &Database, profile_id: &str) -> AppResult<(Profile, u64)> {
+    let profile = db
+        .profile_get(profile_id)?
         .ok_or_else(|| AppError::not_found(format!("Profile {} 不存在", profile_id)))?;
     let settings = db.settings_load()?;
     Ok((profile, settings.connection_timeout_secs))
 }
 
 /// 连接成功后的处理
-fn finalize_connection(
-    app: &AppHandle,
-    db: &Database,
-    profile: &Profile,
-    result: &ConnectResult,
-) {
+fn finalize_connection(app: &AppHandle, db: &Database, profile: &Profile, result: &ConnectResult) {
     record_recent_connection(db, profile);
     emit_session_connected(app, &result.session_id);
 }
@@ -152,10 +145,12 @@ pub async fn session_connect(
         )
     })
     .await
-    .map_err(|e| AppError::new(
-        crate::models::error::ErrorCode::Unknown,
-        format!("连接任务失败: {}", e),
-    ))??;
+    .map_err(|e| {
+        AppError::new(
+            crate::models::error::ErrorCode::Unknown,
+            format!("连接任务失败: {}", e),
+        )
+    })??;
 
     // 4. 处理连接结果
     match connect_result {
@@ -207,10 +202,12 @@ pub async fn session_connect_after_trust(
         )
     })
     .await
-    .map_err(|e| AppError::new(
-        crate::models::error::ErrorCode::Unknown,
-        format!("连接任务失败: {}", e),
-    ))??;
+    .map_err(|e| {
+        AppError::new(
+            crate::models::error::ErrorCode::Unknown,
+            format!("连接任务失败: {}", e),
+        )
+    })??;
 
     finalize_connection(&app, &db, &profile, &result);
     tracing::info!(session_id = %result.session_id, profile_id = %input.profile_id, "连接成功（HostKey 已确认）");

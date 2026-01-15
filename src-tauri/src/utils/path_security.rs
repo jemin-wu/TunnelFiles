@@ -32,10 +32,7 @@ pub fn validate_remote_path(path: &str) -> AppResult<String> {
 
     // 检测空字节注入
     if decoded.contains('\0') {
-        return Err(AppError::new(
-            ErrorCode::PermissionDenied,
-            "路径包含空字节",
-        ));
+        return Err(AppError::new(ErrorCode::PermissionDenied, "路径包含空字节"));
     }
 
     Ok(normalize_path(&decoded))
@@ -100,8 +97,7 @@ pub fn is_within_base(base: &str, path: &str) -> bool {
     let path_normalized = normalize_path(path);
 
     // 路径必须以基础目录开始
-    path_normalized.starts_with(&base_normalized)
-        || path_normalized == base_normalized
+    path_normalized.starts_with(&base_normalized) || path_normalized == base_normalized
 }
 
 #[cfg(test)]
