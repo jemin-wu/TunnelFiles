@@ -45,6 +45,8 @@ export default [
         DataTransferItem: "readonly",
         FileSystemEntry: "readonly",
         navigator: "readonly",
+        requestAnimationFrame: "readonly",
+        cancelAnimationFrame: "readonly",
         // React JSX runtime
         React: "readonly",
       },
