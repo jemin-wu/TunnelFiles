@@ -1,0 +1,67 @@
+[package]
+name = "tunnelfiles"
+version = "1.0.0"
+description = "A Tauri App"
+authors = ["you"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "tunnelfiles_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# SSH 连接
+ssh2 = "0.9"
+
+# 异步运行时
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
+
+# 数据库
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+# 工具库
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+chrono = { version = "0.4", features = ["serde"] }
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# 压缩
+zip = "2"
+
+# 系统安全存储
+keyring = "2"
+
+# 路径处理
+dirs = "5"
+
+# 加密/编码
+sha2 = "0.10"
+base64 = "0.22"
+
+# 安全内存清零
+zeroize = "1"
+
+[dev-dependencies]
+tempfile = "3"
+futures = "0.3"
+

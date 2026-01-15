@@ -1,0 +1,146 @@
+## 阶段 P4: 文件操作
+
+### P4-1: 实现 sftp_mkdir 命令
+- **状态**: [x]
+- **类型**: 后端
+- **等级**: L2 (标准层)
+- **依赖**: P3-1
+- **描述**: 创建远程目录
+- **产出**:
+  - 命令: `sftp_mkdir(session_id: String, path: String) -> ()`
+  - 名称校验: 非空、无 `/`、无 `\0`
+  - 错误处理: 已存在、权限不足
+- **验收标准**:
+  - 功能:
+    - [x] 创建目录成功返回 Ok
+    - [x] 默认权限 755
+    - [x] 支持绝对路径和相对路径
+  - 安全:
+    - [x] 名称校验: 非空、无 `/`、无 `\0`
+    - [x] 路径遍历防护
+  - 边界条件:
+    - [x] 目录已存在返回明确错误
+    - [x] 父目录不存在返回 NOT_FOUND
+    - [x] 名称含特殊字符正确处理
+  - 错误处理:
+    - [x] 权限不足返回 PERMISSION_DENIED
+    - [x] 磁盘满返回 REMOTE_IO_ERROR
+  - 测试:
+    - [x] 创建成功测试 (integration_tests.rs)
+    - [x] 各类错误场景测试 (integration_tests.rs)
+- **备注**:
+
+---
+
+### P4-2: 实现 sftp_rename 命令
+- **状态**: [x]
+- **类型**: 后端
+- **等级**: L2 (标准层)
+- **依赖**: P3-1
+- **描述**: 重命名/移动文件或目录
+- **产出**:
+  - 命令: `sftp_rename(session_id: String, from: String, to: String) -> ()`
+  - 冲突检测: 目标已存在返回错误
+- **验收标准**:
+  - 功能:
+    - [x] 重命名文件成功
+    - [x] 重命名目录成功
+    - [x] 支持跨目录移动 (同文件系统)
+  - 安全:
+    - [x] 路径遍历防护
+    - [x] 目标路径校验
+  - 边界条件:
+    - [x] 源路径不存在返回 NOT_FOUND
+    - [x] 目标已存在返回冲突错误
+    - [x] 移动到自身子目录检测并拒绝
+    - [x] 特殊字符文件名正确处理
+  - 错误处理:
+    - [x] 权限不足返回 PERMISSION_DENIED
+    - [x] 跨文件系统移动返回明确错误
+  - 测试:
+    - [x] 文件重命名测试 (integration_tests.rs)
+    - [x] 目录重命名测试 (integration_tests.rs)
+    - [x] 冲突场景测试 (integration_tests.rs)
+- **备注**:
+
+---
+
+### P4-3: 实现 sftp_delete 命令
+- **状态**: [x]
+- **类型**: 后端
+- **等级**: L2 (标准层)
+- **依赖**: P3-1
+- **描述**: 删除文件或空目录
+- **产出**:
+  - 命令: `sftp_delete(session_id: String, path: String, is_dir: bool) -> ()`
+  - 文件: `sftp.unlink()`
+  - 目录: `sftp.rmdir()` (仅空目录)
+  - 非空目录返回 `AppError::DirNotEmpty`
+- **验收标准**:
+  - 功能:
+    - [x] 删除文件成功
+    - [x] 删除空目录成功
+    - [x] 非空目录返回 DIR_NOT_EMPTY
+    - [x] is_dir 参数控制删除类型
+  - 安全:
+    - [x] 路径遍历防护
+    - [x] 不允许删除根目录 `/`
+    - [x] 不允许删除 `.` 和 `..`
+  - 边界条件:
+    - [x] 路径不存在返回 NOT_FOUND
+    - [x] is_dir=true 但目标是文件时报错
+    - [x] is_dir=false 但目标是目录时报错
+    - [x] 符号链接删除链接本身，不删除目标 (V2) - 已实现
+  - 错误处理:
+    - [x] 权限不足返回 PERMISSION_DENIED
+    - [x] 文件正在使用返回明确错误
+  - 测试:
+    - [x] 删除文件测试 (integration_tests.rs)
+    - [x] 删除空目录测试 (integration_tests.rs)
+    - [x] 非空目录测试 (integration_tests.rs)
+    - [x] 各类错误场景测试 (integration_tests.rs)
+- **备注**:
+
+---
+
+### P4-4: 前端文件操作交互
+- **状态**: [x]
+- **类型**: 前端
+- **等级**: L2 (标准层)
+- **依赖**: P3-5, P4-1, P4-2, P4-3
+- **描述**: 文件操作 UI 交互
+- **产出**:
+  - `src/components/file-browser/FileContextMenu.tsx` - 右键菜单 (下载禁用/进入/重命名/删除)
+  - `src/components/file-browser/CreateFolderDialog.tsx` - 新建文件夹弹窗
+  - `src/components/file-browser/RenameDialog.tsx` - 重命名弹窗
+  - `src/components/file-browser/DeleteConfirmDialog.tsx` - 删除确认弹窗
+  - `src/hooks/useFileOperations.ts` - 文件操作 Hook
+  - 操作成功后自动刷新列表
+- **验收标准**:
+  - 功能:
+    - [x] 右键菜单显示: 下载(禁用)/重命名/删除
+    - [x] 目录右键: 进入/重命名/删除
+    - [x] 新建文件夹弹窗: 名称输入 + 校验
+    - [x] 重命名弹窗: 预填当前名称
+    - [x] 删除确认: 显示文件名 + 类型
+    - [x] 操作成功后自动刷新列表
+    - [x] 操作成功显示 Toast
+  - 边界条件:
+    - [x] 名称为空时禁用确认按钮
+    - [x] 名称含非法字符时提示错误
+    - [x] 弹窗外点击不关闭 (需明确取消)
+    - [x] 连续操作防抖 (mutation isPending 控制)
+  - 错误处理:
+    - [x] 操作失败显示错误 Toast
+    - [x] 冲突错误显示具体提示
+    - [x] 网络错误提示重试
+  - 可维护:
+    - [x] Dialog 组件抽象复用
+    - [x] 表单校验逻辑统一
+  - 测试:
+    - [x] 右键菜单渲染测试 (V2 - 复杂交互)
+    - [x] 各操作流程测试 (FileOperations.test.tsx)
+- **备注**:
+
+---
+

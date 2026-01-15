@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ''
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (Ubuntu)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install
+
+      - name: Build Tauri
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: 'TunnelFiles v__VERSION__'
+          releaseBody: |
+            ## 安装
+
+            ### macOS
+            下载 `.dmg` 文件，打开后拖拽到 Applications 文件夹。
+
+            首次打开需要运行以下命令：
+            ```bash
+            sudo xattr -rd com.apple.quarantine /Applications/TunnelFiles.app
+            ```
+
+            或者使用 Homebrew 安装：
+            ```bash
+            brew tap jemin-wu/tunnelfiles https://github.com/jemin-wu/TunnelFiles
+            brew install --cask tunnelfiles --no-quarantine
+            ```
+
+            ### Windows
+            下载 `.msi` 或 `.exe` 安装程序运行即可。
+
+            ### Linux
+            - Debian/Ubuntu: 下载 `.deb` 文件，运行 `sudo dpkg -i tunnelfiles_*.deb`
+            - 其他发行版: 下载 `.AppImage` 文件，添加执行权限后运行
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

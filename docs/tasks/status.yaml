@@ -1,0 +1,134 @@
+# TunnelFiles 任务验收状态索引
+# 用于快速查看各阶段进度，避免读取完整任务文件
+# 更新时间: 2026-01-11 (Updated: P9 表单弹框改为页面)
+
+phases:
+  P0:
+    name: "项目初始化"
+    file: "p0-foundation.md"
+    status: "completed"
+    progress: "5/5"
+
+  P1:
+    name: "基础设施"
+    file: "p1-storage.md"
+    status: "completed"
+    progress: "76/76"
+
+  P2:
+    name: "连接与认证"
+    file: "p2-connection.md"
+    status: "completed"
+    progress: "130/130"
+
+  P3:
+    name: "文件浏览"
+    file: "p3-file-browse.md"
+    status: "completed"
+    progress: "74/74"
+    note: "V2: 列宽可配置已实现, 流式读取受 ssh2 限制"
+
+  P4:
+    name: "文件操作"
+    file: "p4-file-ops.md"
+    status: "completed"
+    progress: "60/60"
+    note: "V2: 符号链接删除处理已实现"
+
+  P5:
+    name: "传输功能"
+    file: "p5-transfer.md"
+    status: "completed"
+    progress: "166/166"
+
+  P6:
+    name: "设置与偏好"
+    file: "p6-settings.md"
+    status: "completed"
+    progress: "36/36"
+    note: "Settings 已迁移到 SQLite 存储"
+
+  P7:
+    name: "前端 UI"
+    file: "p7-ui.md"
+    status: "completed"
+    progress: "171/171"
+
+  P8:
+    name: "集成与测试"
+    file: "p8-integration.md"
+    status: "in_progress"
+    progress: "279/129"
+    note: "测试数量超过预期，已完成大部分验收标准"
+
+  P9:
+    name: "表单弹框改为页面"
+    file: "p9-dialog-to-page.md"
+    status: "completed"
+    progress: "14/14"
+    note: "ConnectionFormDialog -> /connections/new, /connections/:id/edit; SettingsDialog -> /settings"
+
+# 测试统计
+test_summary:
+  backend_unit_tests: 64
+  integration_tests: 44
+  frontend_tests: 171
+  total: 279
+
+# 集成测试环境
+integration_testing:
+  docker:
+    setup: "cd docker && ./setup-test-env.sh"
+    run: "cd src-tauri && cargo test --test integration_tests -- --test-threads=1"
+    cleanup: "cd docker && docker-compose down"
+  servers:
+    - host: "localhost:2222"
+      user: "testuser"
+      password: "testpass123"
+    - host: "localhost:2223"
+      user: "testuser"
+      password: "testpass123"
+  test_count: 44
+  categories:
+    - name: "连接测试"
+      tests: 4
+    - name: "SFTP 目录列表"
+      tests: 4
+    - name: "SFTP 文件操作"
+      tests: 10
+    - name: "SFTP 读写"
+      tests: 3
+    - name: "并发测试"
+      tests: 2
+    - name: "会话管理"
+      tests: 2
+    - name: "错误场景"
+      tests: 3
+    - name: "Key 认证"
+      tests: 6
+    - name: "传输测试"
+      tests: 8
+    - name: "HostKey 测试"
+      tests: 3
+
+# V2 版本项目
+v2_items:
+  P3:
+    - "流式读取 (ssh2 限制，无法实现)"
+    - "5000+ 条目滚动性能测试 ✓ 代码就绪"
+    - "列宽可配置 ✓ 已实现"
+  P4:
+    - "符号链接删除处理 ✓ 已实现"
+
+# 完成度摘要
+# P0-P7: 已完成
+# P8: 测试进行中 (279 个测试已通过)
+#   - 后端单元测试: 64 个 (全部通过)
+#   - 集成测试: 44 个 (全部通过)
+#   - 前端测试: 171 个 (全部通过)
+# Docker SSH 测试环境已配置
+#
+# V2 实现进度:
+#   - 列宽可配置: 已实现 (useColumnWidths.ts + FileList.tsx)
+#   - 符号链接删除: 已实现 (sftp_service.rs lstat 检测)
+#   - Settings SQLite: 已迁移 (storage_service.rs DB_VERSION 2)

@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  ssh-server:
+    build:
+      context: ./ssh-server
+      dockerfile: Dockerfile
+    container_name: tunnelfiles-ssh-test
+    ports:
+      - "2222:22"
+    volumes:
+      # Mount SSH keys for key-based auth testing
+      - ./ssh-keys:/home/testuser/.ssh:ro
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Second SSH server for testing multiple connections
+  ssh-server-2:
+    build:
+      context: ./ssh-server
+      dockerfile: Dockerfile
+    container_name: tunnelfiles-ssh-test-2
+    ports:
+      - "2223:22"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
