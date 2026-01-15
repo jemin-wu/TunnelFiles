@@ -19,23 +19,15 @@ const sizeClasses: Record<SpinnerSize, string> = {
   lg: "h-8 w-8",
 };
 
-export function LoadingSpinner({
-  size = "md",
-  className,
-  label,
-}: LoadingSpinnerProps) {
+export function LoadingSpinner({ size = "md", className, label }: LoadingSpinnerProps) {
   return (
     <div
       className={cn("flex flex-col items-center justify-center gap-2", className)}
       role="status"
       aria-label={label || "加载中"}
     >
-      <Loader2
-        className={cn("animate-spin text-muted-foreground", sizeClasses[size])}
-      />
-      {label && (
-        <span className="text-sm text-muted-foreground">{label}</span>
-      )}
+      <Loader2 className={cn("animate-spin text-muted-foreground", sizeClasses[size])} />
+      {label && <span className="text-sm text-muted-foreground">{label}</span>}
     </div>
   );
 }

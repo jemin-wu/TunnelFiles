@@ -35,13 +35,7 @@ interface PasswordInputProps {
   className?: string;
 }
 
-function PasswordInput({
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  className,
-}: PasswordInputProps) {
+function PasswordInput({ value, onChange, placeholder, disabled, className }: PasswordInputProps) {
   const [show, setShow] = useState(false);
 
   return (
@@ -77,11 +71,7 @@ const formSchema = z
     authType: z.enum(["password", "key"]),
     name: z.string().min(1, "NAME_REQUIRED"),
     host: z.string().min(1, "HOST_REQUIRED"),
-    port: z
-      .number()
-      .int()
-      .min(1, "PORT_MIN_ERROR")
-      .max(65535, "PORT_MAX_ERROR"),
+    port: z.number().int().min(1, "PORT_MIN_ERROR").max(65535, "PORT_MAX_ERROR"),
     username: z.string().min(1, "USER_REQUIRED"),
     password: z.string().optional(),
     rememberPassword: z.boolean().optional(),
@@ -204,12 +194,10 @@ export function ConnectionFormPage() {
       username: values.username,
       authType: values.authType as AuthType,
       password: values.authType === "password" ? values.password : undefined,
-      rememberPassword:
-        values.authType === "password" ? values.rememberPassword : undefined,
+      rememberPassword: values.authType === "password" ? values.rememberPassword : undefined,
       privateKeyPath: values.authType === "key" ? values.privateKeyPath : undefined,
       passphrase: values.authType === "key" ? values.passphrase : undefined,
-      rememberPassphrase:
-        values.authType === "key" ? values.rememberPassphrase : undefined,
+      rememberPassphrase: values.authType === "key" ? values.rememberPassphrase : undefined,
       initialPath: values.initialPath || undefined,
     });
     navigate("/connections");
@@ -347,11 +335,7 @@ export function ConnectionFormPage() {
                 <FormItem>
                   <FormLabel className="text-xs text-muted-foreground">USER</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="root"
-                      {...field}
-                      disabled={upsertProfile.isPending}
-                    />
+                    <Input placeholder="root" {...field} disabled={upsertProfile.isPending} />
                   </FormControl>
                   <FormMessage className="text-[10px]" />
                 </FormItem>
@@ -489,11 +473,7 @@ export function ConnectionFormPage() {
                     <span className="ml-1.5 text-muted-foreground/60">(OPTIONAL)</span>
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="/home/user"
-                      {...field}
-                      disabled={upsertProfile.isPending}
-                    />
+                    <Input placeholder="/home/user" {...field} disabled={upsertProfile.isPending} />
                   </FormControl>
                   <FormDescription className="text-[10px] text-muted-foreground/70">
                     DEFAULT_DIRECTORY_AFTER_CONNECT
@@ -521,9 +501,7 @@ export function ConnectionFormPage() {
                 disabled={upsertProfile.isPending}
                 className="text-xs h-9 px-5 btn-cyber gap-2"
               >
-                {upsertProfile.isPending && (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                )}
+                {upsertProfile.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 <span>{isEditing ? "SAVE" : "CREATE"}</span>
               </Button>
             </div>

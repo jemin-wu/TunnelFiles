@@ -87,10 +87,7 @@ export function MainLayout() {
         </div>
 
         {/* 中间标题 - ASCII Style */}
-        <div
-          className="flex-1 flex items-center justify-center gap-3"
-          data-tauri-drag-region
-        >
+        <div className="flex-1 flex items-center justify-center gap-3" data-tauri-drag-region>
           {/* 状态指示器 */}
           <div className="flex items-center gap-1.5">
             <Cpu className="h-3.5 w-3.5 text-primary animate-pulse" />
@@ -104,9 +101,7 @@ export function MainLayout() {
 
           {/* 页面标题 */}
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium tracking-wide">
-              {pageInfo.title}
-            </span>
+            <span className="text-xs font-medium tracking-wide">{pageInfo.title}</span>
             <span className="text-primary text-xs cursor-blink" />
           </div>
 
@@ -114,9 +109,7 @@ export function MainLayout() {
           <span className="text-border text-xs">│</span>
 
           {/* 版本/状态 */}
-          <span className="text-[10px] text-muted-foreground tracking-wide">
-            v1.0.0
-          </span>
+          <span className="text-[10px] text-muted-foreground tracking-wide">v1.0.0</span>
         </div>
 
         {/* 右侧工具栏 */}

@@ -20,7 +20,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cancelTransfer, retryTransfer, cleanupTransfers } from "@/lib/transfer";
-import { formatSpeed, estimateRemainingTime, type TransferTask, type TransferStatus } from "@/types/transfer";
+import {
+  formatSpeed,
+  estimateRemainingTime,
+  type TransferTask,
+  type TransferStatus,
+} from "@/types/transfer";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATUSES = new Set<TransferStatus>(["running", "waiting"]);
@@ -53,7 +58,12 @@ export function TransferQueue({ className }: TransferQueueProps) {
 
   if (tasks.length === 0) {
     return (
-      <div className={cn("flex flex-col items-center justify-center p-6 text-muted-foreground", className)}>
+      <div
+        className={cn(
+          "flex flex-col items-center justify-center p-6 text-muted-foreground",
+          className
+        )}
+      >
         <div className="relative mb-4">
           <ArrowUpFromLine className="h-10 w-10 opacity-30" />
           <div className="absolute inset-0 animate-ping opacity-10">
@@ -159,10 +169,7 @@ function TransferItem({ task }: TransferItemProps) {
     >
       <div className="flex items-center gap-2">
         <TaskIcon direction={task.direction} status={status} />
-        <span
-          className="flex-1 text-xs font-medium truncate"
-          title={task.fileName}
-        >
+        <span className="flex-1 text-xs font-medium truncate" title={task.fileName}>
           {task.fileName}
         </span>
         <TaskActions
@@ -178,10 +185,7 @@ function TransferItem({ task }: TransferItemProps) {
         <div className="space-y-1">
           <Progress
             value={task.percent ?? 0}
-            className={cn(
-              "h-1 progress-cyber",
-              status === "waiting" && "opacity-40"
-            )}
+            className={cn("h-1 progress-cyber", status === "waiting" && "opacity-40")}
           />
           {status === "running" && (
             <div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
@@ -228,20 +232,13 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       );
     case "failed":
       return (
-        <div
-          className="text-[10px] text-destructive font-mono truncate"
-          title={task.errorMessage}
-        >
+        <div className="text-[10px] text-destructive font-mono truncate" title={task.errorMessage}>
           <span className="mr-1">✗</span>
           {task.errorMessage || "TRANSFER_FAILED"}
         </div>
       );
     case "canceled":
-      return (
-        <div className="text-[10px] text-muted-foreground font-mono">
-          CANCELED
-        </div>
-      );
+      return <div className="text-[10px] text-muted-foreground font-mono">CANCELED</div>;
   }
 }
 
@@ -261,11 +258,12 @@ function TaskIcon({
       return <XCircle className={cn(baseClasses, "text-destructive")} />;
     default: {
       const Icon = direction === "upload" ? Upload : Download;
-      const colorClass = status === "running"
-        ? direction === "upload"
-          ? "text-transfer-upload"
-          : "text-transfer-download"
-        : "text-muted-foreground";
+      const colorClass =
+        status === "running"
+          ? direction === "upload"
+            ? "text-transfer-upload"
+            : "text-transfer-download"
+          : "text-muted-foreground";
       return (
         <div className="relative">
           <Icon className={cn(baseClasses, colorClass)} />
@@ -337,12 +335,7 @@ function ActionButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("h-5 w-5", className)}
-          onClick={onClick}
-        >
+        <Button variant="ghost" size="icon" className={cn("h-5 w-5", className)} onClick={onClick}>
           <Icon className="h-3 w-3" />
         </Button>
       </TooltipTrigger>

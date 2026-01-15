@@ -69,10 +69,7 @@ export function DeleteConfirmDialog({
         </AlertDialogHeader>
 
         <AlertDialogFooter className="gap-2">
-          <AlertDialogCancel
-            disabled={isPending}
-            className="font-mono text-xs btn-cyber"
-          >
+          <AlertDialogCancel disabled={isPending} className="font-mono text-xs btn-cyber">
             CANCEL
           </AlertDialogCancel>
           <AlertDialogAction

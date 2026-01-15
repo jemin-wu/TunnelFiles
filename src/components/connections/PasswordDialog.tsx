@@ -97,7 +97,10 @@ export function PasswordDialog({
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="credential" className="text-xs font-mono text-muted-foreground flex items-center gap-1">
+            <Label
+              htmlFor="credential"
+              className="text-xs font-mono text-muted-foreground flex items-center gap-1"
+            >
               <Shield className="h-3 w-3" />
               {isPassword ? "密码" : "口令"}
             </Label>

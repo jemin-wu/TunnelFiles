@@ -29,21 +29,12 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
 
   const needCollapse = segments.length > MAX_VISIBLE_SEGMENTS;
 
-  const visibleSegments = needCollapse
-    ? [
-        segments[0],
-        null,
-        ...segments.slice(-2),
-      ]
-    : segments;
+  const visibleSegments = needCollapse ? [segments[0], null, ...segments.slice(-2)] : segments;
 
   const collapsedSegments = needCollapse ? segments.slice(1, -2) : [];
 
   return (
-    <nav
-      className={cn("flex items-center text-xs font-mono", className)}
-      aria-label="面包屑导航"
-    >
+    <nav className={cn("flex items-center text-xs font-mono", className)} aria-label="面包屑导航">
       {visibleSegments.map((segment, index) => {
         if (segment === null) {
           return (

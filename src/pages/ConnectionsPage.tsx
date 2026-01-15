@@ -94,9 +94,7 @@ export function ConnectionsPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Terminal className="h-4 w-4 text-primary" />
-            <span className="text-sm font-medium tracking-wide">
-              SSH_HOSTS
-            </span>
+            <span className="text-sm font-medium tracking-wide">SSH_HOSTS</span>
           </div>
           <span className="text-border">│</span>
           <span className="text-xs text-muted-foreground font-mono">
@@ -127,9 +125,7 @@ export function ConnectionsPage() {
           <aside className="w-56 border-r border-border bg-sidebar p-3 hidden lg:flex flex-col">
             <div className="flex items-center gap-2 mb-3 pb-2 border-b border-sidebar-border">
               <Zap className="h-3.5 w-3.5 text-warning" />
-              <span className="text-xs font-medium tracking-wide">
-                QUICK_ACCESS
-              </span>
+              <span className="text-xs font-medium tracking-wide">QUICK_ACCESS</span>
             </div>
             <div className="flex-1 overflow-auto">
               <RecentConnections

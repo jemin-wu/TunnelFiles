@@ -81,10 +81,7 @@ export function ConnectionCard({
           {/* 第一行：名称 + 认证标签 */}
           <div className="flex items-center gap-2">
             <span className="text-primary text-[10px]">▸</span>
-            <span
-              className="text-xs font-medium truncate"
-              title={profile.name}
-            >
+            <span className="text-xs font-medium truncate" title={profile.name}>
               {profile.name}
             </span>
             <span
@@ -171,11 +168,7 @@ export function ConnectionCard({
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs h-8"
             >
-              {isDeleting ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                "DELETE"
-              )}
+              {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "DELETE"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

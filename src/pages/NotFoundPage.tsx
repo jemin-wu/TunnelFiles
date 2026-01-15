@@ -16,9 +16,7 @@ export function NotFoundPage() {
       <div className="text-center space-y-4">
         {/* Glitch Effect Container */}
         <div className="relative">
-          <div className="text-6xl font-bold text-primary tracking-widest animate-pulse">
-            404
-          </div>
+          <div className="text-6xl font-bold text-primary tracking-widest animate-pulse">404</div>
           <div className="absolute inset-0 text-6xl font-bold text-accent/30 tracking-widest blur-sm animate-pulse">
             404
           </div>
@@ -38,7 +36,7 @@ export function NotFoundPage() {
 
       {/* ASCII Box Decoration */}
       <div className="font-mono text-[10px] text-border leading-none whitespace-pre">
-{`╔════════════════════════════════════╗
+        {`╔════════════════════════════════════╗
 ║  STATUS: RESOURCE_UNAVAILABLE      ║
 ║  CODE:   ERR_NOT_FOUND             ║
 ║  ACTION: REDIRECT_TO_HOME          ║
@@ -55,10 +53,7 @@ export function NotFoundPage() {
           <Terminal className="h-3.5 w-3.5" />
           <span>GO_BACK</span>
         </Button>
-        <Button
-          onClick={() => navigate("/connections")}
-          className="gap-2 text-xs h-8 btn-cyber"
-        >
+        <Button onClick={() => navigate("/connections")} className="gap-2 text-xs h-8 btn-cyber">
           <Home className="h-3.5 w-3.5" />
           <span>HOME</span>
         </Button>

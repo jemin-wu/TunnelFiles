@@ -5,22 +5,12 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  Loader2,
-  PanelRightClose,
-  PanelRightOpen,
-  HardDrive,
-  Activity,
-} from "lucide-react";
+import { Loader2, PanelRightClose, PanelRightOpen, HardDrive, Activity } from "lucide-react";
 
 import { FileListContainer } from "@/components/file-browser/FileListContainer";
 import { DropZone } from "@/components/transfer/DropZone";
 import { TransferQueue } from "@/components/transfer/TransferQueue";
-import {
-  ResizablePanelGroup,
-  ResizablePanel,
-  ResizableHandle,
-} from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionStatus } from "@/hooks/useSessionStatus";
@@ -100,11 +90,7 @@ export function FileManagerPage() {
         maxSize={sidebarCollapsed ? 97 : 82}
       >
         <div className="flex flex-col h-full">
-          <DropZone
-            sessionId={sessionId}
-            remotePath={currentPath}
-            className="flex-1 min-h-0"
-          >
+          <DropZone sessionId={sessionId} remotePath={currentPath} className="flex-1 min-h-0">
             <FileListContainer
               sessionId={sessionId}
               initialPath={sessionInfo?.homePath ?? "/"}
@@ -118,7 +104,10 @@ export function FileManagerPage() {
       {/* 右侧边栏 - 传输队列 (25%) */}
       {!sidebarCollapsed && (
         <>
-          <ResizableHandle withHandle className="bg-border/50 hover:bg-primary/30 transition-colors" />
+          <ResizableHandle
+            withHandle
+            className="bg-border/50 hover:bg-primary/30 transition-colors"
+          />
           <ResizablePanel
             id="sidebar-panel"
             defaultSize={sidebarPanelSize}
@@ -190,9 +179,7 @@ export function FileManagerPage() {
             {/* 收起状态下的图标指示 */}
             <div className="flex flex-col items-center gap-1 mt-2">
               <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-[9px] text-muted-foreground writing-mode-vertical">
-                QUEUE
-              </span>
+              <span className="text-[9px] text-muted-foreground writing-mode-vertical">QUEUE</span>
             </div>
           </div>
         </ResizablePanel>

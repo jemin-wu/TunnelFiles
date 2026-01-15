@@ -66,7 +66,9 @@
   font-size: 13px;
   line-height: 1.6;
   font-weight: 400;
-  font-feature-settings: "liga" 1, "calt" 1; /* Enable ligatures */
+  font-feature-settings:
+    "liga" 1,
+    "calt" 1; /* Enable ligatures */
 
   /* Rendering */
   font-synthesis: none;
@@ -423,27 +425,39 @@
 
   /* Neon glow effects */
   .glow-primary {
-    box-shadow: 0 0 5px var(--glow-primary), 0 0 20px var(--glow-primary);
+    box-shadow:
+      0 0 5px var(--glow-primary),
+      0 0 20px var(--glow-primary);
   }
 
   .glow-accent {
-    box-shadow: 0 0 5px var(--glow-accent), 0 0 20px var(--glow-accent);
+    box-shadow:
+      0 0 5px var(--glow-accent),
+      0 0 20px var(--glow-accent);
   }
 
   .glow-warning {
-    box-shadow: 0 0 5px var(--glow-warning), 0 0 20px var(--glow-warning);
+    box-shadow:
+      0 0 5px var(--glow-warning),
+      0 0 20px var(--glow-warning);
   }
 
   .glow-destructive {
-    box-shadow: 0 0 5px var(--glow-destructive), 0 0 20px var(--glow-destructive);
+    box-shadow:
+      0 0 5px var(--glow-destructive),
+      0 0 20px var(--glow-destructive);
   }
 
   .text-glow-primary {
-    text-shadow: 0 0 5px var(--glow-primary), 0 0 15px var(--glow-primary);
+    text-shadow:
+      0 0 5px var(--glow-primary),
+      0 0 15px var(--glow-primary);
   }
 
   .text-glow-accent {
-    text-shadow: 0 0 5px var(--glow-accent), 0 0 15px var(--glow-accent);
+    text-shadow:
+      0 0 5px var(--glow-accent),
+      0 0 15px var(--glow-accent);
   }
 
   /* File selection highlight */
@@ -520,7 +534,9 @@
         transparent 1px,
         transparent 20px
       );
-    background-size: 100% 100%, 20px 100%;
+    background-size:
+      100% 100%,
+      20px 100%;
     opacity: 0.03;
   }
 
@@ -571,8 +587,14 @@
 
   /* Cursor blink */
   @keyframes blink {
-    0%, 50% { opacity: 1; }
-    51%, 100% { opacity: 0; }
+    0%,
+    50% {
+      opacity: 1;
+    }
+    51%,
+    100% {
+      opacity: 0;
+    }
   }
 
   /* Progress pulse with glow */
@@ -581,7 +603,8 @@
   }
 
   @keyframes progressPulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
       box-shadow: 0 0 5px var(--glow-primary);
     }
@@ -602,12 +625,24 @@
   }
 
   @keyframes glitch {
-    0% { transform: translate(0); }
-    20% { transform: translate(-2px, 2px); }
-    40% { transform: translate(-2px, -2px); }
-    60% { transform: translate(2px, 2px); }
-    80% { transform: translate(2px, -2px); }
-    100% { transform: translate(0); }
+    0% {
+      transform: translate(0);
+    }
+    20% {
+      transform: translate(-2px, 2px);
+    }
+    40% {
+      transform: translate(-2px, -2px);
+    }
+    60% {
+      transform: translate(2px, 2px);
+    }
+    80% {
+      transform: translate(2px, -2px);
+    }
+    100% {
+      transform: translate(0);
+    }
   }
 
   /* Typing effect */
@@ -618,8 +653,12 @@
   }
 
   @keyframes typing {
-    from { width: 0; }
-    to { width: 100%; }
+    from {
+      width: 0;
+    }
+    to {
+      width: 100%;
+    }
   }
 
   /* Scan line moving */
@@ -628,8 +667,12 @@
   }
 
   @keyframes scanline {
-    0% { transform: translateY(-100%); }
-    100% { transform: translateY(100vh); }
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100vh);
+    }
   }
 
   /* Pulse glow */
@@ -638,29 +681,31 @@
   }
 
   @keyframes pulseGlow {
-    0%, 100% {
+    0%,
+    100% {
       box-shadow: 0 0 5px var(--glow-primary);
     }
     50% {
-      box-shadow: 0 0 20px var(--glow-primary), 0 0 40px var(--glow-primary);
+      box-shadow:
+        0 0 20px var(--glow-primary),
+        0 0 40px var(--glow-primary);
     }
   }
 
   /* Data stream effect */
   .animate-data-stream {
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      var(--primary) 50%,
-      transparent 100%
-    );
+    background: linear-gradient(90deg, transparent 0%, var(--primary) 50%, transparent 100%);
     background-size: 200% 100%;
     animation: dataStream 1.5s linear infinite;
   }
 
   @keyframes dataStream {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
   }
 }
 
@@ -683,12 +728,7 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      oklch(1 0 0 / 0.1),
-      transparent
-    );
+    background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.1), transparent);
     transition: left 0.3s ease;
   }
 
@@ -732,7 +772,9 @@
   }
 
   .input-terminal:focus {
-    box-shadow: 0 0 0 1px var(--primary), 0 0 10px var(--glow-primary);
+    box-shadow:
+      0 0 0 1px var(--primary),
+      0 0 10px var(--glow-primary);
   }
 
   /* Progress bar cyber style */
@@ -742,11 +784,7 @@
   }
 
   .progress-cyber > div {
-    background: linear-gradient(
-      90deg,
-      var(--primary) 0%,
-      var(--accent) 100%
-    );
+    background: linear-gradient(90deg, var(--primary) 0%, var(--accent) 100%);
     box-shadow: 0 0 10px var(--glow-primary);
   }
 
@@ -809,11 +847,7 @@
   right: 0;
   bottom: 0;
   pointer-events: none;
-  background: radial-gradient(
-    ellipse at center,
-    transparent 60%,
-    oklch(0 0 0 / 0.15) 100%
-  );
+  background: radial-gradient(ellipse at center, transparent 60%, oklch(0 0 0 / 0.15) 100%);
 }
 
 /* Corner decorations for panels */

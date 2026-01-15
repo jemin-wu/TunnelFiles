@@ -274,11 +274,7 @@ export function FileListContainer({
                 onClick={toggleHidden}
                 aria-pressed={showHidden}
               >
-                {showHidden ? (
-                  <Eye className="h-3.5 w-3.5" />
-                ) : (
-                  <EyeOff className="h-3.5 w-3.5" />
-                )}
+                {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               </Button>
             </TooltipTrigger>
             <TooltipContent className="font-mono text-xs">

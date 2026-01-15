@@ -21,13 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormMessage,
-} from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
 import { useSettings } from "@/hooks/useSettings";
 import type { LogLevel } from "@/types/settings";
@@ -66,15 +60,12 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       className={cn(
         "justify-start gap-2.5 w-full h-auto px-3 py-2.5 text-xs transition-all duration-200",
         "hover:bg-muted/80",
-        active
-          ? "bg-primary/10 text-primary hover:bg-primary/10"
-          : "text-muted-foreground"
+        active ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-muted-foreground"
       )}
     >
-      <span className={cn(
-        "transition-colors",
-        active ? "text-primary" : "text-muted-foreground/70"
-      )}>
+      <span
+        className={cn("transition-colors", active ? "text-primary" : "text-muted-foreground/70")}
+      >
         {icon}
       </span>
       <span className="font-medium tracking-wide">{label}</span>
@@ -94,9 +85,7 @@ function SettingRow({ label, description, children }: SettingRowProps) {
       <div className="mb-1">
         <span className="text-xs font-medium text-foreground/90">{label}</span>
       </div>
-      {description && (
-        <div className="text-[10px] text-muted-foreground mb-3">{description}</div>
-      )}
+      {description && <div className="text-[10px] text-muted-foreground mb-3">{description}</div>}
       <div>{children}</div>
     </div>
   );
@@ -201,10 +190,7 @@ export function SettingsPage() {
                       control={form.control}
                       name="defaultDownloadDir"
                       render={({ field }) => (
-                        <SettingRow
-                          label="DOWNLOAD_DIR"
-                          description="DEFAULT_SAVE_LOCATION"
-                        >
+                        <SettingRow label="DOWNLOAD_DIR" description="DEFAULT_SAVE_LOCATION">
                           <FormItem className="space-y-0">
                             <FormControl>
                               <div className="flex gap-2">
@@ -269,10 +255,7 @@ export function SettingsPage() {
                       control={form.control}
                       name="transferRetryCount"
                       render={({ field }) => (
-                        <SettingRow
-                          label="RETRY_COUNT"
-                          description="AUTO_RETRY_ON_FAILURE (0-10)"
-                        >
+                        <SettingRow label="RETRY_COUNT" description="AUTO_RETRY_ON_FAILURE (0-10)">
                           <FormItem className="space-y-0">
                             <FormControl>
                               <Input
@@ -298,19 +281,14 @@ export function SettingsPage() {
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
                   <h2 className="text-sm font-medium tracking-wide mb-1">CONNECTION_CONFIG</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">
-                    SSH_CONNECTION_SETTINGS
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mb-6">SSH_CONNECTION_SETTINGS</p>
 
                   <div>
                     <FormField
                       control={form.control}
                       name="connectionTimeoutSecs"
                       render={({ field }) => (
-                        <SettingRow
-                          label="TIMEOUT"
-                          description="SSH_CONNECTION_TIMEOUT"
-                        >
+                        <SettingRow label="TIMEOUT" description="SSH_CONNECTION_TIMEOUT">
                           <FormItem className="space-y-0">
                             <div className="flex items-center gap-2">
                               <FormControl>
@@ -338,19 +316,14 @@ export function SettingsPage() {
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
                   <h2 className="text-sm font-medium tracking-wide mb-1">LOGGING_CONFIG</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">
-                    APPLICATION_LOG_OUTPUT
-                  </p>
+                  <p className="text-[10px] text-muted-foreground mb-6">APPLICATION_LOG_OUTPUT</p>
 
                   <div>
                     <FormField
                       control={form.control}
                       name="logLevel"
                       render={({ field }) => (
-                        <SettingRow
-                          label="LOG_LEVEL"
-                          description="LOG_VERBOSITY_CONTROL"
-                        >
+                        <SettingRow label="LOG_LEVEL" description="LOG_VERBOSITY_CONTROL">
                           <FormItem className="space-y-0">
                             <Select
                               value={field.value}

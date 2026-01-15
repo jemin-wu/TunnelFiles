@@ -3,25 +3,11 @@
  */
 
 import { useCallback, useState } from "react";
-import {
-  Server,
-  Pencil,
-  Trash2,
-  Loader2,
-  Plug,
-  Key,
-  Clock,
-  Terminal,
-} from "lucide-react";
+import { Server, Pencil, Trash2, Loader2, Plug, Key, Clock, Terminal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -93,7 +79,10 @@ export function ConnectionListItem({
               {profile.name}
             </h3>
             {profile.authType === "key" && (
-              <Badge variant="secondary" className="h-5 gap-1 px-1.5 shrink-0 font-mono text-[10px] bg-primary/10 text-primary border-primary/30">
+              <Badge
+                variant="secondary"
+                className="h-5 gap-1 px-1.5 shrink-0 font-mono text-[10px] bg-primary/10 text-primary border-primary/30"
+              >
                 <Key className="h-3 w-3" />
                 SSH_KEY
               </Badge>

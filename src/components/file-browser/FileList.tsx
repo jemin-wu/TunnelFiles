@@ -9,12 +9,7 @@ import { ChevronUp, ChevronDown, FolderOpen } from "lucide-react";
 
 import { FileIcon } from "./FileIcon";
 import { FileContextMenu } from "./FileContextMenu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { formatFileTime } from "@/lib/file";
 import { formatFileSize } from "@/types/file";

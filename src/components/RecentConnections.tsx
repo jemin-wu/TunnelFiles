@@ -17,11 +17,7 @@ interface RecentConnectionsProps {
   className?: string;
 }
 
-export function RecentConnections({
-  onConnect,
-  connectingId,
-  className,
-}: RecentConnectionsProps) {
+export function RecentConnections({ onConnect, connectingId, className }: RecentConnectionsProps) {
   const { data: recentProfiles, isLoading } = useRecentConnections(10);
 
   if (isLoading) {
@@ -45,9 +41,7 @@ export function RecentConnections({
     <div className={cn("", className)}>
       <div className="flex items-center gap-2 mb-3 px-1">
         <Clock className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium text-muted-foreground">
-          最近连接
-        </span>
+        <span className="text-sm font-medium text-muted-foreground">最近连接</span>
       </div>
       <ScrollArea className="h-[200px]">
         <div className="space-y-1">
@@ -71,18 +65,11 @@ interface RecentConnectionItemProps {
   onConnect: (profileId: string) => void;
 }
 
-function RecentConnectionItem({
-  profile,
-  isConnecting,
-  onConnect,
-}: RecentConnectionItemProps) {
+function RecentConnectionItem({ profile, isConnecting, onConnect }: RecentConnectionItemProps) {
   return (
     <Button
       variant="ghost"
-      className={cn(
-        "w-full justify-start h-auto py-2 px-3",
-        "hover:bg-accent/50"
-      )}
+      className={cn("w-full justify-start h-auto py-2 px-3", "hover:bg-accent/50")}
       disabled={isConnecting}
       onClick={() => onConnect(profile.id)}
     >

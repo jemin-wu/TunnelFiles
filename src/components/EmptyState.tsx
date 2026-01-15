@@ -95,9 +95,7 @@ export function EmptyState({
 
       {/* Text content */}
       <div className="space-y-1.5 max-w-xs">
-        <h3 className={cn("font-medium tracking-wide text-foreground", sizes.title)}>
-          {title}
-        </h3>
+        <h3 className={cn("font-medium tracking-wide text-foreground", sizes.title)}>{title}</h3>
         {description && (
           <p className={cn("text-muted-foreground font-mono", sizes.description)}>
             <span className="text-primary">&gt;</span> {description}

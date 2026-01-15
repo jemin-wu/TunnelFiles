@@ -190,7 +190,13 @@ export function useConnect(): UseConnectReturn {
       showErrorToast(error);
       resetState();
     }
-  }, [state.currentProfile, state.hostKeyPayload, state.pendingCredentials, handleConnectResult, resetState]);
+  }, [
+    state.currentProfile,
+    state.hostKeyPayload,
+    state.pendingCredentials,
+    handleConnectResult,
+    resetState,
+  ]);
 
   const rejectHostKey = useCallback(() => {
     resetState();

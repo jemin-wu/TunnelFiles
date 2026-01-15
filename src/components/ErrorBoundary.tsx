@@ -82,7 +82,7 @@ interface ErrorFallbackProps {
 
 function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
   const [copied, setCopied] = useState(false);
-  const message = error instanceof Error ? error.message : error?.message ?? "未知错误";
+  const message = error instanceof Error ? error.message : (error?.message ?? "未知错误");
   const detail = error instanceof Error ? error.stack : (error as { detail?: string })?.detail;
 
   const getFullErrorText = () => {

@@ -3,7 +3,14 @@
  * 首次连接或 HostKey 变更时显示
  */
 
-import { Loader2, ShieldAlert, ShieldCheck, Fingerprint, Server, AlertTriangle } from "lucide-react";
+import {
+  Loader2,
+  ShieldAlert,
+  ShieldCheck,
+  Fingerprint,
+  Server,
+  AlertTriangle,
+} from "lucide-react";
 
 import {
   Dialog,
@@ -58,9 +65,7 @@ export function HostKeyDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-mono">
-            <Icon
-              className={`h-4 w-4 ${isMismatch ? "text-destructive" : "text-warning"}`}
-            />
+            <Icon className={`h-4 w-4 ${isMismatch ? "text-destructive" : "text-warning"}`} />
             <span className={isMismatch ? "text-destructive" : "text-warning"}>&gt;</span>
             <span>{isMismatch ? "HOSTKEY_MISMATCH" : "HOSTKEY_VERIFY"}</span>
           </DialogTitle>
@@ -88,7 +93,10 @@ export function HostKeyDialog({
           {/* 密钥类型 */}
           <div className="flex items-center justify-between text-xs font-mono">
             <span className="text-muted-foreground">KEY_TYPE</span>
-            <Badge variant="secondary" className="font-mono text-[10px] bg-primary/10 text-primary border-primary/30">
+            <Badge
+              variant="secondary"
+              className="font-mono text-[10px] bg-primary/10 text-primary border-primary/30"
+            >
               {payload.keyType}
             </Badge>
           </div>

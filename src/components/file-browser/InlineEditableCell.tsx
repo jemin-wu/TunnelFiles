@@ -68,13 +68,10 @@ function EditInput({
     }
   }, [value, handleSubmit, onCancel]);
 
-  const handleChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      tempValueRef.current = e.target.value;
-      errorRef.current = null;
-    },
-    []
-  );
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    tempValueRef.current = e.target.value;
+    errorRef.current = null;
+  }, []);
 
   // 自动聚焦并选择文件名
   const handleRef = useCallback(

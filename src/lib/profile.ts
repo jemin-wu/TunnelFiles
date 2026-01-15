@@ -36,12 +36,8 @@ export async function testConnection(profileId: string): Promise<void> {
 /**
  * 获取最近连接记录
  */
-export async function listRecentConnections(
-  limit: number = 10
-): Promise<Profile[]> {
+export async function listRecentConnections(limit: number = 10): Promise<Profile[]> {
   // 获取所有 profiles 并按 updatedAt 降序排列
   const profiles = await listProfiles();
-  return profiles
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .slice(0, limit);
+  return profiles.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit);
 }

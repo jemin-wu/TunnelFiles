@@ -88,10 +88,7 @@ export function useColumnWidths() {
 
     const { column, startX, startWidth } = dragStateRef.current;
     const delta = clientX - startX;
-    const newWidth = Math.max(
-      MIN_WIDTHS[column],
-      Math.min(MAX_WIDTHS[column], startWidth + delta)
-    );
+    const newWidth = Math.max(MIN_WIDTHS[column], Math.min(MAX_WIDTHS[column], startWidth + delta));
 
     setWidths((prev) => ({
       ...prev,

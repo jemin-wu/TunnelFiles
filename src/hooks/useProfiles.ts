@@ -71,9 +71,7 @@ export function useRecentConnections(limit: number = 10) {
   const { data: profiles, ...rest } = useProfiles();
 
   const recentProfiles = profiles
-    ? [...profiles]
-        .sort((a, b) => b.updatedAt - a.updatedAt)
-        .slice(0, limit)
+    ? [...profiles].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit)
     : [];
 
   return {

@@ -41,8 +41,6 @@ export async function trustHostKey(input: TrustHostKeyInput): Promise<void> {
 /**
  * 使用已信任的 HostKey 重新连接
  */
-export async function reconnectWithTrustedKey(
-  input: ConnectInput
-): Promise<SessionConnectResult> {
+export async function reconnectWithTrustedKey(input: ConnectInput): Promise<SessionConnectResult> {
   return invoke<SessionConnectResult>("session_connect_after_trust", { input });
 }
