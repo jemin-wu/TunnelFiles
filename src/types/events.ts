@@ -105,4 +105,7 @@ export const EVENTS = {
   TRANSFER_STATUS: "transfer:status",
   SESSION_STATUS: "session:status",
   SECURITY_HOSTKEY: "security:hostkey",
+  // 终端事件
+  TERMINAL_OUTPUT: "terminal:output",
+  TERMINAL_STATUS: "terminal:status",
 } as const;
