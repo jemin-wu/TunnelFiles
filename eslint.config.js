@@ -47,6 +47,9 @@ export default [
         navigator: "readonly",
         requestAnimationFrame: "readonly",
         cancelAnimationFrame: "readonly",
+        btoa: "readonly",
+        atob: "readonly",
+        Uint8Array: "readonly",
         // React JSX runtime
         React: "readonly",
       },
