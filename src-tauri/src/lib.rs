@@ -15,6 +15,7 @@ pub mod utils;
 
 use services::session_manager::SessionManager;
 use services::storage_service::Database;
+use services::terminal_manager::TerminalManager;
 use services::transfer_manager::TransferManager;
 use utils::logging::init_logging;
 
@@ -44,7 +45,10 @@ pub fn run() {
     // 4. 初始化传输管理器
     let transfer_manager = Arc::new(TransferManager::new(settings.max_concurrent_transfers));
 
-    // 5. 构建 Tauri 应用
+    // 5. 初始化终端管理器
+    let terminal_manager = Arc::new(TerminalManager::new());
+
+    // 6. 构建 Tauri 应用
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -52,6 +56,7 @@ pub fn run() {
         .manage(db)
         .manage(session_manager)
         .manage(transfer_manager)
+        .manage(terminal_manager)
         .invoke_handler(tauri::generate_handler![
             // Profile 命令
             commands::profile::profile_list,
@@ -88,6 +93,12 @@ pub fn run() {
             commands::transfer::transfer_list,
             commands::transfer::transfer_get,
             commands::transfer::transfer_cleanup,
+            // Terminal 命令
+            commands::terminal::terminal_open,
+            commands::terminal::terminal_input,
+            commands::terminal::terminal_resize,
+            commands::terminal::terminal_close,
+            commands::terminal::terminal_get_by_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
