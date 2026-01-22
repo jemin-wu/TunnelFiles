@@ -1,21 +1,34 @@
 /**
  * 文件管理页面 - Cyberpunk Terminal Style
- * 使用可调整宽度的右侧边栏显示传输队列
+ * 支持 Files/Terminal Tab 切换
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Loader2, PanelRightClose, PanelRightOpen, HardDrive, Activity } from "lucide-react";
+import {
+  Loader2,
+  PanelRightClose,
+  PanelRightOpen,
+  HardDrive,
+  Activity,
+  FolderOpen,
+  TerminalSquare,
+} from "lucide-react";
 
 import { FileListContainer } from "@/components/file-browser/FileListContainer";
 import { DropZone } from "@/components/transfer/DropZone";
 import { TransferQueue } from "@/components/transfer/TransferQueue";
+import { Terminal } from "@/components/terminal";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionStatus } from "@/hooks/useSessionStatus";
 import { useTransferEvents } from "@/hooks/useTransferEvents";
+import { useTerminal } from "@/hooks/useTerminal";
 import { cn } from "@/lib/utils";
+import type { TerminalStatusPayload } from "@/types/terminal";
+
+type TabMode = "files" | "terminal";
 
 const SIDEBAR_COLLAPSED_KEY = "tunnelfiles-sidebar-collapsed";
 const MIN_SIDEBAR_SIZE = 18;
@@ -31,9 +44,33 @@ export function FileManagerPage() {
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [currentPath, setCurrentPath] = useState("/");
+  const [activeTab, setActiveTab] = useState<TabMode>("files");
 
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
+
+  // Terminal hook - 仅在有 sessionId 时初始化
+  const {
+    terminalInfo,
+    status: terminalStatus,
+    isOpening: isTerminalOpening,
+    open: openTerminal,
+    writeInput,
+    resize,
+    setStatus: setTerminalStatus,
+  } = useTerminal({ sessionId: sessionId ?? "" });
+
+  // 切换到 Terminal tab 时自动打开终端
+  useEffect(() => {
+    if (activeTab === "terminal" && sessionId && !terminalInfo && !isTerminalOpening) {
+      openTerminal();
+    }
+  }, [activeTab, sessionId, terminalInfo, isTerminalOpening, openTerminal]);
+
+  // 处理终端状态变化
+  const handleTerminalStatusChange = useCallback((payload: TerminalStatusPayload) => {
+    setTerminalStatus(payload.status);
+  }, [setTerminalStatus]);
 
   useEffect(() => {
     if (!isLoading && !isValid) {
@@ -76,33 +113,166 @@ export function FileManagerPage() {
     return null;
   }
 
-  // 3:1 比例布局 (75%:25%)
-  const mainPanelSize = sidebarCollapsed ? 96 : 75;
+  const isTerminalMode = activeTab === "terminal";
+  const mainPanelSize = isTerminalMode ? 100 : sidebarCollapsed ? 96 : 75;
   const sidebarPanelSize = sidebarCollapsed ? 4 : 25;
 
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
-      {/* 主内容区 - 文件浏览器 (75%) */}
+      {/* 主内容区 - Files/Terminal Tab (75%) */}
       <ResizablePanel
         id="main-panel"
         defaultSize={mainPanelSize}
         minSize={55}
-        maxSize={sidebarCollapsed ? 97 : 82}
+        maxSize={isTerminalMode ? 100 : sidebarCollapsed ? 97 : 82}
       >
         <div className="flex flex-col h-full">
-          <DropZone sessionId={sessionId} remotePath={currentPath} className="flex-1 min-h-0">
-            <FileListContainer
-              sessionId={sessionId}
-              initialPath={sessionInfo?.homePath ?? "/"}
-              homePath={sessionInfo?.homePath}
-              onPathChange={handlePathChange}
-            />
-          </DropZone>
+          {/* Cyberpunk Tab Bar */}
+          <div className="flex items-center h-9 px-2 bg-background/80 border-b border-border/50 backdrop-blur-sm">
+            <div className="flex items-center gap-1">
+              {/* FILES Tab */}
+              <button
+                onClick={() => setActiveTab("files")}
+                className={cn(
+                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all duration-200",
+                  "border border-transparent rounded-sm",
+                  activeTab === "files"
+                    ? "text-primary bg-primary/10 border-primary/50 shadow-[0_0_10px_var(--glow-primary)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <FolderOpen className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  activeTab === "files" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                )} />
+                <span className="tracking-wider">FILES</span>
+                {activeTab === "files" && (
+                  <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-primary shadow-[0_0_8px_var(--glow-primary)]" />
+                )}
+              </button>
+
+              {/* TERMINAL Tab */}
+              <button
+                onClick={() => setActiveTab("terminal")}
+                className={cn(
+                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all duration-200",
+                  "border border-transparent rounded-sm",
+                  activeTab === "terminal"
+                    ? "text-accent bg-accent/10 border-accent/50 shadow-[0_0_10px_var(--glow-accent)]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <TerminalSquare className={cn(
+                  "h-3.5 w-3.5 transition-colors",
+                  activeTab === "terminal" ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
+                )} />
+                <span className="tracking-wider">TERMINAL</span>
+                {/* Terminal 状态指示器 */}
+                {activeTab === "terminal" && terminalStatus === "connected" && (
+                  <span className="ml-1 h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                )}
+                {activeTab === "terminal" && (
+                  <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-accent shadow-[0_0_8px_var(--glow-accent)]" />
+                )}
+              </button>
+            </div>
+
+            {/* Terminal 连接状态 */}
+            {activeTab === "terminal" && (
+              <div className="ml-auto flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                {isTerminalOpening && (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                    <span>CONNECTING...</span>
+                  </>
+                )}
+                {terminalInfo && terminalStatus === "connected" && (
+                  <>
+                    <span className="text-accent">&gt;</span>
+                    <span>PTY_{terminalInfo.terminalId.slice(0, 8)}</span>
+                  </>
+                )}
+                {terminalStatus === "error" && (
+                  <span className="text-destructive">CONNECTION_ERROR</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Tab Content */}
+          <div className="flex-1 min-h-0 relative">
+            {/* FILES Content */}
+            <div className={cn(
+              "absolute inset-0 transition-opacity duration-200",
+              activeTab === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            )}>
+              <DropZone sessionId={sessionId} remotePath={currentPath} className="h-full">
+                <FileListContainer
+                  sessionId={sessionId}
+                  initialPath={sessionInfo?.homePath ?? "/"}
+                  homePath={sessionInfo?.homePath}
+                  onPathChange={handlePathChange}
+                />
+              </DropZone>
+            </div>
+
+            {/* TERMINAL Content */}
+            <div className={cn(
+              "absolute inset-0 transition-opacity duration-200",
+              activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            )}>
+              {terminalInfo ? (
+                <Terminal
+                  terminalId={terminalInfo.terminalId}
+                  onInput={writeInput}
+                  onResize={resize}
+                  onStatusChange={handleTerminalStatusChange}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full gap-4 bg-background">
+                  {isTerminalOpening ? (
+                    <>
+                      <div className="relative">
+                        <TerminalSquare className="h-10 w-10 text-accent" />
+                        <div className="absolute inset-0 h-10 w-10 animate-ping opacity-20 rounded-full bg-accent" />
+                      </div>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs text-muted-foreground font-mono">
+                          <span className="text-accent">&gt;</span> SPAWNING_PTY...
+                        </span>
+                        <span className="text-[10px] text-muted-foreground/60">
+                          Initializing terminal session
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <TerminalSquare className="h-10 w-10 text-muted-foreground/50" />
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-xs text-muted-foreground font-mono">
+                          Terminal not connected
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={openTerminal}
+                          className="mt-2 font-mono text-xs border-accent/50 text-accent hover:bg-accent/10"
+                        >
+                          <TerminalSquare className="h-3.5 w-3.5 mr-1.5" />
+                          CONNECT
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </ResizablePanel>
 
-      {/* 右侧边栏 - 传输队列 (25%) */}
-      {!sidebarCollapsed && (
+      {/* 右侧边栏 - 传输队列 (仅文件模式显示) */}
+      {!isTerminalMode && !sidebarCollapsed && (
         <>
           <ResizableHandle
             withHandle
@@ -149,8 +319,8 @@ export function FileManagerPage() {
         </>
       )}
 
-      {/* 收起状态下的展开按钮 */}
-      {sidebarCollapsed && (
+      {/* 收起状态下的展开按钮 (仅文件模式显示) */}
+      {!isTerminalMode && sidebarCollapsed && (
         <ResizablePanel id="collapsed-sidebar" defaultSize={4} minSize={3} maxSize={6}>
           <div
             className={cn(

@@ -87,9 +87,11 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
 
       {hasDetail && (
         <div className="w-full max-w-[400px]">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setDetailExpanded(!detailExpanded)}
-            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mx-auto"
+            className="gap-1 text-xs text-muted-foreground hover:text-foreground mx-auto h-auto py-1"
           >
             {detailExpanded ? (
               <>
@@ -100,7 +102,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
                 查看详情 <ChevronDown className="h-3 w-3" />
               </>
             )}
-          </button>
+          </Button>
           {detailExpanded && (
             <pre className="mt-2 p-3 bg-muted rounded-md text-xs text-left overflow-auto max-h-[150px]">
               {appError.detail}

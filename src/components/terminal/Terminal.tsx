@@ -29,6 +29,14 @@ export const Terminal = memo(function Terminal({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const resizeTimeoutRef = useRef<number | null>(null);
 
+  // 使用 ref 存储回调，避免依赖数组变化导致终端重建
+  const onInputRef = useRef(onInput);
+  const onResizeRef = useRef(onResize);
+  useEffect(() => {
+    onInputRef.current = onInput;
+    onResizeRef.current = onResize;
+  }, [onInput, onResize]);
+
   // 处理终端输出
   const handleOutput = useCallback((data: Uint8Array) => {
     xtermRef.current?.write(data);
@@ -45,32 +53,33 @@ export const Terminal = memo(function Terminal({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    // Cyberpunk Terminal Theme - 与应用主题保持一致
     const xterm = new XTerm({
       cursorBlink: true,
       fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: '"JetBrains Mono", "IBM Plex Mono", "SF Mono", "Fira Code", monospace',
       theme: {
-        background: "#1e1e1e",
-        foreground: "#d4d4d4",
-        cursor: "#d4d4d4",
-        cursorAccent: "#1e1e1e",
-        selectionBackground: "#264f78",
-        black: "#000000",
-        red: "#cd3131",
-        green: "#0dbc79",
-        yellow: "#e5e510",
-        blue: "#2472c8",
-        magenta: "#bc3fbc",
-        cyan: "#11a8cd",
-        white: "#e5e5e5",
-        brightBlack: "#666666",
-        brightRed: "#f14c4c",
-        brightGreen: "#23d18b",
-        brightYellow: "#f5f543",
-        brightBlue: "#3b8eea",
-        brightMagenta: "#d670d6",
-        brightCyan: "#29b8db",
-        brightWhite: "#e5e5e5",
+        background: "#0f0d14",      // oklch(0.08 0.02 280) - Deep purple-black
+        foreground: "#d4e4e4",      // oklch(0.88 0.02 180) - Cyan-tinted white
+        cursor: "#00ff9f",          // oklch(0.78 0.22 155) - Neon green (primary)
+        cursorAccent: "#0f0d14",
+        selectionBackground: "rgba(0, 255, 159, 0.25)", // Primary with alpha
+        black: "#0f0d14",
+        red: "#ff4466",             // oklch(0.65 0.25 15) - Destructive
+        green: "#00ff9f",           // oklch(0.78 0.22 155) - Primary
+        yellow: "#ffcc00",          // oklch(0.82 0.18 85) - Warning
+        blue: "#00d4ff",            // oklch(0.72 0.18 195) - Accent/Cyan
+        magenta: "#ff66b2",         // oklch(0.7 0.2 320) - Magenta
+        cyan: "#00d4ff",            // oklch(0.72 0.18 195) - Accent
+        white: "#d4e4e4",
+        brightBlack: "#555566",
+        brightRed: "#ff6688",
+        brightGreen: "#33ffb2",
+        brightYellow: "#ffdd44",
+        brightBlue: "#44ddff",
+        brightMagenta: "#ff88cc",
+        brightCyan: "#44ddff",
+        brightWhite: "#ffffff",
       },
       allowProposedApi: true,
     });
@@ -83,17 +92,17 @@ export const Terminal = memo(function Terminal({
     // 延迟 fit 确保容器尺寸已确定
     requestAnimationFrame(() => {
       fitAddon.fit();
-      onResize(xterm.cols, xterm.rows);
+      onResizeRef.current(xterm.cols, xterm.rows);
     });
 
-    // 监听输入
+    // 监听输入（通过 ref 访问最新回调）
     const inputDisposable = xterm.onData((data) => {
-      onInput(data);
+      onInputRef.current(data);
     });
 
-    // 监听尺寸变化
+    // 监听尺寸变化（通过 ref 访问最新回调）
     const resizeDisposable = xterm.onResize(({ cols, rows }) => {
-      onResize(cols, rows);
+      onResizeRef.current(cols, rows);
     });
 
     xtermRef.current = xterm;
@@ -124,7 +133,7 @@ export const Terminal = memo(function Terminal({
       xtermRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [onInput, onResize]);
+  }, []);
 
   // terminalId 变化时清空终端内容
   useEffect(() => {
@@ -134,12 +143,7 @@ export const Terminal = memo(function Terminal({
   return (
     <div
       ref={containerRef}
-      className="h-full w-full"
-      style={{
-        padding: "8px",
-        backgroundColor: "#1e1e1e",
-        boxSizing: "border-box",
-      }}
+      className="terminal-container h-full w-full"
     />
   );
 });

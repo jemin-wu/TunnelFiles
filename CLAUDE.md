@@ -34,6 +34,8 @@ pnpm format         # Prettier 格式化
 **Rust/ssh2**:
 - `ssh2::Sftp` 非 Send/Sync，不能跨线程传递
 - 解决：用 `spawn_blocking` 并传入 `Arc<ManagedSession>`，在闭包内访问 `&session.sftp`
+- Session 默认阻塞模式，`set_blocking(false)` 必须在 channel 创建完成后调用
+- Terminal 和 SFTP 必须使用独立 session，否则非阻塞模式会影响 SFTP 操作
 
 **Rust/错误处理**:
 - `ErrorCode` 枚举无 Display trait，序列化用 `serde_json::to_string()`
@@ -42,6 +44,20 @@ pnpm format         # Prettier 格式化
 - 弹窗状态重置用 `onOpenChange` 回调，不用 `useEffect`
 - JSX 中引号用 `&ldquo;` `&rdquo;` 转义
 - 事件回调中需要可变计数器时用 `useRef`，避免 `useState` 闭包陷阱
+- 阻止并发调用时 `useState` 无效（异步更新），必须用 `useRef` 同步追踪状态
+
+**Tauri 事件监听**:
+- 异步 `listen()` 在 React StrictMode 下会注册两次监听器
+- 解决：用 `useRef` 存储 unlisten 函数，配合 `cancelled` flag 在 cleanup 时正确清理
+- 模式：setup 函数内检查 cancelled，若已取消则立即调用 unlisten 并 return
+
+**Tauri State 管理**:
+- `State<'_, T>` 类型必须与 `.manage()` 注册的类型完全匹配
+- 例如：注册 `Arc<Database>` 则必须用 `State<'_, Arc<Database>>`，不能用 `State<'_, Database>`
+
+**终端输入优化**:
+- 终端输入采用 fire-and-forget 模式，不等待 IPC 响应
+- 依赖 PTY 回显机制显示输入内容，await 会造成明显延迟
 
 **ESLint**:
 - 新增浏览器全局类型需在 `eslint.config.js` 的 globals 中添加

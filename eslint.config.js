@@ -50,6 +50,7 @@ export default [
         btoa: "readonly",
         atob: "readonly",
         Uint8Array: "readonly",
+        TextEncoder: "readonly",
         // React JSX runtime
         React: "readonly",
       },
@@ -68,6 +69,8 @@ export default [
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/explicit-function-return-type": "off",
       "@typescript-eslint/no-explicit-any": "warn",
+      // TanStack Virtual 和 React Hook Form 与 React Compiler 存在已知兼容性问题
+      "react-hooks/incompatible-library": "off",
     },
     settings: {
       react: {

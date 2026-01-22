@@ -35,17 +35,15 @@ export async function getTerminalBySession(sessionId: string): Promise<string | 
   return invoke("terminal_get_by_session", { sessionId });
 }
 
-/** Base64 编码（用于发送输入） */
+/** Base64 编码（用于发送输入，支持 UTF-8） */
 export function encodeTerminalData(data: string): string {
-  return btoa(data);
+  const bytes = new TextEncoder().encode(data);
+  const binary = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+  return btoa(binary);
 }
 
 /** Base64 解码（用于接收输出） */
 export function decodeTerminalData(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }

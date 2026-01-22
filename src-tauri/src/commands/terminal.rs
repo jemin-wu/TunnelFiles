@@ -9,6 +9,7 @@ use tauri::{AppHandle, State};
 use crate::models::error::{AppError, AppResult};
 use crate::models::terminal::TerminalInfo;
 use crate::services::session_manager::SessionManager;
+use crate::services::storage_service::Database;
 use crate::services::terminal_manager::TerminalManager;
 
 #[derive(Debug, Deserialize)]
@@ -19,18 +20,17 @@ pub struct TerminalOpenInput {
     pub rows: Option<u16>,
 }
 
-/// 打开终端
 #[tauri::command]
 pub async fn terminal_open(
     app: AppHandle,
+    db: State<'_, Arc<Database>>,
     session_manager: State<'_, Arc<SessionManager>>,
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: TerminalOpenInput,
 ) -> AppResult<TerminalInfo> {
-    tracing::info!(session_id = %input.session_id, "打开终端");
-
     terminal_manager.open(
         app,
+        &db,
         session_manager.inner().clone(),
         &input.session_id,
         input.cols,
@@ -45,7 +45,6 @@ pub struct TerminalInputData {
     pub data: String, // Base64 编码
 }
 
-/// 写入输入
 #[tauri::command]
 pub async fn terminal_input(
     terminal_manager: State<'_, Arc<TerminalManager>>,
@@ -66,7 +65,6 @@ pub struct TerminalResizeInput {
     pub rows: u16,
 }
 
-/// 调整尺寸
 #[tauri::command]
 pub async fn terminal_resize(
     terminal_manager: State<'_, Arc<TerminalManager>>,
@@ -75,17 +73,14 @@ pub async fn terminal_resize(
     terminal_manager.resize(&input.terminal_id, input.cols, input.rows)
 }
 
-/// 关闭终端
 #[tauri::command]
 pub async fn terminal_close(
     terminal_manager: State<'_, Arc<TerminalManager>>,
     terminal_id: String,
 ) -> AppResult<()> {
-    tracing::info!(terminal_id = %terminal_id, "关闭终端");
     terminal_manager.close(&terminal_id)
 }
 
-/// 通过 sessionId 获取终端
 #[tauri::command]
 pub async fn terminal_get_by_session(
     terminal_manager: State<'_, Arc<TerminalManager>>,

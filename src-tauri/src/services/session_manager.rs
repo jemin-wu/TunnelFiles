@@ -277,6 +277,39 @@ impl SessionManager {
         Ok(sessions.keys().cloned().collect())
     }
 
+    /// 为 Terminal 创建独立的 SSH session（阻塞模式，调用方负责后续设置非阻塞）
+    pub fn create_terminal_session(
+        &self,
+        db: &crate::services::storage_service::Database,
+        session_id: &str,
+    ) -> AppResult<Session> {
+        // 获取原始会话信息
+        let managed_session = self.get_session(session_id)?;
+        let profile_id = &managed_session.profile_id;
+
+        // 从数据库获取 profile
+        let profile = db
+            .profile_get(profile_id)?
+            .ok_or_else(|| AppError::not_found(format!("Profile {} 不存在", profile_id)))?;
+
+        // 建立新的 SSH 连接（默认 30 秒超时）
+        let timeout = Duration::from_secs(30);
+        let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
+
+        match profile.auth_type {
+            AuthType::Password => self.auth_password(&session, &profile.username, &profile, None),
+            AuthType::Key => self.auth_key(&session, &profile.username, &profile, None),
+        }?;
+
+        tracing::info!(
+            session_id = %session_id,
+            profile_id = %profile_id,
+            "Terminal 专用 session 已创建"
+        );
+
+        Ok(session)
+    }
+
     /// 检查会话是否活跃
     pub fn is_session_alive(&self, session_id: &str) -> bool {
         if let Ok(session) = self.get_session(session_id) {
@@ -353,6 +386,7 @@ impl SessionManager {
 
         tcp.set_read_timeout(Some(timeout))?;
         tcp.set_write_timeout(Some(timeout))?;
+        tcp.set_nodelay(true)?; // 禁用 Nagle 算法，减少终端输入延迟
 
         tracing::debug!("正在进行 SSH 握手");
         let mut session = Session::new()
@@ -648,12 +682,8 @@ impl SessionManager {
 
         channel.wait_close().ok();
 
-        let home = output.trim().to_string();
-        if home.is_empty() {
-            Ok("/".to_string())
-        } else {
-            Ok(home)
-        }
+        let home = output.trim();
+        Ok(if home.is_empty() { "/" } else { home }.to_string())
     }
 }
 

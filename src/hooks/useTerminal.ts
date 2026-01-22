@@ -1,8 +1,3 @@
-/**
- * 终端管理 Hook
- * 处理终端的打开、关闭、输入、尺寸调整
- */
-
 import { useState, useCallback, useRef, useEffect } from "react";
 
 import {
@@ -28,7 +23,7 @@ interface UseTerminalReturn {
   error: unknown;
   open: () => Promise<void>;
   close: () => Promise<void>;
-  writeInput: (data: string) => Promise<void>;
+  writeInput: (data: string) => void;
   resize: (cols: number, rows: number) => Promise<void>;
   setStatus: (status: TerminalStatus) => void;
 }
@@ -40,17 +35,21 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
-  // 用 ref 保存 terminalInfo，用于 cleanup
+  // Refs for cleanup and preventing concurrent opens
   const terminalInfoRef = useRef<TerminalInfo | null>(null);
+  const isOpeningRef = useRef(false);
+  const hasShownWriteErrorRef = useRef(false);
+
   useEffect(() => {
     terminalInfoRef.current = terminalInfo;
   }, [terminalInfo]);
 
   const open = useCallback(async () => {
-    if (terminalInfo || isOpening) {
-      return; // 已打开或正在打开
+    if (terminalInfoRef.current || isOpeningRef.current) {
+      return;
     }
-
+    isOpeningRef.current = true;
+    hasShownWriteErrorRef.current = false; // 重置错误状态
     setIsOpening(true);
     setError(null);
 
@@ -63,9 +62,10 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       setStatus("error");
       showErrorToast(err);
     } finally {
+      isOpeningRef.current = false;
       setIsOpening(false);
     }
-  }, [sessionId, cols, rows, terminalInfo, isOpening]);
+  }, [sessionId, cols, rows]);
 
   const close = useCallback(async () => {
     if (!terminalInfo) return;
@@ -80,18 +80,22 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   }, [terminalInfo]);
 
   const writeInput = useCallback(
-    async (data: string) => {
+    (data: string) => {
       if (!terminalInfo) return;
 
-      try {
-        const base64 = encodeTerminalData(data);
-        await writeTerminalInput({
-          terminalId: terminalInfo.terminalId,
-          data: base64,
-        });
-      } catch (err) {
-        showErrorToast(err);
-      }
+      const base64 = encodeTerminalData(data);
+      // Fire-and-forget 模式：不等待响应，依赖 PTY 回显
+      writeTerminalInput({
+        terminalId: terminalInfo.terminalId,
+        data: base64,
+      }).catch((err) => {
+        // 仅在首次失败时显示 toast，避免快速输入时弹出多个错误
+        if (!hasShownWriteErrorRef.current) {
+          hasShownWriteErrorRef.current = true;
+          setStatus("error");
+          showErrorToast(err);
+        }
+      });
     },
     [terminalInfo]
   );
@@ -107,22 +111,26 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
           rows: newRows,
         });
       } catch (err) {
-        // 尺寸调整失败不中断使用，仅记录
         console.warn("Failed to resize terminal:", err);
       }
     },
     [terminalInfo]
   );
 
-  // 组件卸载时关闭终端
+  // 当 sessionId 变化或组件卸载时关闭终端，防止资源泄漏
   useEffect(() => {
     return () => {
       const info = terminalInfoRef.current;
       if (info) {
-        closeTerminal(info.terminalId).catch(console.error);
+        closeTerminal(info.terminalId).catch((err) => {
+          // 仅记录错误，不阻塞清理流程
+          console.warn("[useTerminal] cleanup close error:", err);
+        });
+        // 重置状态以便下次打开
+        terminalInfoRef.current = null;
       }
     };
-  }, []);
+  }, [sessionId]);
 
   return {
     terminalInfo,
