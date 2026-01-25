@@ -28,7 +28,11 @@ const OUTPUT_BUFFER_LIMIT: usize = 4096;
 pub struct ManagedTerminal {
     pub terminal_id: String,
     pub session_id: String,
-    pub ssh_session: Session,
+    /// SSH Session（仅通过 channel 访问，设为 private 防止误用）
+    /// SAFETY: 此字段虽然存储在结构体中，但仅通过 Mutex<Channel> 间接访问
+    /// 保持 Session 生命周期，Channel 依赖其存活
+    #[allow(dead_code)]
+    ssh_session: Session,
     pub channel: Mutex<Channel>,
     pub cols: u16,
     pub rows: u16,

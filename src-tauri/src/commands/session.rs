@@ -12,6 +12,7 @@ use crate::models::error::{AppError, AppResult};
 use crate::models::profile::RecentConnection;
 use crate::services::session_manager::{ConnectStatus, SessionManager};
 use crate::services::storage_service::Database;
+use crate::services::terminal_manager::TerminalManager;
 
 /// 连接输入参数
 #[derive(Debug, Deserialize)]
@@ -216,14 +217,20 @@ pub async fn session_connect_after_trust(
 
 /// 断开连接
 ///
-/// 关闭 SSH 会话，释放资源
+/// 关闭 SSH 会话，释放资源（同时清理关联的终端）
 #[tauri::command]
 pub async fn session_disconnect(
     app: AppHandle,
     session_manager: State<'_, Arc<SessionManager>>,
+    terminal_manager: State<'_, Arc<TerminalManager>>,
     session_id: String,
 ) -> AppResult<()> {
     tracing::info!(session_id = %session_id, "断开连接");
+
+    // 先清理关联的终端
+    if let Err(e) = terminal_manager.close_by_session(&session_id) {
+        tracing::warn!(session_id = %session_id, error = %e, "清理关联终端失败");
+    }
 
     session_manager.close_session(&session_id)?;
 

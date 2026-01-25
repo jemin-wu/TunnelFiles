@@ -4,12 +4,42 @@
  */
 
 import { useEffect, useRef, useCallback, memo } from "react";
-import { Terminal as XTerm } from "@xterm/xterm";
+import { Terminal as XTerm, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 
 import { useTerminalEvents } from "@/hooks/useTerminalEvents";
 import type { TerminalStatusPayload } from "@/types/terminal";
+
+/** 从 CSS 变量获取终端主题颜色 */
+function getTerminalTheme(): ITheme {
+  const style = getComputedStyle(document.documentElement);
+  const getVar = (name: string) => style.getPropertyValue(name).trim();
+
+  return {
+    background: getVar("--terminal-background"),
+    foreground: getVar("--terminal-foreground"),
+    cursor: getVar("--terminal-cursor"),
+    cursorAccent: getVar("--terminal-cursor-accent"),
+    selectionBackground: getVar("--terminal-selection"),
+    black: getVar("--terminal-black"),
+    red: getVar("--terminal-red"),
+    green: getVar("--terminal-green"),
+    yellow: getVar("--terminal-yellow"),
+    blue: getVar("--terminal-blue"),
+    magenta: getVar("--terminal-magenta"),
+    cyan: getVar("--terminal-cyan"),
+    white: getVar("--terminal-white"),
+    brightBlack: getVar("--terminal-bright-black"),
+    brightRed: getVar("--terminal-bright-red"),
+    brightGreen: getVar("--terminal-bright-green"),
+    brightYellow: getVar("--terminal-bright-yellow"),
+    brightBlue: getVar("--terminal-bright-blue"),
+    brightMagenta: getVar("--terminal-bright-magenta"),
+    brightCyan: getVar("--terminal-bright-cyan"),
+    brightWhite: getVar("--terminal-bright-white"),
+  };
+}
 
 interface TerminalProps {
   terminalId: string;
@@ -53,34 +83,12 @@ export const Terminal = memo(function Terminal({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // Cyberpunk Terminal Theme - 与应用主题保持一致
+    // 从 CSS 变量获取主题颜色，支持主题切换
     const xterm = new XTerm({
       cursorBlink: true,
       fontSize: 14,
       fontFamily: '"JetBrains Mono", "IBM Plex Mono", "SF Mono", "Fira Code", monospace',
-      theme: {
-        background: "#0f0d14",      // oklch(0.08 0.02 280) - Deep purple-black
-        foreground: "#d4e4e4",      // oklch(0.88 0.02 180) - Cyan-tinted white
-        cursor: "#00ff9f",          // oklch(0.78 0.22 155) - Neon green (primary)
-        cursorAccent: "#0f0d14",
-        selectionBackground: "rgba(0, 255, 159, 0.25)", // Primary with alpha
-        black: "#0f0d14",
-        red: "#ff4466",             // oklch(0.65 0.25 15) - Destructive
-        green: "#00ff9f",           // oklch(0.78 0.22 155) - Primary
-        yellow: "#ffcc00",          // oklch(0.82 0.18 85) - Warning
-        blue: "#00d4ff",            // oklch(0.72 0.18 195) - Accent/Cyan
-        magenta: "#ff66b2",         // oklch(0.7 0.2 320) - Magenta
-        cyan: "#00d4ff",            // oklch(0.72 0.18 195) - Accent
-        white: "#d4e4e4",
-        brightBlack: "#555566",
-        brightRed: "#ff6688",
-        brightGreen: "#33ffb2",
-        brightYellow: "#ffdd44",
-        brightBlue: "#44ddff",
-        brightMagenta: "#ff88cc",
-        brightCyan: "#44ddff",
-        brightWhite: "#ffffff",
-      },
+      theme: getTerminalTheme(),
       allowProposedApi: true,
     });
 
@@ -108,8 +116,8 @@ export const Terminal = memo(function Terminal({
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
 
-    // 窗口尺寸变化时自动调整（防抖）
-    const handleWindowResize = () => {
+    // 防抖处理 fit 调用
+    const debouncedFit = () => {
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
@@ -117,13 +125,22 @@ export const Terminal = memo(function Terminal({
         fitAddon.fit();
       }, 100);
     };
-    window.addEventListener("resize", handleWindowResize);
+
+    // 使用 ResizeObserver 监听容器尺寸变化（面板拖拽等）
+    const resizeObserver = new ResizeObserver(() => {
+      debouncedFit();
+    });
+    resizeObserver.observe(containerRef.current);
+
+    // 窗口尺寸变化时也触发（作为备用）
+    window.addEventListener("resize", debouncedFit);
 
     // 聚焦终端
     xterm.focus();
 
     return () => {
-      window.removeEventListener("resize", handleWindowResize);
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", debouncedFit);
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }

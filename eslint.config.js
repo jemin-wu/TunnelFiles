@@ -51,6 +51,8 @@ export default [
         atob: "readonly",
         Uint8Array: "readonly",
         TextEncoder: "readonly",
+        ResizeObserver: "readonly",
+        getComputedStyle: "readonly",
         // React JSX runtime
         React: "readonly",
       },

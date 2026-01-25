@@ -146,6 +146,29 @@
   /* Scanline effect */
   --scanline-opacity: 0.03;
 
+  /* Terminal Colors (hex values for xterm.js compatibility) */
+  --terminal-background: #0f0d14;
+  --terminal-foreground: #d4e4e4;
+  --terminal-cursor: #00ff9f;
+  --terminal-cursor-accent: #0f0d14;
+  --terminal-selection: rgba(0, 255, 159, 0.25);
+  --terminal-black: #0f0d14;
+  --terminal-red: #ff4466;
+  --terminal-green: #00ff9f;
+  --terminal-yellow: #ffcc00;
+  --terminal-blue: #00d4ff;
+  --terminal-magenta: #ff66b2;
+  --terminal-cyan: #00d4ff;
+  --terminal-white: #d4e4e4;
+  --terminal-bright-black: #555566;
+  --terminal-bright-red: #ff6688;
+  --terminal-bright-green: #33ffb2;
+  --terminal-bright-yellow: #ffdd44;
+  --terminal-bright-blue: #44ddff;
+  --terminal-bright-magenta: #ff88cc;
+  --terminal-bright-cyan: #44ddff;
+  --terminal-bright-white: #ffffff;
+
   /* Charts */
   --chart-1: oklch(0.78 0.22 155);
   --chart-2: oklch(0.72 0.18 195);
@@ -216,6 +239,29 @@
   --glow-destructive: oklch(0.55 0.22 25 / 0.2);
 
   --scanline-opacity: 0.02;
+
+  /* Terminal Colors (light theme - retro amber terminal style) */
+  --terminal-background: #f5f3e7;
+  --terminal-foreground: #2a2535;
+  --terminal-cursor: #2d7a4e;
+  --terminal-cursor-accent: #f5f3e7;
+  --terminal-selection: rgba(45, 122, 78, 0.2);
+  --terminal-black: #2a2535;
+  --terminal-red: #c43c50;
+  --terminal-green: #2d7a4e;
+  --terminal-yellow: #b8860b;
+  --terminal-blue: #2a8fa0;
+  --terminal-magenta: #b3528c;
+  --terminal-cyan: #2a8fa0;
+  --terminal-white: #f5f3e7;
+  --terminal-bright-black: #555566;
+  --terminal-bright-red: #e05566;
+  --terminal-bright-green: #3d9a5e;
+  --terminal-bright-yellow: #d9a61b;
+  --terminal-bright-blue: #3aafb0;
+  --terminal-bright-magenta: #c3629c;
+  --terminal-bright-cyan: #3aafb0;
+  --terminal-bright-white: #ffffff;
 
   --chart-1: oklch(0.45 0.18 155);
   --chart-2: oklch(0.5 0.15 195);
@@ -882,7 +928,7 @@
 
 .terminal-container {
   padding: 4px 0 0 4px;
-  background: #0f0d14; /* oklch(0.08 0.02 280) - Deep purple-black */
+  background: var(--terminal-background);
   box-sizing: border-box;
 }
 
@@ -891,7 +937,7 @@
 .terminal-container .xterm-viewport,
 .terminal-container .xterm-screen {
   height: 100% !important;
-  background: #0f0d14 !important;
+  background: var(--terminal-background) !important;
 }
 
 /* XTerm viewport scrollbar - refined minimal style */
