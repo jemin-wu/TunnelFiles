@@ -25,20 +25,17 @@ interface UseDropUploadReturn {
 export function useDropUpload(options: UseDropUploadOptions): UseDropUploadReturn {
   const { sessionId, remotePath, enabled = true } = options;
   const [isDragging, setIsDragging] = useState(false);
+  // Zustand selector returns stable function reference
   const addTask = useTransferStore((s) => s.addTask);
+  // useToast returns a stable singleton object
   const toast = useToast();
 
-  // 用 ref 保存最新的 props 和依赖，避免事件监听器闭包捕获旧值
+  // Ref to track latest options, avoiding stale closures in event handler
   const optionsRef = useRef({ sessionId, remotePath, enabled });
-  const depsRef = useRef({ addTask, toast });
 
   useEffect(() => {
     optionsRef.current = { sessionId, remotePath, enabled };
   }, [sessionId, remotePath, enabled]);
-
-  useEffect(() => {
-    depsRef.current = { addTask, toast };
-  }, [addTask, toast]);
 
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
@@ -63,41 +60,43 @@ export function useDropUpload(options: UseDropUploadOptions): UseDropUploadRetur
             setIsDragging(false);
             const paths = event.payload.paths;
             const { sessionId: sid, remotePath: rpath } = optionsRef.current;
-            const { addTask: add, toast: t } = depsRef.current;
 
             if (paths.length === 0) return;
 
-            for (const localPath of paths) {
-              try {
-                // 检测是文件还是目录
-                const metadata = await stat(localPath);
+            // 并行处理多个文件/目录上传
+            await Promise.all(
+              paths.map(async (localPath) => {
+                try {
+                  // 检测是文件还是目录
+                  const metadata = await stat(localPath);
 
-                if (metadata.isDirectory) {
-                  // 上传目录
-                  const taskIds = await uploadDirectory(sid, localPath, rpath);
-                  for (const taskId of taskIds) {
+                  if (metadata.isDirectory) {
+                    // 上传目录
+                    const taskIds = await uploadDirectory(sid, localPath, rpath);
+                    for (const taskId of taskIds) {
+                      const task = await getTransfer(taskId);
+                      if (task) {
+                        addTask(task);
+                      }
+                    }
+                    if (taskIds.length > 0) {
+                      toast.success(`已创建 ${taskIds.length} 个上传任务`);
+                    } else {
+                      toast.info("目录为空，无文件可上传");
+                    }
+                  } else {
+                    // 上传文件
+                    const taskId = await uploadFile(sid, localPath, rpath);
                     const task = await getTransfer(taskId);
                     if (task) {
-                      add(task);
+                      addTask(task);
                     }
                   }
-                  if (taskIds.length > 0) {
-                    t.success(`已创建 ${taskIds.length} 个上传任务`);
-                  } else {
-                    t.info("目录为空，无文件可上传");
-                  }
-                } else {
-                  // 上传文件
-                  const taskId = await uploadFile(sid, localPath, rpath);
-                  const task = await getTransfer(taskId);
-                  if (task) {
-                    add(task);
-                  }
+                } catch (error) {
+                  toast.error(error);
                 }
-              } catch (error) {
-                t.error(error);
-              }
-            }
+              })
+            );
             break;
           }
         }
@@ -118,7 +117,7 @@ export function useDropUpload(options: UseDropUploadOptions): UseDropUploadRetur
         unlisten();
       }
     };
-  }, []); // 空依赖，只在挂载时注册一次
+  }, [addTask, toast]);
 
   return {
     isDragging,

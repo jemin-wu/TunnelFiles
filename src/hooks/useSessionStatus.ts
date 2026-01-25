@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useRef } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { getSessionInfo } from "@/lib/session";
 import type { SessionInfo, SessionStatusPayload } from "@/types/events";
@@ -71,41 +71,56 @@ export function useSessionStatus(sessionId?: string): UseSessionStatusReturn {
   useEffect(() => {
     if (!sessionId) return;
 
+    let cancelled = false;
+    let unlistenRef: UnlistenFn | null = null;
+
     // 重置通知状态
     hasNotifiedRef.current = false;
 
-    const unlisten = listen<SessionStatusPayload>("session:status", (event) => {
-      if (event.payload.sessionId !== sessionId) return;
+    const setup = async () => {
+      const unlistenFn = await listen<SessionStatusPayload>("session:status", (event) => {
+        if (cancelled) return;
+        if (event.payload.sessionId !== sessionId) return;
 
-      const { status, message } = event.payload;
+        const { status, message } = event.payload;
 
-      if (status === "disconnected" || status === "error") {
-        setIsValid(false);
-        setError(message || "连接已断开");
+        if (status === "disconnected" || status === "error") {
+          setIsValid(false);
+          setError(message || "连接已断开");
 
-        // 防止重复通知
-        if (!hasNotifiedRef.current) {
-          hasNotifiedRef.current = true;
+          // 防止重复通知
+          if (!hasNotifiedRef.current) {
+            hasNotifiedRef.current = true;
 
-          if (status === "error") {
-            // 异常断开：显示错误 Toast，提示可在连接页重试
-            toast.error("连接异常", {
-              description: message || "网络连接中断，请检查网络后重新连接",
-              duration: 5000,
-            });
-          } else {
-            // 正常断开：显示警告 Toast
-            toast.warning("连接已断开", {
-              description: message || "与服务器的连接已关闭",
-              duration: 4000,
-            });
+            if (status === "error") {
+              // 异常断开：显示错误 Toast，提示可在连接页重试
+              toast.error("连接异常", {
+                description: message || "网络连接中断，请检查网络后重新连接",
+                duration: 5000,
+              });
+            } else {
+              // 正常断开：显示警告 Toast
+              toast.warning("连接已断开", {
+                description: message || "与服务器的连接已关闭",
+                duration: 4000,
+              });
+            }
           }
         }
+      });
+
+      if (cancelled) {
+        unlistenFn();
+      } else {
+        unlistenRef = unlistenFn;
       }
-    });
+    };
+
+    setup();
 
     return () => {
-      unlisten.then((fn) => fn());
+      cancelled = true;
+      unlistenRef?.();
     };
   }, [sessionId]);
 
