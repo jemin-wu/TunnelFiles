@@ -14,7 +14,9 @@ use ssh2::{Channel, Session};
 use tauri::{AppHandle, Emitter};
 
 use crate::models::error::{AppError, AppResult, ErrorCode};
-use crate::models::terminal::{TerminalInfo, TerminalOutputPayload, TerminalStatus, TerminalStatusPayload};
+use crate::models::terminal::{
+    TerminalInfo, TerminalOutputPayload, TerminalStatus, TerminalStatusPayload,
+};
 use crate::services::session_manager::SessionManager;
 use crate::services::storage_service::Database;
 
@@ -76,9 +78,10 @@ impl TerminalManager {
     ) -> AppResult<TerminalInfo> {
         // 检查是否已有终端
         {
-            let mapping = self.session_to_terminal.read().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "无法获取终端映射锁")
-            })?;
+            let mapping = self
+                .session_to_terminal
+                .read()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端映射锁"))?;
             if let Some(terminal_id) = mapping.get(session_id) {
                 tracing::info!(
                     session_id = %session_id,
@@ -115,15 +118,17 @@ impl TerminalManager {
         });
 
         {
-            let mut terminals = self.terminals.write().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "无法获取终端池锁")
-            })?;
+            let mut terminals = self
+                .terminals
+                .write()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端池锁"))?;
             terminals.insert(terminal_id.clone(), managed_terminal.clone());
         }
         {
-            let mut mapping = self.session_to_terminal.write().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "无法获取终端映射锁")
-            })?;
+            let mut mapping = self
+                .session_to_terminal
+                .write()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端映射锁"))?;
             mapping.insert(session_id.to_string(), terminal_id.clone());
         }
 
@@ -149,7 +154,11 @@ impl TerminalManager {
         })?;
 
         channel
-            .request_pty("xterm-256color", None, Some((cols as u32, rows as u32, 0, 0)))
+            .request_pty(
+                "xterm-256color",
+                None,
+                Some((cols as u32, rows as u32, 0, 0)),
+            )
             .map_err(|e| {
                 AppError::new(ErrorCode::RemoteIoError, format!("请求 PTY 失败: {}", e))
             })?;
@@ -278,17 +287,18 @@ impl TerminalManager {
     pub fn write_input(&self, terminal_id: &str, data: &[u8]) -> AppResult<()> {
         let terminal = self.get_terminal(terminal_id)?;
 
-        let mut channel = terminal.channel.lock().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "无法获取 channel 锁")
-        })?;
+        let mut channel = terminal
+            .channel
+            .lock()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
 
-        channel.write_all(data).map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("写入失败: {}", e))
-        })?;
+        channel
+            .write_all(data)
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("写入失败: {}", e)))?;
 
-        channel.flush().map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e))
-        })?;
+        channel
+            .flush()
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
 
         terminal.touch();
         Ok(())
@@ -297,13 +307,14 @@ impl TerminalManager {
     pub fn resize(&self, terminal_id: &str, cols: u16, rows: u16) -> AppResult<()> {
         let terminal = self.get_terminal(terminal_id)?;
 
-        let mut channel = terminal.channel.lock().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "无法获取 channel 锁")
-        })?;
+        let mut channel = terminal
+            .channel
+            .lock()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
 
-        channel.request_pty_size(cols as u32, rows as u32, None, None).map_err(|e| {
-            AppError::new(ErrorCode::RemoteIoError, format!("调整尺寸失败: {}", e))
-        })?;
+        channel
+            .request_pty_size(cols as u32, rows as u32, None, None)
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("调整尺寸失败: {}", e)))?;
 
         tracing::debug!(
             terminal_id = %terminal_id,
@@ -317,9 +328,10 @@ impl TerminalManager {
 
     pub fn close(&self, terminal_id: &str) -> AppResult<()> {
         let terminal = {
-            let mut terminals = self.terminals.write().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "无法获取终端池锁")
-            })?;
+            let mut terminals = self
+                .terminals
+                .write()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端池锁"))?;
             terminals.remove(terminal_id)
         };
 
@@ -327,9 +339,10 @@ impl TerminalManager {
             // 先发送 shutdown 信号，让输出读取线程退出
             term.shutdown.store(true, Ordering::Relaxed);
 
-            let mut mapping = self.session_to_terminal.write().map_err(|_| {
-                AppError::new(ErrorCode::Unknown, "无法获取终端映射锁")
-            })?;
+            let mut mapping = self
+                .session_to_terminal
+                .write()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端映射锁"))?;
             mapping.remove(&term.session_id);
 
             if let Ok(mut channel) = term.channel.lock() {
@@ -365,9 +378,10 @@ impl TerminalManager {
     }
 
     fn get_terminal(&self, terminal_id: &str) -> AppResult<Arc<ManagedTerminal>> {
-        let terminals = self.terminals.read().map_err(|_| {
-            AppError::new(ErrorCode::Unknown, "无法获取终端池锁")
-        })?;
+        let terminals = self
+            .terminals
+            .read()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取终端池锁"))?;
 
         terminals
             .get(terminal_id)

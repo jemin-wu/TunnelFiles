@@ -50,9 +50,9 @@ pub async fn terminal_input(
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: TerminalInputData,
 ) -> AppResult<()> {
-    let data = BASE64.decode(&input.data).map_err(|e| {
-        AppError::invalid_argument(format!("Base64 解码失败: {}", e))
-    })?;
+    let data = BASE64
+        .decode(&input.data)
+        .map_err(|e| AppError::invalid_argument(format!("Base64 解码失败: {}", e)))?;
 
     terminal_manager.write_input(&input.terminal_id, &data)
 }

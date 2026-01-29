@@ -363,7 +363,8 @@
     @apply border-border outline-ring/50;
   }
 
-  html, body {
+  html,
+  body {
     overscroll-behavior: none;
   }
 

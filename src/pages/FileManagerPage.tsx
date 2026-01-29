@@ -68,9 +68,12 @@ export function FileManagerPage() {
   }, [activeTab, sessionId, terminalInfo, isTerminalOpening, openTerminal]);
 
   // 处理终端状态变化
-  const handleTerminalStatusChange = useCallback((payload: TerminalStatusPayload) => {
-    setTerminalStatus(payload.status);
-  }, [setTerminalStatus]);
+  const handleTerminalStatusChange = useCallback(
+    (payload: TerminalStatusPayload) => {
+      setTerminalStatus(payload.status);
+    },
+    [setTerminalStatus]
+  );
 
   useEffect(() => {
     if (!isLoading && !isValid) {
@@ -141,10 +144,14 @@ export function FileManagerPage() {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                <FolderOpen className={cn(
-                  "h-3.5 w-3.5 transition-colors",
-                  activeTab === "files" ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                )} />
+                <FolderOpen
+                  className={cn(
+                    "h-3.5 w-3.5 transition-colors",
+                    activeTab === "files"
+                      ? "text-primary"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                />
                 <span className="tracking-wider">FILES</span>
                 {activeTab === "files" && (
                   <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-primary shadow-[0_0_8px_var(--glow-primary)]" />
@@ -162,10 +169,14 @@ export function FileManagerPage() {
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                <TerminalSquare className={cn(
-                  "h-3.5 w-3.5 transition-colors",
-                  activeTab === "terminal" ? "text-accent" : "text-muted-foreground group-hover:text-foreground"
-                )} />
+                <TerminalSquare
+                  className={cn(
+                    "h-3.5 w-3.5 transition-colors",
+                    activeTab === "terminal"
+                      ? "text-accent"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                />
                 <span className="tracking-wider">TERMINAL</span>
                 {/* Terminal 状态指示器 */}
                 {activeTab === "terminal" && terminalStatus === "connected" && (
@@ -202,10 +213,12 @@ export function FileManagerPage() {
           {/* Tab Content */}
           <div className="flex-1 min-h-0 relative">
             {/* FILES Content */}
-            <div className={cn(
-              "absolute inset-0 transition-opacity duration-200",
-              activeTab === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-            )}>
+            <div
+              className={cn(
+                "absolute inset-0 transition-opacity duration-200",
+                activeTab === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+              )}
+            >
               <DropZone sessionId={sessionId} remotePath={currentPath} className="h-full">
                 <FileListContainer
                   sessionId={sessionId}
@@ -217,10 +230,12 @@ export function FileManagerPage() {
             </div>
 
             {/* TERMINAL Content */}
-            <div className={cn(
-              "absolute inset-0 transition-opacity duration-200",
-              activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-            )}>
+            <div
+              className={cn(
+                "absolute inset-0 transition-opacity duration-200",
+                activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+              )}
+            >
               {terminalInfo ? (
                 <Terminal
                   terminalId={terminalInfo.terminalId}

@@ -157,10 +157,5 @@ export const Terminal = memo(function Terminal({
     xtermRef.current?.clear();
   }, [terminalId]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="terminal-container h-full w-full"
-    />
-  );
+  return <div ref={containerRef} className="terminal-container h-full w-full" />;
 });
