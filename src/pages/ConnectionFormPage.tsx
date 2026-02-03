@@ -114,11 +114,19 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         className={cn(
           "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
           value === "password"
-            ? "bg-background text-foreground shadow-sm border border-border/80 hover:bg-background"
+            ? [
+                // 浅色模式：简洁样式
+                "bg-background text-foreground shadow-sm border border-border/80",
+                "hover:bg-background hover:text-foreground",
+                // 暗黑模式：霓虹发光效果
+                "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
+                "dark:hover:bg-primary/20 dark:hover:text-primary",
+                "dark:shadow-[0_0_12px_rgba(0,255,159,0.25)]",
+              ]
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
-        <Key className="h-3.5 w-3.5" />
+        <Key className={cn("h-3.5 w-3.5", value === "password" && "dark:drop-shadow-[0_0_3px_rgba(0,255,159,0.5)]")} />
         <span>PASSWORD</span>
       </Button>
       <Button
@@ -129,11 +137,19 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         className={cn(
           "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
           value === "key"
-            ? "bg-background text-foreground shadow-sm border border-border/80 hover:bg-background"
+            ? [
+                // 浅色模式：简洁样式
+                "bg-background text-foreground shadow-sm border border-border/80",
+                "hover:bg-background hover:text-foreground",
+                // 暗黑模式：霓虹发光效果
+                "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
+                "dark:hover:bg-primary/20 dark:hover:text-primary",
+                "dark:shadow-[0_0_12px_rgba(0,255,159,0.25)]",
+              ]
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
-        <KeyRound className="h-3.5 w-3.5" />
+        <KeyRound className={cn("h-3.5 w-3.5", value === "key" && "dark:drop-shadow-[0_0_3px_rgba(0,255,159,0.5)]")} />
         <span>SSH_KEY</span>
       </Button>
     </div>
