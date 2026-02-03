@@ -31,7 +31,7 @@ interface FileListProps {
   onRename?: (file: FileEntry) => void;
   onDelete?: (file: FileEntry) => void;
   /** 键盘快捷键处理 */
-  onKeyAction?: (action: "selectAll" | "delete" | "newFolder" | "preview" | "parentDir" | "rename") => void;
+  onKeyAction?: (action: "selectAll" | "clearSelection" | "delete" | "newFolder" | "preview" | "parentDir" | "rename") => void;
   isLoading?: boolean;
 }
 
@@ -139,7 +139,7 @@ const FileRow = memo(function FileRow({
         "flex items-center h-10 px-3 cursor-pointer select-none border-b border-border/30",
         "hover:bg-primary/5 transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset",
-        isSelected && "bg-primary/10 border-l-2 border-l-primary",
+        isSelected && "bg-primary/15 border-l-2 border-l-primary",
         className
       )}
       onClick={onClick}
@@ -241,6 +241,13 @@ export function FileList({
 
       const currentIndex = getFirstSelectedIndex();
       const modifiers = { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey };
+
+      // Escape: 清除选择
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onKeyAction?.("clearSelection");
+        return;
+      }
 
       // Cmd+A: 全选
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
@@ -382,12 +389,28 @@ export function FileList({
       </div>
 
       {/* 虚拟列表 */}
-      <div ref={parentRef} className="flex-1 overflow-auto" tabIndex={0}>
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-auto"
+        tabIndex={0}
+        onClick={(e) => {
+          // 点击空白处清除选择
+          if (e.target === e.currentTarget) {
+            onKeyAction?.("clearSelection");
+          }
+        }}
+      >
         <div
           style={{
             height: `${virtualizer.getTotalSize()}px`,
             width: "100%",
             position: "relative",
+          }}
+          onClick={(e) => {
+            // 点击虚拟容器空白处也清除选择
+            if (e.target === e.currentTarget) {
+              onKeyAction?.("clearSelection");
+            }
           }}
         >
           {items.map((virtualItem) => {

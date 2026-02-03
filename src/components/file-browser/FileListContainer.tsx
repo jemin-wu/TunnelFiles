@@ -8,7 +8,6 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Breadcrumb } from "./Breadcrumb";
 import { FileList } from "./FileList";
-import { StatusBar } from "./StatusBar";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { RenameDialog } from "./RenameDialog";
@@ -249,10 +248,18 @@ export function FileListContainer({
           className="flex-1 min-w-0"
         />
 
-        {/* 文件计数 */}
-        <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono shrink-0">
-          <span className="text-primary">{files.length}</span>
-          <span>items</span>
+        {/* 文件计数 & 选中计数 */}
+        <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-mono shrink-0">
+          <span>
+            <span className="text-primary">{files.length}</span>
+            <span className="ml-1">items</span>
+          </span>
+          {selectionCount > 0 && (
+            <span className="animate-in fade-in duration-150">
+              <span className="text-primary">{selectionCount}</span>
+              <span className="ml-1">selected</span>
+            </span>
+          )}
         </div>
 
         <span className="text-border hidden sm:block">│</span>
@@ -329,6 +336,8 @@ export function FileListContainer({
           onKeyAction={(action) => {
             if (action === "selectAll") {
               selectAll();
+            } else if (action === "clearSelection") {
+              clearSelection();
             } else if (action === "delete" && selectedFiles.length > 0) {
               // 删除第一个选中的文件（后续可支持批量删除）
               setTargetFile(selectedFiles[0]);
@@ -357,13 +366,6 @@ export function FileListContainer({
           isLoading={isLoading}
         />
       </div>
-
-      {/* 状态栏 */}
-      <StatusBar
-        totalCount={files.length}
-        selectionCount={selectionCount}
-        showHidden={showHidden}
-      />
 
       {/* 新建文件夹弹窗 */}
       <CreateFolderDialog

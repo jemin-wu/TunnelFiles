@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Loader2,
   PanelRightClose,
@@ -42,9 +42,25 @@ function getInitialSidebarCollapsed(): boolean {
 export function FileManagerPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [currentPath, setCurrentPath] = useState("/");
-  const [activeTab, setActiveTab] = useState<TabMode>("files");
+
+  // 从 URL 读取 mode，默认为 files
+  const activeTab = (searchParams.get("mode") as TabMode) || "files";
+  const setActiveTab = useCallback(
+    (mode: TabMode) => {
+      setSearchParams((prev) => {
+        if (mode === "files") {
+          prev.delete("mode");
+        } else {
+          prev.set("mode", mode);
+        }
+        return prev;
+      });
+    },
+    [setSearchParams]
+  );
 
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
@@ -74,7 +90,9 @@ export function FileManagerPage() {
 
       if (modKey && e.key === "t") {
         e.preventDefault();
-        setActiveTab((prev) => (prev === "files" ? "terminal" : "files"));
+        // 切换模式
+        const currentMode = searchParams.get("mode") || "files";
+        setActiveTab(currentMode === "files" ? "terminal" : "files");
       } else if (modKey && e.key === "1") {
         e.preventDefault();
         setActiveTab("files");

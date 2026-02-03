@@ -3,7 +3,7 @@
  * 提供顶部终端风格导航栏和内容区域
  */
 
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useCallback } from "react";
 import { Settings, Moon, Sun, ChevronLeft, Cpu } from "lucide-react";
 
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { theme, setTheme } = useTheme();
 
   const isFilesPage = location.pathname.startsWith("/files/");
@@ -41,7 +42,14 @@ export function MainLayout() {
 
   // 页面标题映射
   const getPageInfo = () => {
-    if (isFilesPage) return { title: "FILE_BROWSER", code: "SFTP" };
+    if (isFilesPage) {
+      // 从 URL 读取当前模式
+      const mode = searchParams.get("mode");
+      if (mode === "terminal") {
+        return { title: "TERMINAL", code: "SSH" };
+      }
+      return { title: "FILE_BROWSER", code: "SFTP" };
+    }
     if (isSettingsPage) return { title: "SYS_CONFIG", code: "CFG" };
     if (isFormPage) return { title: "CONN_EDIT", code: "NEW" };
     return { title: "CONNECTIONS", code: "SSH" };
@@ -109,7 +117,7 @@ export function MainLayout() {
           <span className="text-border text-xs">│</span>
 
           {/* 版本/状态 */}
-          <span className="text-[10px] text-muted-foreground tracking-wide">v1.0.0</span>
+          <span className="text-[10px] text-muted-foreground tracking-wide">v2.0.0</span>
         </div>
 
         {/* 右侧工具栏 */}
