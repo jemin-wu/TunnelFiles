@@ -161,7 +161,7 @@ describe("error utilities", () => {
       expect(toast.error).toHaveBeenCalledWith(
         "Auth failed",
         expect.objectContaining({
-          duration: 5000,
+          duration: 6000,
         })
       );
     });
