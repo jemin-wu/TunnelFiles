@@ -67,6 +67,27 @@ export function FileManagerPage() {
     }
   }, [activeTab, sessionId, terminalInfo, isTerminalOpening, openTerminal]);
 
+  // 键盘快捷键: ⌘T 切换, ⌘1 文件, ⌘2 终端
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const modKey = e.metaKey || e.ctrlKey;
+
+      if (modKey && e.key === "t") {
+        e.preventDefault();
+        setActiveTab((prev) => (prev === "files" ? "terminal" : "files"));
+      } else if (modKey && e.key === "1") {
+        e.preventDefault();
+        setActiveTab("files");
+      } else if (modKey && e.key === "2") {
+        e.preventDefault();
+        setActiveTab("terminal");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   // 处理终端状态变化
   const handleTerminalStatusChange = useCallback(
     (payload: TerminalStatusPayload) => {
@@ -130,86 +151,6 @@ export function FileManagerPage() {
         maxSize={isTerminalMode ? 100 : sidebarCollapsed ? 97 : 82}
       >
         <div className="flex flex-col h-full">
-          {/* Cyberpunk Tab Bar */}
-          <div className="flex items-center h-9 px-2 bg-background/80 border-b border-border/50 backdrop-blur-sm">
-            <div className="flex items-center gap-1">
-              {/* FILES Tab */}
-              <button
-                onClick={() => setActiveTab("files")}
-                className={cn(
-                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all duration-200",
-                  "border border-transparent rounded-sm",
-                  activeTab === "files"
-                    ? "text-primary bg-primary/10 border-primary/50 shadow-[0_0_10px_var(--glow-primary)]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <FolderOpen
-                  className={cn(
-                    "h-3.5 w-3.5 transition-colors",
-                    activeTab === "files"
-                      ? "text-primary"
-                      : "text-muted-foreground group-hover:text-foreground"
-                  )}
-                />
-                <span className="tracking-wider">FILES</span>
-                {activeTab === "files" && (
-                  <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-primary shadow-[0_0_8px_var(--glow-primary)]" />
-                )}
-              </button>
-
-              {/* TERMINAL Tab */}
-              <button
-                onClick={() => setActiveTab("terminal")}
-                className={cn(
-                  "group relative flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono transition-all duration-200",
-                  "border border-transparent rounded-sm",
-                  activeTab === "terminal"
-                    ? "text-accent bg-accent/10 border-accent/50 shadow-[0_0_10px_var(--glow-accent)]"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <TerminalSquare
-                  className={cn(
-                    "h-3.5 w-3.5 transition-colors",
-                    activeTab === "terminal"
-                      ? "text-accent"
-                      : "text-muted-foreground group-hover:text-foreground"
-                  )}
-                />
-                <span className="tracking-wider">TERMINAL</span>
-                {/* Terminal 状态指示器 */}
-                {activeTab === "terminal" && terminalStatus === "connected" && (
-                  <span className="ml-1 h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
-                )}
-                {activeTab === "terminal" && (
-                  <span className="absolute -bottom-[1px] left-2 right-2 h-[2px] bg-accent shadow-[0_0_8px_var(--glow-accent)]" />
-                )}
-              </button>
-            </div>
-
-            {/* Terminal 连接状态 */}
-            {activeTab === "terminal" && (
-              <div className="ml-auto flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
-                {isTerminalOpening && (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin text-accent" />
-                    <span>CONNECTING...</span>
-                  </>
-                )}
-                {terminalInfo && terminalStatus === "connected" && (
-                  <>
-                    <span className="text-accent">&gt;</span>
-                    <span>PTY_{terminalInfo.terminalId.slice(0, 8)}</span>
-                  </>
-                )}
-                {terminalStatus === "error" && (
-                  <span className="text-destructive">CONNECTION_ERROR</span>
-                )}
-              </div>
-            )}
-          </div>
-
           {/* Tab Content */}
           <div className="flex-1 min-h-0 relative">
             {/* FILES Content */}
@@ -225,6 +166,7 @@ export function FileManagerPage() {
                   initialPath={sessionInfo?.homePath ?? "/"}
                   homePath={sessionInfo?.homePath}
                   onPathChange={handlePathChange}
+                  onSwitchToTerminal={() => setActiveTab("terminal")}
                 />
               </DropZone>
             </div>
@@ -232,10 +174,62 @@ export function FileManagerPage() {
             {/* TERMINAL Content */}
             <div
               className={cn(
-                "absolute inset-0 transition-opacity duration-200",
+                "absolute inset-0 transition-opacity duration-200 flex flex-col",
                 activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
               )}
             >
+              {/* Terminal 工具栏 */}
+              <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/50">
+                <TooltipProvider delayDuration={300}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                        onClick={() => setActiveTab("files")}
+                      >
+                        <FolderOpen className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="font-mono text-xs">
+                      切换到文件浏览 (⌘1)
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <span className="text-border">│</span>
+
+                <div className="flex items-center gap-1.5">
+                  <TerminalSquare className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-xs font-mono text-accent tracking-wider">TERMINAL</span>
+                  {terminalStatus === "connected" && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                  )}
+                </div>
+
+                {/* Terminal 连接状态 */}
+                <div className="ml-auto flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                  {isTerminalOpening && (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                      <span>CONNECTING...</span>
+                    </>
+                  )}
+                  {terminalInfo && terminalStatus === "connected" && (
+                    <>
+                      <span className="text-accent">&gt;</span>
+                      <span>PTY_{terminalInfo.terminalId.slice(0, 8)}</span>
+                    </>
+                  )}
+                  {terminalStatus === "error" && (
+                    <span className="text-destructive">CONNECTION_ERROR</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Terminal 内容 */}
+              <div className="flex-1 min-h-0">
               {terminalInfo ? (
                 <Terminal
                   terminalId={terminalInfo.terminalId}
@@ -281,6 +275,7 @@ export function FileManagerPage() {
                   )}
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>

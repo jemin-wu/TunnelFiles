@@ -3,11 +3,12 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
-import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus, HardDrive } from "lucide-react";
+import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus, TerminalSquare } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Breadcrumb } from "./Breadcrumb";
 import { FileList } from "./FileList";
+import { StatusBar } from "./StatusBar";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { RenameDialog } from "./RenameDialog";
@@ -27,6 +28,8 @@ interface FileListContainerProps {
   initialPath?: string;
   homePath?: string;
   onPathChange?: (path: string) => void;
+  /** 切换到 Terminal 模式 */
+  onSwitchToTerminal?: () => void;
 }
 
 export function FileListContainer({
@@ -34,6 +37,7 @@ export function FileListContainer({
   initialPath = "/",
   homePath,
   onPathChange,
+  onSwitchToTerminal,
 }: FileListContainerProps) {
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [sort, setSort] = useState<SortSpec>(DEFAULT_SORT);
@@ -69,7 +73,14 @@ export function FileListContainer({
     return rawFiles.filter((f) => !f.name.startsWith("."));
   }, [rawFiles, showHidden]);
 
-  const { selectedPath, selectFile, clearSelection } = useFileSelection(files);
+  const {
+    selectedFiles,
+    selectFile,
+    selectAll,
+    clearSelection,
+    isSelected,
+    selectionCount,
+  } = useFileSelection(files);
 
   const navigateTo = useCallback(
     (path: string) => {
@@ -81,8 +92,8 @@ export function FileListContainer({
   );
 
   const handleFileClick = useCallback(
-    (file: FileEntry) => {
-      selectFile(file.path);
+    (file: FileEntry, modifiers: { metaKey: boolean; shiftKey: boolean }) => {
+      selectFile(file.path, modifiers);
     },
     [selectFile]
   );
@@ -206,11 +217,29 @@ export function FileListContainer({
     <div className="flex flex-col h-full">
       {/* 工具栏 - Terminal Style */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/50">
-        {/* 路径图标 */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <HardDrive className="h-3.5 w-3.5 text-primary" />
-          <span className="text-border">│</span>
-        </div>
+        {/* 切换到 Terminal */}
+        {onSwitchToTerminal && (
+          <>
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 hover:bg-accent/10 hover:text-accent"
+                    onClick={onSwitchToTerminal}
+                  >
+                    <TerminalSquare className="h-3.5 w-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="font-mono text-xs">
+                  切换到终端 (⌘2)
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <span className="text-border">│</span>
+          </>
+        )}
 
         {/* 面包屑导航 */}
         <Breadcrumb
@@ -288,7 +317,8 @@ export function FileListContainer({
       <div className="flex-1 min-h-0">
         <FileList
           files={files}
-          selectedPath={selectedPath}
+          isSelected={isSelected}
+          selectionCount={selectionCount}
           sort={sort}
           onFileClick={handleFileClick}
           onFileDblClick={handleFileDblClick}
@@ -296,9 +326,44 @@ export function FileListContainer({
           onDownload={handleDownload}
           onRename={handleRename}
           onDelete={handleDelete}
+          onKeyAction={(action) => {
+            if (action === "selectAll") {
+              selectAll();
+            } else if (action === "delete" && selectedFiles.length > 0) {
+              // 删除第一个选中的文件（后续可支持批量删除）
+              setTargetFile(selectedFiles[0]);
+              setDeleteOpen(true);
+            } else if (action === "newFolder") {
+              setCreateFolderOpen(true);
+            } else if (action === "preview" && selectedFiles.length === 1) {
+              // Space 键预览 - 如果是目录则进入，否则下载
+              const file = selectedFiles[0];
+              if (file.isDir) {
+                navigateTo(file.path);
+              } else {
+                handleDownload(file);
+              }
+            } else if (action === "parentDir") {
+              // Cmd+↑ 返回上级目录
+              if (currentPath !== "/") {
+                const parentPath = currentPath.substring(0, currentPath.lastIndexOf("/")) || "/";
+                navigateTo(parentPath);
+              }
+            } else if (action === "rename" && selectedFiles.length === 1) {
+              // Cmd+R / F2 重命名
+              handleRename(selectedFiles[0]);
+            }
+          }}
           isLoading={isLoading}
         />
       </div>
+
+      {/* 状态栏 */}
+      <StatusBar
+        totalCount={files.length}
+        selectionCount={selectionCount}
+        showHidden={showHidden}
+      />
 
       {/* 新建文件夹弹窗 */}
       <CreateFolderDialog

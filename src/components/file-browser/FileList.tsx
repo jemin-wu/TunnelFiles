@@ -19,14 +19,19 @@ import type { FileEntry, SortField, SortSpec } from "@/types";
 
 interface FileListProps {
   files: FileEntry[];
-  selectedPath: string | null;
+  /** 检查文件是否选中 */
+  isSelected: (path: string) => boolean;
+  /** 选中数量 */
+  selectionCount: number;
   sort: SortSpec;
-  onFileClick: (file: FileEntry) => void;
+  onFileClick: (file: FileEntry, modifiers: { metaKey: boolean; shiftKey: boolean }) => void;
   onFileDblClick: (file: FileEntry) => void;
   onSortChange: (field: SortField) => void;
   onDownload?: (file: FileEntry) => void;
   onRename?: (file: FileEntry) => void;
   onDelete?: (file: FileEntry) => void;
+  /** 键盘快捷键处理 */
+  onKeyAction?: (action: "selectAll" | "delete" | "newFolder" | "preview" | "parentDir" | "rename") => void;
   isLoading?: boolean;
 }
 
@@ -105,10 +110,10 @@ function HeaderCell({
 }
 
 // 文件行组件
-interface FileRowProps extends React.HTMLAttributes<HTMLDivElement> {
+interface FileRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onClick"> {
   file: FileEntry;
   isSelected: boolean;
-  onClick: () => void;
+  onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
   columnWidths: ColumnWidths;
 }
@@ -133,6 +138,7 @@ const FileRow = memo(function FileRow({
       className={cn(
         "flex items-center h-10 px-3 cursor-pointer select-none border-b border-border/30",
         "hover:bg-primary/5 transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset",
         isSelected && "bg-primary/10 border-l-2 border-l-primary",
         className
       )}
@@ -186,7 +192,8 @@ const FileRow = memo(function FileRow({
 
 export function FileList({
   files,
-  selectedPath,
+  isSelected,
+  selectionCount,
   sort,
   onFileClick,
   onFileDblClick,
@@ -194,6 +201,7 @@ export function FileList({
   onDownload,
   onRename,
   onDelete,
+  onKeyAction,
   isLoading,
 }: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -216,27 +224,87 @@ export function FileList({
     [startResize]
   );
 
-  // 键盘导航
+  // 获取当前选中的第一个文件索引
+  const getFirstSelectedIndex = useCallback(() => {
+    for (let i = 0; i < files.length; i++) {
+      if (isSelected(files[i].path)) {
+        return i;
+      }
+    }
+    return -1;
+  }, [files, isSelected]);
+
+  // 键盘导航和快捷键
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!parentRef.current?.contains(document.activeElement)) return;
 
-      const currentIndex = files.findIndex((f) => f.path === selectedPath);
+      const currentIndex = getFirstSelectedIndex();
+      const modifiers = { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey };
 
+      // Cmd+A: 全选
+      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+        e.preventDefault();
+        onKeyAction?.("selectAll");
+        return;
+      }
+
+      // Delete / Cmd+Backspace: 删除
+      if (e.key === "Delete" || ((e.metaKey || e.ctrlKey) && e.key === "Backspace")) {
+        e.preventDefault();
+        if (selectionCount > 0) {
+          onKeyAction?.("delete");
+        }
+        return;
+      }
+
+      // Cmd+N: 新建文件夹
+      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+        e.preventDefault();
+        onKeyAction?.("newFolder");
+        return;
+      }
+
+      // Space: 快速预览 (Quick Look)
+      if (e.key === " " && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault();
+        if (selectionCount === 1 && currentIndex >= 0) {
+          onKeyAction?.("preview");
+        }
+        return;
+      }
+
+      // Cmd+↑: 返回上级目录
+      if ((e.metaKey || e.ctrlKey) && e.key === "ArrowUp") {
+        e.preventDefault();
+        onKeyAction?.("parentDir");
+        return;
+      }
+
+      // Cmd+R / F2: 重命名
+      if (((e.metaKey || e.ctrlKey) && e.key === "r") || e.key === "F2") {
+        e.preventDefault();
+        if (selectionCount === 1) {
+          onKeyAction?.("rename");
+        }
+        return;
+      }
+
+      // 方向键导航
       if (e.key === "ArrowUp" && currentIndex > 0) {
         e.preventDefault();
-        onFileClick(files[currentIndex - 1]);
+        onFileClick(files[currentIndex - 1], modifiers);
         virtualizer.scrollToIndex(currentIndex - 1);
       } else if (e.key === "ArrowDown" && currentIndex < files.length - 1) {
         e.preventDefault();
-        onFileClick(files[currentIndex + 1]);
+        onFileClick(files[currentIndex + 1], modifiers);
         virtualizer.scrollToIndex(currentIndex + 1);
       } else if (e.key === "Enter" && currentIndex >= 0) {
         e.preventDefault();
         onFileDblClick(files[currentIndex]);
       }
     },
-    [files, selectedPath, onFileClick, onFileDblClick, virtualizer]
+    [files, getFirstSelectedIndex, isSelected, selectionCount, onFileClick, onFileDblClick, onKeyAction, virtualizer]
   );
 
   useEffect(() => {
@@ -339,15 +407,19 @@ export function FileList({
               >
                 <FileContextMenu
                   file={file}
+                  selectionCount={selectionCount}
                   onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
                   onDownload={onDownload ? () => onDownload(file) : undefined}
                   onRename={onRename ? () => onRename(file) : undefined}
                   onDelete={onDelete ? () => onDelete(file) : undefined}
+                  onNewFolder={() => onKeyAction?.("newFolder")}
                 >
                   <FileRow
                     file={file}
-                    isSelected={file.path === selectedPath}
-                    onClick={() => onFileClick(file)}
+                    isSelected={isSelected(file.path)}
+                    onClick={(e: React.MouseEvent) =>
+                      onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
+                    }
                     onDoubleClick={() => onFileDblClick(file)}
                     columnWidths={widths}
                   />
