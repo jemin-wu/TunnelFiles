@@ -23,6 +23,29 @@ use crate::models::profile::{AuthType, Profile};
 use crate::services::security_service::{credential_get, verify_hostkey, HostKeyVerifyResult};
 use crate::services::storage_service::Database;
 
+/// 缓存的认证凭据（用于 Terminal 等需要独立 session 的场景）
+///
+/// 这避免了多次访问系统钥匙串，用户无需在没有点"始终允许"时输入多次密码。
+/// 凭据在 session 关闭时通过 Drop trait 自动清零。
+pub struct CachedCredentials {
+    /// 密码（密码认证）
+    password: Option<String>,
+    /// Passphrase（Key 认证）
+    passphrase: Option<String>,
+}
+
+impl Drop for CachedCredentials {
+    fn drop(&mut self) {
+        // 安全清零凭据
+        if let Some(ref mut pwd) = self.password {
+            pwd.zeroize();
+        }
+        if let Some(ref mut pp) = self.passphrase {
+            pp.zeroize();
+        }
+    }
+}
+
 /// 托管的 SSH 会话
 pub struct ManagedSession {
     /// 会话 ID
@@ -41,6 +64,8 @@ pub struct ManagedSession {
     pub created_at: Instant,
     /// 最后活动时间
     pub last_activity: RwLock<Instant>,
+    /// 缓存的认证凭据（用于创建 Terminal 等独立 session）
+    cached_credentials: RwLock<CachedCredentials>,
 }
 
 impl ManagedSession {
@@ -57,6 +82,22 @@ impl ManagedSession {
             .read()
             .map(|t| t.elapsed().as_secs())
             .unwrap_or(0)
+    }
+
+    /// 获取缓存的密码（如果存在）
+    pub fn get_cached_password(&self) -> Option<String> {
+        self.cached_credentials
+            .read()
+            .ok()
+            .and_then(|creds| creds.password.clone())
+    }
+
+    /// 获取缓存的 passphrase（如果存在）
+    pub fn get_cached_passphrase(&self) -> Option<String> {
+        self.cached_credentials
+            .read()
+            .ok()
+            .and_then(|creds| creds.passphrase.clone())
     }
 }
 
@@ -182,11 +223,11 @@ impl SessionManager {
             }
         }
 
-        // 3. 认证
-        self.authenticate(&session, profile, password, passphrase)?;
+        // 3. 认证（并获取缓存的凭据）
+        let cached_credentials = self.authenticate(&session, profile, password, passphrase)?;
 
-        // 4. 完成连接并存储会话
-        let result = self.finalize_connection(session, &profile.id, fingerprint)?;
+        // 4. 完成连接并存储会话（包含缓存的凭据）
+        let result = self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
 
         tracing::info!(
             session_id = %result.session_id,
@@ -214,11 +255,11 @@ impl SessionManager {
         // 2. 获取指纹（已信任，不再验证）
         let (_, fingerprint) = self.get_host_key_info(&session)?;
 
-        // 3. 认证
-        self.authenticate(&session, profile, password, passphrase)?;
+        // 3. 认证（并获取缓存的凭据）
+        let cached_credentials = self.authenticate(&session, profile, password, passphrase)?;
 
-        // 4. 完成连接并存储会话
-        let result = self.finalize_connection(session, &profile.id, fingerprint)?;
+        // 4. 完成连接并存储会话（包含缓存的凭据）
+        let result = self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
 
         tracing::info!(
             session_id = %result.session_id,
@@ -278,6 +319,8 @@ impl SessionManager {
     }
 
     /// 为 Terminal 创建独立的 SSH session（阻塞模式，调用方负责后续设置非阻塞）
+    ///
+    /// 使用主 session 中缓存的凭据进行认证，避免再次访问系统钥匙串。
     pub fn create_terminal_session(
         &self,
         db: &crate::services::storage_service::Database,
@@ -286,6 +329,17 @@ impl SessionManager {
         // 获取原始会话信息
         let managed_session = self.get_session(session_id)?;
         let profile_id = &managed_session.profile_id;
+
+        // 从缓存获取凭据（避免再次访问钥匙串）
+        let cached_password = managed_session.get_cached_password();
+        let cached_passphrase = managed_session.get_cached_passphrase();
+
+        tracing::debug!(
+            session_id = %session_id,
+            has_cached_password = cached_password.is_some(),
+            has_cached_passphrase = cached_passphrase.is_some(),
+            "使用缓存的凭据创建 Terminal session"
+        );
 
         // 从数据库获取 profile
         let profile = db
@@ -296,15 +350,30 @@ impl SessionManager {
         let timeout = Duration::from_secs(30);
         let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
 
+        // 使用缓存的凭据进行认证
         match profile.auth_type {
-            AuthType::Password => self.auth_password(&session, &profile.username, &profile, None),
-            AuthType::Key => self.auth_key(&session, &profile.username, &profile, None),
-        }?;
+            AuthType::Password => {
+                self.auth_password(
+                    &session,
+                    &profile.username,
+                    &profile,
+                    cached_password.as_deref(),
+                )?;
+            }
+            AuthType::Key => {
+                self.auth_key(
+                    &session,
+                    &profile.username,
+                    &profile,
+                    cached_passphrase.as_deref(),
+                )?;
+            }
+        }
 
         tracing::info!(
             session_id = %session_id,
             profile_id = %profile_id,
-            "Terminal 专用 session 已创建"
+            "Terminal 专用 session 已创建（使用缓存凭据）"
         );
 
         Ok(session)
@@ -410,6 +479,7 @@ impl SessionManager {
         session: Session,
         profile_id: &str,
         fingerprint: String,
+        cached_credentials: CachedCredentials,
     ) -> AppResult<ConnectResult> {
         tracing::debug!("正在创建 SFTP 通道");
         let sftp = session.sftp().map_err(|e| {
@@ -432,6 +502,7 @@ impl SessionManager {
             home_path: home_path.clone(),
             created_at: now,
             last_activity: RwLock::new(now),
+            cached_credentials: RwLock::new(cached_credentials),
         });
 
         {
@@ -474,20 +545,35 @@ impl SessionManager {
         Ok((key_type_str.to_string(), fingerprint))
     }
 
-    /// 执行认证
+    /// 执行认证并返回缓存的凭据
+    ///
+    /// 返回 CachedCredentials 用于后续创建独立 session（如 Terminal），
+    /// 避免多次访问系统钥匙串。
     fn authenticate(
         &self,
         session: &Session,
         profile: &Profile,
         password: Option<&str>,
         passphrase: Option<&str>,
-    ) -> AppResult<()> {
+    ) -> AppResult<CachedCredentials> {
         // 检查是否被锁定
         self.check_auth_lockout(&profile.id)?;
 
         let result = match profile.auth_type {
-            AuthType::Password => self.auth_password(session, &profile.username, profile, password),
-            AuthType::Key => self.auth_key(session, &profile.username, profile, passphrase),
+            AuthType::Password => {
+                let pwd = self.auth_password(session, &profile.username, profile, password)?;
+                Ok(CachedCredentials {
+                    password: Some(pwd),
+                    passphrase: None,
+                })
+            }
+            AuthType::Key => {
+                let pp = self.auth_key(session, &profile.username, profile, passphrase)?;
+                Ok(CachedCredentials {
+                    password: None,
+                    passphrase: pp,
+                })
+            }
         };
 
         // 记录认证结果
@@ -552,17 +638,19 @@ impl SessionManager {
     }
 
     /// 密码认证
+    ///
+    /// 返回使用的密码，用于缓存以便后续创建独立 session
     fn auth_password(
         &self,
         session: &Session,
         username: &str,
         profile: &Profile,
         temp_password: Option<&str>,
-    ) -> AppResult<()> {
+    ) -> AppResult<String> {
         tracing::debug!(username = %username, "正在进行密码认证");
 
         // 优先使用临时密码，否则从 Keychain 获取
-        let mut password = if let Some(pwd) = temp_password {
+        let password = if let Some(pwd) = temp_password {
             pwd.to_string()
         } else if let Some(ref pwd_ref) = profile.password_ref {
             credential_get(pwd_ref)?
@@ -572,9 +660,6 @@ impl SessionManager {
         };
 
         let result = session.userauth_password(username, &password);
-
-        // 使用后立即清零密码
-        password.zeroize();
 
         result.map_err(|e| {
             tracing::warn!(error = %e, "密码认证失败");
@@ -586,17 +671,19 @@ impl SessionManager {
         }
 
         tracing::info!(username = %username, "密码认证成功");
-        Ok(())
+        Ok(password)
     }
 
     /// SSH Key 认证
+    ///
+    /// 返回使用的 passphrase（如果有），用于缓存以便后续创建独立 session
     fn auth_key(
         &self,
         session: &Session,
         username: &str,
         profile: &Profile,
         temp_passphrase: Option<&str>,
-    ) -> AppResult<()> {
+    ) -> AppResult<Option<String>> {
         tracing::debug!(username = %username, "正在进行 Key 认证");
 
         let key_path = profile
@@ -630,7 +717,7 @@ impl SessionManager {
         }
 
         // 获取 passphrase（如果需要）
-        let mut passphrase = if let Some(pp) = temp_passphrase {
+        let passphrase = if let Some(pp) = temp_passphrase {
             Some(pp.to_string())
         } else if let Some(ref pp_ref) = profile.passphrase_ref {
             credential_get(pp_ref)?
@@ -640,11 +727,6 @@ impl SessionManager {
 
         let has_passphrase = passphrase.is_some();
         let result = session.userauth_pubkey_file(username, None, key_path, passphrase.as_deref());
-
-        // 使用后立即清零 passphrase
-        if let Some(ref mut pp) = passphrase {
-            pp.zeroize();
-        }
 
         result.map_err(|e| {
             tracing::warn!(error = %e, "Key 认证失败");
@@ -661,7 +743,7 @@ impl SessionManager {
         }
 
         tracing::info!(username = %username, "Key 认证成功");
-        Ok(())
+        Ok(passphrase)
     }
 
     /// 获取远程 home 目录
@@ -693,7 +775,50 @@ impl Default for SessionManager {
     }
 }
 
-// 安全性：确保 SessionManager 可以跨线程共享
+// SAFETY: SessionManager 手动实现 Send 和 Sync
+//
+// 背景:
+// - `ssh2::Session` 和 `ssh2::Sftp` 类型是 `!Send` 和 `!Sync`，因为底层的
+//   libssh2 C 库不是线程安全的。这导致包含它们的 `ManagedSession` 也是 `!Send + !Sync`。
+// - 然而，`SessionManager` 需要作为 Tauri State 跨线程共享，因此需要 `Send + Sync`。
+//
+// 为什么这是安全的:
+//
+// 1. 数据结构安全性:
+//    - `SessionManager` 只包含 `RwLock<HashMap<String, Arc<ManagedSession>>>`
+//    - `RwLock` 和 `HashMap` 本身是 `Send + Sync`（当内容类型满足条件时）
+//    - 问题仅来自 `ManagedSession` 内部的 `Session` 和 `Sftp`
+//
+// 2. 访问模式安全性:
+//    - SessionManager 的公共 API 只返回 `Arc<ManagedSession>` 的克隆引用
+//    - 调用者获取到 Arc 后，必须在 `tokio::task::spawn_blocking` 中执行所有
+//      SSH/SFTP 操作，确保这些操作在单个专用线程上顺序执行
+//    - 参见: src/commands/session.rs 和 src/services/transfer_manager.rs
+//
+// 3. 内部字段安全性:
+//    - `ManagedSession::last_activity` 和 `cached_credentials` 使用 `RwLock` 保护
+//    - 其他字段（`session_id`, `profile_id` 等）是不可变的 `String`/`Instant`
+//    - `Session` 和 `Sftp` 字段虽然是 `!Send`，但只在 `spawn_blocking` 闭包中使用
+//
+// 不变量 (Invariants):
+// - 所有对 `session.sftp` 或 `session.session` 的方法调用必须在 `spawn_blocking` 中
+// - 永远不要在异步上下文中直接调用 ssh2 的同步方法
+// - 修改此模块时必须维护这些不变量
+//
+// 违反安全性的情况（请勿这样做）:
+// ```ignore
+// // 错误: 在 async 函数中直接调用 sftp 方法
+// async fn bad_example(session: Arc<ManagedSession>) {
+//     session.sftp.stat(path); // 这会阻塞 tokio 运行时且不是线程安全的
+// }
+//
+// // 正确: 使用 spawn_blocking
+// async fn good_example(session: Arc<ManagedSession>) {
+//     tokio::task::spawn_blocking(move || {
+//         session.sftp.stat(path) // 在专用线程中安全执行
+//     }).await
+// }
+// ```
 unsafe impl Send for SessionManager {}
 unsafe impl Sync for SessionManager {}
 
