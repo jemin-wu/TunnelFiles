@@ -30,6 +30,7 @@ interface FileListProps {
   onDownload?: (file: FileEntry) => void;
   onRename?: (file: FileEntry) => void;
   onDelete?: (file: FileEntry) => void;
+  onChmod?: (file: FileEntry) => void;
   /** 键盘快捷键处理 */
   onKeyAction?: (action: "selectAll" | "clearSelection" | "delete" | "newFolder" | "preview" | "parentDir" | "rename") => void;
   isLoading?: boolean;
@@ -201,6 +202,7 @@ export function FileList({
   onDownload,
   onRename,
   onDelete,
+  onChmod,
   onKeyAction,
   isLoading,
 }: FileListProps) {
@@ -435,6 +437,7 @@ export function FileList({
                   onDownload={onDownload ? () => onDownload(file) : undefined}
                   onRename={onRename ? () => onRename(file) : undefined}
                   onDelete={onDelete ? () => onDelete(file) : undefined}
+                  onChmod={onChmod ? () => onChmod(file) : undefined}
                   onNewFolder={() => onKeyAction?.("newFolder")}
                 >
                   <FileRow

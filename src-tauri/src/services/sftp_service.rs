@@ -291,6 +291,61 @@ impl SftpService {
         Ok(())
     }
 
+    /// 修改文件/目录权限
+    ///
+    /// 使用 SFTP setstat 修改权限
+    /// mode 范围: 0o000 - 0o777
+    pub fn chmod(sftp: &Sftp, path: &str, mode: u32) -> AppResult<()> {
+        let normalized = Self::normalize_path(path);
+        Self::validate_path(&normalized)?;
+
+        let path_obj = Path::new(&normalized);
+
+        // 禁止修改根目录权限
+        if normalized == "/" {
+            return Err(AppError::invalid_argument("不允许修改根目录权限"));
+        }
+
+        // 禁止修改 . 和 ..
+        let name = path_obj.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if name == "." || name == ".." {
+            return Err(AppError::invalid_argument("不允许修改 . 或 .. 的权限"));
+        }
+
+        // 验证权限值范围
+        if mode > 0o777 {
+            return Err(AppError::invalid_argument(format!(
+                "权限值超出范围: {} (最大 0o777)",
+                mode
+            )));
+        }
+
+        // 检查路径是否存在
+        sftp.stat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
+
+        // 使用 setstat 修改权限
+        // FileStat 需要手动构建，只设置 perm 字段
+        let file_stat = ssh2::FileStat {
+            size: None,
+            uid: None,
+            gid: None,
+            perm: Some(mode),
+            atime: None,
+            mtime: None,
+        };
+
+        sftp.setstat(path_obj, file_stat).map_err(|e| {
+            if e.code() == ssh2::ErrorCode::SFTP(3) {
+                AppError::permission_denied(format!("无权修改文件权限: {}", normalized))
+            } else {
+                AppError::from(e)
+            }
+        })?;
+
+        Ok(())
+    }
+
     /// 递归列出目录下的所有文件
     ///
     /// 返回 (remote_path, relative_path) 元组列表，仅包含文件（不含目录）

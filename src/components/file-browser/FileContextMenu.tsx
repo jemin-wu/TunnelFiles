@@ -4,7 +4,7 @@
  */
 
 import { useCallback } from "react";
-import { Download, Pencil, Trash2, FolderOpen, FolderPlus, Copy, Files } from "lucide-react";
+import { Download, Pencil, Trash2, FolderOpen, FolderPlus, Copy, Files, Shield } from "lucide-react";
 
 import {
   ContextMenu,
@@ -27,6 +27,7 @@ interface FileContextMenuProps {
   onRename?: () => void;
   onDelete?: () => void;
   onNewFolder?: () => void;
+  onChmod?: () => void;
 }
 
 export function FileContextMenu({
@@ -38,6 +39,7 @@ export function FileContextMenu({
   onRename,
   onDelete,
   onNewFolder,
+  onChmod,
 }: FileContextMenuProps) {
   const isMultiSelect = selectionCount > 1;
 
@@ -124,6 +126,14 @@ export function FileContextMenu({
               <span>RENAME</span>
             </span>
             <span className="text-muted-foreground text-[10px]">⌘R</span>
+          </ContextMenuItem>
+        )}
+
+        {/* 修改权限 - 支持批量 */}
+        {onChmod && (
+          <ContextMenuItem onClick={onChmod} className="text-xs gap-2">
+            <Shield className="h-3.5 w-3.5" />
+            <span>{isMultiSelect ? `CHMOD_${selectionCount}_ITEMS` : "CHMOD"}</span>
           </ContextMenuItem>
         )}
 

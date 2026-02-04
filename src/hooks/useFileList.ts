@@ -3,9 +3,9 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { invoke } from "@tauri-apps/api/core";
 
 import { invokeWithErrorHandling } from "@/lib/error";
+import * as sftp from "@/lib/sftp";
 import type { FileEntry, SortSpec } from "@/types";
 
 interface UseFileListOptions {
@@ -30,12 +30,7 @@ export function useFileList(options: UseFileListOptions): UseFileListReturn {
     queryKey: ["files", sessionId, path, sort],
     queryFn: async () => {
       const files = await invokeWithErrorHandling<FileEntry[]>(
-        () =>
-          invoke("sftp_list_dir", {
-            sessionId,
-            path,
-            sort,
-          }),
+        () => sftp.listDir(sessionId, path, sort),
         { showToast: true }
       );
       return files ?? [];

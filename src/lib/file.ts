@@ -2,7 +2,8 @@
  * 文件相关工具函数
  */
 
-import type { FileEntry } from "@/types";
+import { z } from "zod";
+import type { FileEntry, PermissionBits } from "@/types";
 
 /**
  * 文件类型
@@ -289,4 +290,78 @@ export function parsePath(path: string, homePath?: string): PathSegment[] {
   }
 
   return segments;
+}
+
+// ========== chmod 权限相关函数 ==========
+
+/**
+ * chmod 失败项 Zod Schema
+ */
+export const ChmodFailureSchema = z.object({
+  path: z.string(),
+  error: z.string(),
+});
+
+/**
+ * chmod 结果 Zod Schema
+ */
+export const ChmodResultSchema = z.object({
+  successCount: z.number(),
+  failures: z.array(ChmodFailureSchema),
+});
+
+/**
+ * Unix mode 转换为权限位对象
+ *
+ * @param mode - Unix 权限值 (0-511, 即 0o000-0o777)
+ * @returns 权限位对象
+ */
+export function modeToPermissions(mode: number): PermissionBits {
+  return {
+    owner: {
+      read: (mode & 0o400) !== 0,
+      write: (mode & 0o200) !== 0,
+      execute: (mode & 0o100) !== 0,
+    },
+    group: {
+      read: (mode & 0o040) !== 0,
+      write: (mode & 0o020) !== 0,
+      execute: (mode & 0o010) !== 0,
+    },
+    others: {
+      read: (mode & 0o004) !== 0,
+      write: (mode & 0o002) !== 0,
+      execute: (mode & 0o001) !== 0,
+    },
+  };
+}
+
+/**
+ * 权限位对象转换为 Unix mode
+ *
+ * @param perms - 权限位对象
+ * @returns Unix 权限值 (0-511)
+ */
+export function permissionsToMode(perms: PermissionBits): number {
+  let mode = 0;
+  if (perms.owner.read) mode |= 0o400;
+  if (perms.owner.write) mode |= 0o200;
+  if (perms.owner.execute) mode |= 0o100;
+  if (perms.group.read) mode |= 0o040;
+  if (perms.group.write) mode |= 0o020;
+  if (perms.group.execute) mode |= 0o010;
+  if (perms.others.read) mode |= 0o004;
+  if (perms.others.write) mode |= 0o002;
+  if (perms.others.execute) mode |= 0o001;
+  return mode;
+}
+
+/**
+ * 格式化八进制权限显示
+ *
+ * @param mode - Unix 权限值
+ * @returns 三位八进制字符串 (如 "755")
+ */
+export function formatOctalMode(mode: number): string {
+  return mode.toString(8).padStart(3, "0");
 }

@@ -65,3 +65,39 @@ export function formatFileMode(mode?: number): string {
 
   return permissions[owner] + permissions[group] + permissions[other];
 }
+
+// ========== chmod 相关类型 ==========
+
+/**
+ * chmod 失败项
+ */
+export interface ChmodFailure {
+  path: string;
+  error: string;
+}
+
+/**
+ * chmod 结果
+ */
+export interface ChmodResult {
+  successCount: number;
+  failures: ChmodFailure[];
+}
+
+/**
+ * 单个角色的权限位
+ */
+export interface RolePermission {
+  read: boolean;
+  write: boolean;
+  execute: boolean;
+}
+
+/**
+ * 完整权限位 (Owner/Group/Others)
+ */
+export interface PermissionBits {
+  owner: RolePermission;
+  group: RolePermission;
+  others: RolePermission;
+}

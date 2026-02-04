@@ -11,6 +11,7 @@ import { FileList } from "./FileList";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { RenameDialog } from "./RenameDialog";
+import { ChmodDialog } from "./ChmodDialog";
 import { useFileList } from "@/hooks/useFileList";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
@@ -45,6 +46,7 @@ export function FileListContainer({
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [chmodOpen, setChmodOpen] = useState(false);
   const [targetFile, setTargetFile] = useState<FileEntry | null>(null);
 
   const {
@@ -59,7 +61,7 @@ export function FileListContainer({
     enabled: !!sessionId,
   });
 
-  const { createFolder, rename, deleteItem } = useFileOperations({
+  const { createFolder, rename, deleteItem, chmod } = useFileOperations({
     sessionId,
     currentPath,
   });
@@ -146,6 +148,32 @@ export function FileListContainer({
     setTargetFile(file);
     setDeleteOpen(true);
   }, []);
+
+  const handleChmod = useCallback((file: FileEntry) => {
+    setTargetFile(file);
+    setChmodOpen(true);
+  }, []);
+
+  const handleChmodSubmit = useCallback(
+    (mode: number) => {
+      // 获取需要修改权限的文件列表
+      // 如果有多选，使用选中的文件；否则使用目标文件
+      const filesToChmod = selectedFiles.length > 0 ? selectedFiles : (targetFile ? [targetFile] : []);
+      if (filesToChmod.length === 0) return;
+
+      const paths = filesToChmod.map((f) => f.path);
+      chmod.mutate(
+        { paths, mode },
+        {
+          onSuccess: () => {
+            setChmodOpen(false);
+            setTargetFile(null);
+          },
+        }
+      );
+    },
+    [selectedFiles, targetFile, chmod]
+  );
 
   const handleDownload = useCallback(
     async (file: FileEntry) => {
@@ -333,6 +361,7 @@ export function FileListContainer({
           onDownload={handleDownload}
           onRename={handleRename}
           onDelete={handleDelete}
+          onChmod={handleChmod}
           onKeyAction={(action) => {
             if (action === "selectAll") {
               selectAll();
@@ -397,6 +426,18 @@ export function FileListContainer({
         file={targetFile}
         onConfirm={handleDeleteConfirm}
         isPending={deleteItem.isPending}
+      />
+
+      {/* 权限修改弹窗 */}
+      <ChmodDialog
+        open={chmodOpen}
+        onOpenChange={(open) => {
+          setChmodOpen(open);
+          if (!open) setTargetFile(null);
+        }}
+        files={selectedFiles.length > 0 ? selectedFiles : (targetFile ? [targetFile] : [])}
+        onSubmit={handleChmodSubmit}
+        isPending={chmod.isPending}
       />
     </div>
   );
