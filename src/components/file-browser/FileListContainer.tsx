@@ -2,7 +2,7 @@
  * 文件列表容器组件 - Cyberpunk Terminal Style
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus, TerminalSquare } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
@@ -15,6 +15,7 @@ import { ChmodDialog } from "./ChmodDialog";
 import { useFileList } from "@/hooks/useFileList";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
+import { useDeleteProgress } from "@/hooks/useDeleteProgress";
 import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { downloadFile, downloadDirectory, getTransfer } from "@/lib/transfer";
@@ -22,6 +23,7 @@ import { showSuccessToast, showErrorToast } from "@/lib/error";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { DEFAULT_SORT, type FileEntry, type SortField, type SortSpec } from "@/types";
+import type { DirectoryStats } from "@/types/file";
 
 interface FileListContainerProps {
   sessionId: string;
@@ -61,10 +63,41 @@ export function FileListContainer({
     enabled: !!sessionId,
   });
 
-  const { createFolder, rename, deleteItem, chmod } = useFileOperations({
+  const { createFolder, rename, deleteItem, deleteRecursive, chmod, getDirStats } = useFileOperations({
     sessionId,
     currentPath,
   });
+
+  // 目录统计信息状态（用于删除确认对话框）
+  const [dirStats, setDirStats] = useState<DirectoryStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+
+  // 监听递归删除进度
+  const { progress: deleteProgress, reset: resetDeleteProgress } = useDeleteProgress({
+    path: deleteRecursive.isPending ? targetFile?.path ?? null : null,
+  });
+
+  // 当删除对话框打开时，如果是目录则获取统计信息
+  useEffect(() => {
+    if (!deleteOpen || !targetFile?.isDir) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when dialog closes or file changes
+      setDirStats(null);
+      return;
+    }
+
+    setIsLoadingStats(true);
+    getDirStats(targetFile.path)
+      .then((stats) => {
+        setDirStats(stats);
+      })
+      .catch((error) => {
+        console.warn("Failed to get directory stats:", error);
+        setDirStats(null);
+      })
+      .finally(() => {
+        setIsLoadingStats(false);
+      });
+  }, [deleteOpen, targetFile?.isDir, targetFile?.path, getDirStats]);
 
   const { settings } = useSettings();
   const addTask = useTransferStore((s) => s.addTask);
@@ -218,16 +251,37 @@ export function FileListContainer({
 
   const handleDeleteConfirm = useCallback(() => {
     if (!targetFile) return;
-    deleteItem.mutate(
-      { path: targetFile.path, isDir: targetFile.isDir },
-      {
-        onSuccess: () => {
-          setDeleteOpen(false);
-          setTargetFile(null);
-        },
-      }
-    );
-  }, [targetFile, deleteItem]);
+
+    // 判断是否需要递归删除：目录且非空
+    const isNonEmptyDir = targetFile.isDir && dirStats && (dirStats.fileCount > 0 || dirStats.dirCount > 0);
+
+    if (isNonEmptyDir) {
+      // 递归删除非空目录
+      deleteRecursive.mutate(
+        { path: targetFile.path },
+        {
+          onSuccess: () => {
+            setDeleteOpen(false);
+            setTargetFile(null);
+            setDirStats(null);
+            resetDeleteProgress();
+          },
+        }
+      );
+    } else {
+      // 普通删除（文件或空目录）
+      deleteItem.mutate(
+        { path: targetFile.path, isDir: targetFile.isDir },
+        {
+          onSuccess: () => {
+            setDeleteOpen(false);
+            setTargetFile(null);
+            setDirStats(null);
+          },
+        }
+      );
+    }
+  }, [targetFile, dirStats, deleteItem, deleteRecursive, resetDeleteProgress]);
 
   const handleCreateFolderSubmit = useCallback(
     (name: string) => {
@@ -421,11 +475,18 @@ export function FileListContainer({
         open={deleteOpen}
         onOpenChange={(open) => {
           setDeleteOpen(open);
-          if (!open) setTargetFile(null);
+          if (!open) {
+            setTargetFile(null);
+            setDirStats(null);
+            resetDeleteProgress();
+          }
         }}
         file={targetFile}
         onConfirm={handleDeleteConfirm}
-        isPending={deleteItem.isPending}
+        isPending={deleteItem.isPending || deleteRecursive.isPending}
+        stats={dirStats}
+        isLoadingStats={isLoadingStats}
+        progress={deleteProgress}
       />
 
       {/* 权限修改弹窗 */}

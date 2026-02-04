@@ -1,8 +1,9 @@
 /**
  * 文件操作 Hook
- * 封装 mkdir, rename, delete, chmod 操作
+ * 封装 mkdir, rename, delete, chmod, getDirStats 操作
  */
 
+import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { showSuccessToast, showErrorToast } from "@/lib/error";
@@ -54,13 +55,36 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 删除
+  // 删除（空目录/文件）
   const deleteItem = useMutation({
     mutationFn: async ({ path, isDir }: { path: string; isDir: boolean }) => {
       await sftp.deleteItem(sessionId, path, isDir);
     },
     onSuccess: () => {
       showSuccessToast("删除成功");
+      invalidateFileList();
+    },
+    onError: (error) => {
+      showErrorToast(error);
+    },
+  });
+
+  // 递归删除（非空目录）
+  const deleteRecursive = useMutation({
+    mutationFn: async ({ path }: { path: string }) => {
+      return await sftp.deleteRecursive(sessionId, path);
+    },
+    onSuccess: (result) => {
+      const total = result.deletedFiles + result.deletedDirs;
+      if (result.failures.length === 0) {
+        showSuccessToast(`删除成功 (${result.deletedFiles} 文件, ${result.deletedDirs} 目录)`);
+      } else if (total > 0) {
+        showSuccessToast(
+          `部分删除: ${total} 成功, ${result.failures.length} 失败`
+        );
+      } else {
+        showErrorToast(new Error(`删除失败: ${result.failures[0]?.error}`));
+      }
       invalidateFileList();
     },
     onError: (error) => {
@@ -90,15 +114,24 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
+  // 获取目录统计信息（用于删除确认对话框）
+  const getDirStats = useCallback(
+    (path: string) => sftp.getDirStats(sessionId, path),
+    [sessionId]
+  );
+
   return {
     createFolder,
     rename,
     deleteItem,
+    deleteRecursive,
     chmod,
+    getDirStats,
     isOperating:
       createFolder.isPending ||
       rename.isPending ||
       deleteItem.isPending ||
+      deleteRecursive.isPending ||
       chmod.isPending,
   };
 }

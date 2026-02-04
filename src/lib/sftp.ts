@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import { ChmodResultSchema } from "./file";
 import type { FileEntry, SortSpec } from "@/types";
-import type { ChmodResult } from "@/types/file";
+import type { ChmodResult, DirectoryStats, RecursiveDeleteResult } from "@/types/file";
 
 // ============================================================================
 // Schemas
@@ -136,4 +136,79 @@ export async function chmod(
     input: { sessionId, paths, mode },
   });
   return ChmodResultSchema.parse(result);
+}
+
+// ============================================================================
+// Recursive Delete Schemas
+// ============================================================================
+
+/** 目录统计信息 Schema */
+export const DirectoryStatsSchema = z.object({
+  fileCount: z.number(),
+  dirCount: z.number(),
+  totalSize: z.number(),
+});
+
+/** 删除失败项 Schema */
+export const DeleteFailureSchema = z.object({
+  path: z.string(),
+  error: z.string(),
+});
+
+/** 递归删除结果 Schema */
+export const RecursiveDeleteResultSchema = z.object({
+  deletedFiles: z.number(),
+  deletedDirs: z.number(),
+  failures: z.array(DeleteFailureSchema),
+});
+
+/** 删除进度 Schema */
+export const DeleteProgressSchema = z.object({
+  path: z.string(),
+  deletedCount: z.number(),
+  totalCount: z.number(),
+  currentPath: z.string(),
+});
+
+// ============================================================================
+// Recursive Delete Operations
+// ============================================================================
+
+/**
+ * 获取目录统计信息
+ *
+ * 用于删除确认对话框显示文件数量和总大小
+ *
+ * @param sessionId - 会话 ID
+ * @param path - 目录路径
+ * @returns 目录统计信息
+ */
+export async function getDirStats(
+  sessionId: string,
+  path: string
+): Promise<DirectoryStats> {
+  const result = await invoke("sftp_get_dir_stats", {
+    sessionId,
+    path,
+  });
+  return DirectoryStatsSchema.parse(result);
+}
+
+/**
+ * 递归删除目录
+ *
+ * 删除目录及其所有内容，通过 delete:progress 事件发送进度
+ *
+ * @param sessionId - 会话 ID
+ * @param path - 要删除的路径
+ * @returns 删除结果
+ */
+export async function deleteRecursive(
+  sessionId: string,
+  path: string
+): Promise<RecursiveDeleteResult> {
+  const result = await invoke("sftp_delete_recursive", {
+    input: { sessionId, path },
+  });
+  return RecursiveDeleteResultSchema.parse(result);
 }

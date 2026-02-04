@@ -84,6 +84,8 @@ pub fn run() {
             commands::sftp::sftp_rename,
             commands::sftp::sftp_delete,
             commands::sftp::sftp_chmod,
+            commands::sftp::sftp_get_dir_stats,
+            commands::sftp::sftp_delete_recursive,
             // Transfer 命令
             commands::transfer::transfer_upload,
             commands::transfer::transfer_upload_dir,

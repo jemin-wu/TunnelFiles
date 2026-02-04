@@ -76,6 +76,26 @@ export function getErrorCode(error: unknown): ErrorCode {
 // Toast 相关
 // ============================================
 
+// ============================================
+// Toast Duration 配置
+// ============================================
+
+/**
+ * Toast 持续时间配置（毫秒）
+ *
+ * 基于 500ms/word 指导原则 + 桌面 UX 最佳实践
+ */
+export const TOAST_DURATION = {
+  /** 成功消息 - 简短确认 */
+  SUCCESS: 3000,
+  /** 错误消息 - 用户需要时间阅读 + 决定是否重试 */
+  ERROR: 6000,
+  /** 警告消息 - 需要注意但非紧急 */
+  WARNING: 5000,
+  /** 信息消息 - 一般提示 */
+  INFO: 4000,
+} as const;
+
 interface ToastErrorOptions {
   /** 是否显示重试按钮 */
   showRetry?: boolean;
@@ -92,7 +112,7 @@ export function showErrorToast(error: unknown, options: ToastErrorOptions = {}) 
   const message = getErrorMessage(error);
   const detail = getErrorDetail(error);
   const retryable = isRetryable(error);
-  const { showRetry = retryable, onRetry, duration = 5000 } = options;
+  const { showRetry = retryable, onRetry, duration = TOAST_DURATION.ERROR } = options;
 
   toast.error(message, {
     description: detail,
@@ -113,7 +133,7 @@ export function showErrorToast(error: unknown, options: ToastErrorOptions = {}) 
 export function showSuccessToast(message: string, description?: string) {
   toast.success(message, {
     description,
-    duration: 3000,
+    duration: TOAST_DURATION.SUCCESS,
   });
 }
 
@@ -123,7 +143,7 @@ export function showSuccessToast(message: string, description?: string) {
 export function showInfoToast(message: string, description?: string) {
   toast.info(message, {
     description,
-    duration: 4000,
+    duration: TOAST_DURATION.INFO,
   });
 }
 
@@ -133,7 +153,7 @@ export function showInfoToast(message: string, description?: string) {
 export function showWarningToast(message: string, description?: string) {
   toast.warning(message, {
     description,
-    duration: 4000,
+    duration: TOAST_DURATION.WARNING,
   });
 }
 

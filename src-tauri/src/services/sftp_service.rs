@@ -291,6 +291,329 @@ impl SftpService {
         Ok(())
     }
 
+    /// 获取目录统计信息（文件数、目录数、总大小）
+    ///
+    /// 用于删除确认对话框显示
+    /// 使用迭代而非递归，避免栈溢出
+    /// 跳过符号链接防止无限循环
+    pub fn get_directory_stats(sftp: &Sftp, path: &str) -> AppResult<DirectoryStats> {
+        let normalized = Self::normalize_path(path);
+        Self::validate_path(&normalized)?;
+
+        let path_obj = Path::new(&normalized);
+
+        // 使用 lstat 检查是否为符号链接
+        let lstat = sftp
+            .lstat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
+
+        let is_symlink = lstat
+            .perm
+            .map(|mode| (mode & S_IFMT) == S_IFLNK)
+            .unwrap_or(false);
+
+        if is_symlink {
+            return Err(AppError::invalid_argument("符号链接不支持统计"));
+        }
+
+        // 使用 stat 检查是否为目录（跟随符号链接）
+        let stat = sftp
+            .stat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
+
+        if !stat.is_dir() {
+            // 如果是文件，返回单个文件的统计信息
+            return Ok(DirectoryStats {
+                file_count: 1,
+                dir_count: 0,
+                total_size: stat.size.unwrap_or(0),
+            });
+        }
+
+        let mut file_count: u64 = 0;
+        let mut dir_count: u64 = 0;
+        let mut total_size: u64 = 0;
+
+        // 使用栈进行迭代遍历（避免递归导致栈溢出）
+        let mut stack = vec![normalized.clone()];
+
+        while let Some(current_path) = stack.pop() {
+            let current_obj = Path::new(&current_path);
+
+            let entries = match sftp.readdir(current_obj) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    tracing::warn!(path = %current_path, error = %e, "无法读取目录，跳过");
+                    continue;
+                }
+            };
+
+            for (path_buf, _) in entries {
+                // 过滤 . 和 ..
+                let file_name = path_buf.file_name().and_then(|n| n.to_str());
+                if matches!(file_name, None | Some(".") | Some("..")) {
+                    continue;
+                }
+
+                let full_path = path_buf.to_string_lossy().to_string();
+
+                // 使用 lstat 检查每个条目（避免跟随符号链接）
+                let entry_lstat = match sftp.lstat(&path_buf) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(path = %full_path, error = %e, "无法获取文件信息，跳过");
+                        continue;
+                    }
+                };
+
+                // 跳过符号链接
+                let is_symlink = entry_lstat
+                    .perm
+                    .map(|mode| (mode & S_IFMT) == S_IFLNK)
+                    .unwrap_or(false);
+
+                if is_symlink {
+                    tracing::debug!(path = %full_path, "跳过符号链接");
+                    continue;
+                }
+
+                if entry_lstat.is_dir() {
+                    dir_count += 1;
+                    stack.push(full_path);
+                } else {
+                    file_count += 1;
+                    total_size += entry_lstat.size.unwrap_or(0);
+                }
+            }
+        }
+
+        Ok(DirectoryStats {
+            file_count,
+            dir_count,
+            total_size,
+        })
+    }
+
+    /// 递归删除目录及其所有内容
+    ///
+    /// 策略：深度优先遍历，先删除文件和子目录，最后删除目录本身
+    /// 符号链接：只删除链接本身，不跟随
+    /// 错误处理：记录失败项但继续删除其他文件
+    pub fn delete_recursive(
+        sftp: &Sftp,
+        path: &str,
+        progress_callback: Option<DeleteProgressCallback>,
+    ) -> AppResult<RecursiveDeleteResult> {
+        let normalized = Self::normalize_path(path);
+        Self::validate_delete_path(&normalized)?;
+
+        let path_obj = Path::new(&normalized);
+
+        // 使用 lstat 检查是否为符号链接
+        let lstat = sftp
+            .lstat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
+
+        let is_symlink = lstat
+            .perm
+            .map(|mode| (mode & S_IFMT) == S_IFLNK)
+            .unwrap_or(false);
+
+        // 如果是符号链接，直接删除链接本身
+        if is_symlink {
+            sftp.unlink(path_obj).map_err(AppError::from)?;
+            return Ok(RecursiveDeleteResult {
+                deleted_files: 1,
+                deleted_dirs: 0,
+                failures: vec![],
+            });
+        }
+
+        // 如果是文件，直接删除
+        if !lstat.is_dir() {
+            sftp.unlink(path_obj).map_err(AppError::from)?;
+            return Ok(RecursiveDeleteResult {
+                deleted_files: 1,
+                deleted_dirs: 0,
+                failures: vec![],
+            });
+        }
+
+        // 收集所有需要删除的项（深度优先）
+        // 使用两个列表：files（文件和符号链接）和 dirs（目录，按深度逆序）
+        let mut files: Vec<String> = Vec::new();
+        let mut dirs: Vec<String> = Vec::new();
+        let mut stack = vec![(normalized.clone(), 0usize)]; // (path, depth)
+
+        while let Some((current_path, depth)) = stack.pop() {
+            let current_obj = Path::new(&current_path);
+
+            let entries = match sftp.readdir(current_obj) {
+                Ok(entries) => entries,
+                Err(e) => {
+                    tracing::warn!(path = %current_path, error = %e, "无法读取目录");
+                    continue;
+                }
+            };
+
+            for (path_buf, _) in entries {
+                let file_name = path_buf.file_name().and_then(|n| n.to_str());
+                if matches!(file_name, None | Some(".") | Some("..")) {
+                    continue;
+                }
+
+                let full_path = path_buf.to_string_lossy().to_string();
+
+                let entry_lstat = match sftp.lstat(&path_buf) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        tracing::warn!(path = %full_path, error = %e, "无法获取文件信息");
+                        continue;
+                    }
+                };
+
+                // 检查是否是符号链接
+                let is_symlink = entry_lstat
+                    .perm
+                    .map(|mode| (mode & S_IFMT) == S_IFLNK)
+                    .unwrap_or(false);
+
+                if is_symlink || !entry_lstat.is_dir() {
+                    files.push(full_path);
+                } else {
+                    // 目录：先递归进入，稍后删除
+                    stack.push((full_path.clone(), depth + 1));
+                    dirs.push(full_path);
+                }
+            }
+        }
+
+        // 将根目录也加入待删除列表
+        dirs.push(normalized.clone());
+
+        // 目录需要按深度逆序删除（最深的先删除）
+        dirs.reverse();
+
+        let total_count = (files.len() + dirs.len()) as u64;
+        let mut deleted_count: u64 = 0;
+        let mut deleted_files: u64 = 0;
+        let mut deleted_dirs: u64 = 0;
+        let mut failures: Vec<DeleteFailure> = Vec::new();
+
+        // 用于进度节流
+        let mut last_progress_time = std::time::Instant::now();
+        let progress_interval = std::time::Duration::from_millis(200);
+
+        // 先删除文件和符号链接
+        for file_path in files {
+            let file_obj = Path::new(&file_path);
+            match sftp.unlink(file_obj) {
+                Ok(()) => {
+                    deleted_files += 1;
+                    deleted_count += 1;
+                    tracing::debug!(path = %file_path, "删除文件成功");
+                }
+                Err(e) => {
+                    tracing::warn!(path = %file_path, error = %e, "删除文件失败");
+                    failures.push(DeleteFailure {
+                        path: file_path.clone(),
+                        error: e.message().to_string(),
+                    });
+                    deleted_count += 1; // 仍然计入进度
+                }
+            }
+
+            // 发送进度（节流）
+            if let Some(ref callback) = progress_callback {
+                if last_progress_time.elapsed() >= progress_interval {
+                    callback(DeleteProgress {
+                        path: normalized.clone(),
+                        deleted_count,
+                        total_count,
+                        current_path: file_path,
+                    });
+                    last_progress_time = std::time::Instant::now();
+                }
+            }
+        }
+
+        // 再删除目录（从最深的开始）
+        for dir_path in dirs {
+            let dir_obj = Path::new(&dir_path);
+            match sftp.rmdir(dir_obj) {
+                Ok(()) => {
+                    deleted_dirs += 1;
+                    deleted_count += 1;
+                    tracing::debug!(path = %dir_path, "删除目录成功");
+                }
+                Err(e) => {
+                    tracing::warn!(path = %dir_path, error = %e, "删除目录失败");
+                    failures.push(DeleteFailure {
+                        path: dir_path.clone(),
+                        error: e.message().to_string(),
+                    });
+                    deleted_count += 1; // 仍然计入进度
+                }
+            }
+
+            // 发送进度（节流）
+            if let Some(ref callback) = progress_callback {
+                if last_progress_time.elapsed() >= progress_interval {
+                    callback(DeleteProgress {
+                        path: normalized.clone(),
+                        deleted_count,
+                        total_count,
+                        current_path: dir_path,
+                    });
+                    last_progress_time = std::time::Instant::now();
+                }
+            }
+        }
+
+        // 发送最终进度
+        if let Some(ref callback) = progress_callback {
+            callback(DeleteProgress {
+                path: normalized.clone(),
+                deleted_count,
+                total_count,
+                current_path: String::new(),
+            });
+        }
+
+        Ok(RecursiveDeleteResult {
+            deleted_files,
+            deleted_dirs,
+            failures,
+        })
+    }
+
+    /// 验证删除路径安全性
+    ///
+    /// 禁止删除根目录、. 和 ..
+    pub fn validate_delete_path(path: &str) -> AppResult<()> {
+        let trimmed = path.trim();
+
+        // 禁止删除 . 和 ..（直接检查，因为它们可能会被规范化掉）
+        if trimmed == "." || trimmed == ".." {
+            return Err(AppError::invalid_argument("不允许删除 . 或 .."));
+        }
+
+        // 检查路径是否以 /. 或 /.. 结尾
+        if trimmed.ends_with("/.") || trimmed.ends_with("/..") {
+            return Err(AppError::invalid_argument("不允许删除 . 或 .."));
+        }
+
+        let normalized = Self::normalize_path(path);
+        Self::validate_path(&normalized)?;
+
+        // 禁止删除根目录
+        if normalized == "/" {
+            return Err(AppError::invalid_argument("不允许删除根目录"));
+        }
+
+        Ok(())
+    }
+
     /// 修改文件/目录权限
     ///
     /// 使用 SFTP setstat 修改权限
@@ -514,6 +837,11 @@ impl SftpService {
     }
 }
 
+use crate::commands::sftp::{DeleteFailure, DeleteProgress, DirectoryStats, RecursiveDeleteResult};
+
+/// 递归删除进度回调类型
+pub type DeleteProgressCallback = Box<dyn Fn(DeleteProgress) + Send>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -648,5 +976,71 @@ mod tests {
 
         assert_eq!(entries[0].name, "large.txt");
         assert_eq!(entries[1].name, "small.txt");
+    }
+
+    // ========================
+    // Tests for DirectoryStats
+    // ========================
+
+    #[test]
+    fn test_directory_stats_struct_exists() {
+        // This test verifies the DirectoryStats struct exists and has the expected fields
+        let stats = crate::commands::sftp::DirectoryStats {
+            file_count: 10,
+            dir_count: 3,
+            total_size: 1024,
+        };
+        assert_eq!(stats.file_count, 10);
+        assert_eq!(stats.dir_count, 3);
+        assert_eq!(stats.total_size, 1024);
+    }
+
+    #[test]
+    fn test_recursive_delete_result_struct_exists() {
+        // This test verifies the RecursiveDeleteResult struct exists
+        let result = crate::commands::sftp::RecursiveDeleteResult {
+            deleted_files: 5,
+            deleted_dirs: 2,
+            failures: vec![crate::commands::sftp::DeleteFailure {
+                path: "/test/file.txt".to_string(),
+                error: "Permission denied".to_string(),
+            }],
+        };
+        assert_eq!(result.deleted_files, 5);
+        assert_eq!(result.deleted_dirs, 2);
+        assert_eq!(result.failures.len(), 1);
+    }
+
+    #[test]
+    fn test_delete_progress_struct_exists() {
+        // This test verifies the DeleteProgress struct exists
+        let progress = crate::commands::sftp::DeleteProgress {
+            path: "/test/dir".to_string(),
+            deleted_count: 3,
+            total_count: 10,
+            current_path: "/test/dir/subfile.txt".to_string(),
+        };
+        assert_eq!(progress.path, "/test/dir");
+        assert_eq!(progress.deleted_count, 3);
+        assert_eq!(progress.total_count, 10);
+    }
+
+    #[test]
+    fn test_delete_root_directory_rejected() {
+        // This test verifies that attempting to delete "/" is rejected
+        // Note: This tests the validation logic, not actual SFTP operation
+        let result = SftpService::validate_delete_path("/");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_delete_dot_directories_rejected() {
+        // This test verifies that attempting to delete "." or ".." is rejected
+        // Note: We need to test paths that actually end with . or .. as the last component
+        // Testing standalone "." and ".."
+        let result_dot = SftpService::validate_delete_path(".");
+        let result_dotdot = SftpService::validate_delete_path("..");
+        assert!(result_dot.is_err(), "Should reject '.'");
+        assert!(result_dotdot.is_err(), "Should reject '..'");
     }
 }

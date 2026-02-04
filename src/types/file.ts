@@ -101,3 +101,51 @@ export interface PermissionBits {
   group: RolePermission;
   others: RolePermission;
 }
+
+// ========== 递归删除相关类型 ==========
+
+/**
+ * 目录统计信息（用于删除确认对话框）
+ */
+export interface DirectoryStats {
+  /** 文件总数 */
+  fileCount: number;
+  /** 目录总数（不含自身） */
+  dirCount: number;
+  /** 总大小（字节） */
+  totalSize: number;
+}
+
+/**
+ * 删除失败项
+ */
+export interface DeleteFailure {
+  path: string;
+  error: string;
+}
+
+/**
+ * 递归删除结果
+ */
+export interface RecursiveDeleteResult {
+  /** 成功删除的文件数 */
+  deletedFiles: number;
+  /** 成功删除的目录数 */
+  deletedDirs: number;
+  /** 删除失败的项 */
+  failures: DeleteFailure[];
+}
+
+/**
+ * 删除进度事件
+ */
+export interface DeleteProgress {
+  /** 删除任务路径 */
+  path: string;
+  /** 已删除的文件/目录数 */
+  deletedCount: number;
+  /** 总文件/目录数 */
+  totalCount: number;
+  /** 当前正在删除的路径 */
+  currentPath: string;
+}

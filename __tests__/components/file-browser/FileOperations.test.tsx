@@ -240,11 +240,49 @@ describe("DeleteConfirmDialog", () => {
     expect(screen.getByText(/此操作无法撤销/)).toBeInTheDocument();
   });
 
-  it("should render dialog for folder with warning", () => {
+  it("should render dialog for folder (empty directory)", () => {
     render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} />);
 
     expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    expect(screen.getByText(/仅支持删除空文件夹/)).toBeInTheDocument();
+    // 没有 stats 时显示 "空目录"
+    expect(screen.getByText(/空目录/)).toBeInTheDocument();
+  });
+
+  it("should render dialog for non-empty directory with stats", () => {
+    const stats = { fileCount: 10, dirCount: 3, totalSize: 1024 * 1024 };
+    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} stats={stats} />);
+
+    expect(screen.getByText(/test-folder/)).toBeInTheDocument();
+    expect(screen.getByText(/警告：此目录包含以下内容/)).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument(); // 文件数
+    expect(screen.getByText("3")).toBeInTheDocument(); // 目录数
+    expect(screen.getByRole("button", { name: "DELETE_ALL" })).toBeInTheDocument();
+  });
+
+  it("should show loading indicator when loading stats", () => {
+    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} isLoadingStats={true} />);
+
+    expect(screen.getByText(/正在扫描目录/)).toBeInTheDocument();
+  });
+
+  it("should show progress during deletion", () => {
+    const progress = {
+      path: mockFolder.path,
+      deletedCount: 5,
+      totalCount: 13,
+      currentPath: "/home/user/test-folder/subdir/file.txt",
+    };
+    render(
+      <DeleteConfirmDialog
+        {...defaultProps}
+        file={mockFolder}
+        isPending={true}
+        progress={progress}
+      />
+    );
+
+    expect(screen.getByText("DELETING")).toBeInTheDocument();
+    expect(screen.getByText("5 / 13")).toBeInTheDocument();
   });
 
   it("should call onConfirm when delete clicked", async () => {

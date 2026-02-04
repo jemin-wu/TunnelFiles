@@ -6,19 +6,77 @@
 //! - sftp_rename: 重命名/移动
 //! - sftp_delete: 删除
 //! - sftp_chmod: 修改权限
+//! - sftp_get_dir_stats: 获取目录统计信息
+//! - sftp_delete_recursive: 递归删除目录
 //!
 //! 所有 SFTP 操作都使用 spawn_blocking 避免阻塞 Tokio 运行时
 
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use tokio::task::spawn_blocking;
 
 use crate::models::error::AppError;
 use crate::models::file_entry::{FileEntry, SortSpec};
 use crate::services::session_manager::SessionManager;
 use crate::services::sftp_service::SftpService;
+
+/// 目录统计信息（用于删除确认对话框）
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectoryStats {
+    /// 文件总数
+    pub file_count: u64,
+    /// 目录总数（不含自身）
+    pub dir_count: u64,
+    /// 总大小（字节）
+    pub total_size: u64,
+}
+
+/// 递归删除输入参数
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecursiveDeleteInput {
+    /// 会话 ID
+    pub session_id: String,
+    /// 要删除的路径（文件或目录）
+    pub path: String,
+}
+
+/// 递归删除进度事件
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteProgress {
+    /// 删除任务 ID (使用 path 作为标识)
+    pub path: String,
+    /// 已删除的文件/目录数
+    pub deleted_count: u64,
+    /// 总文件/目录数
+    pub total_count: u64,
+    /// 当前正在删除的路径
+    pub current_path: String,
+}
+
+/// 删除失败项
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeleteFailure {
+    pub path: String,
+    pub error: String,
+}
+
+/// 递归删除结果
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecursiveDeleteResult {
+    /// 成功删除的文件数
+    pub deleted_files: u64,
+    /// 成功删除的目录数
+    pub deleted_dirs: u64,
+    /// 删除失败的项
+    pub failures: Vec<DeleteFailure>,
+}
 
 /// 列出远程目录内容
 ///
@@ -277,6 +335,107 @@ pub async fn sftp_chmod(
         success_count = result.success_count,
         failure_count = result.failures.len(),
         "chmod 操作完成"
+    );
+
+    Ok(result)
+}
+
+/// 获取目录统计信息
+///
+/// 用于删除确认对话框显示文件数量和总大小
+#[tauri::command]
+pub async fn sftp_get_dir_stats(
+    session_manager: State<'_, Arc<SessionManager>>,
+    session_id: String,
+    path: String,
+) -> Result<DirectoryStats, AppError> {
+    if session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("会话 ID 不能为空"));
+    }
+
+    tracing::debug!(
+        session_id = %session_id,
+        path = %path,
+        "获取目录统计信息"
+    );
+
+    let session = session_manager.get_session(&session_id)?;
+    let path_clone = path.clone();
+
+    let stats = spawn_blocking(move || SftpService::get_directory_stats(&session.sftp, &path_clone))
+        .await
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
+
+    tracing::debug!(
+        session_id = %session_id,
+        path = %path,
+        file_count = stats.file_count,
+        dir_count = stats.dir_count,
+        total_size = stats.total_size,
+        "目录统计完成"
+    );
+
+    Ok(stats)
+}
+
+/// 递归删除目录
+///
+/// 删除目录及其所有内容，通过事件发送删除进度
+#[tauri::command]
+pub async fn sftp_delete_recursive(
+    app: AppHandle,
+    session_manager: State<'_, Arc<SessionManager>>,
+    input: RecursiveDeleteInput,
+) -> Result<RecursiveDeleteResult, AppError> {
+    if input.session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("会话 ID 不能为空"));
+    }
+
+    if input.path.trim().is_empty() {
+        return Err(AppError::invalid_argument("路径不能为空"));
+    }
+
+    tracing::debug!(
+        session_id = %input.session_id,
+        path = %input.path,
+        "递归删除"
+    );
+
+    let session = session_manager.get_session(&input.session_id)?;
+    let session_id = input.session_id.clone();
+    let path = input.path.clone();
+
+    let result = spawn_blocking(move || {
+        // 创建进度回调，通过 Tauri 事件发送进度
+        let app_clone = app.clone();
+        let progress_callback: Box<dyn Fn(DeleteProgress) + Send> = Box::new(move |progress| {
+            if let Err(e) = app_clone.emit("delete:progress", &progress) {
+                tracing::warn!(error = %e, "发送删除进度事件失败");
+            }
+        });
+
+        SftpService::delete_recursive(&session.sftp, &path, Some(progress_callback))
+    })
+    .await
+    .map_err(|e| {
+        AppError::new(
+            crate::models::error::ErrorCode::Unknown,
+            format!("spawn_blocking failed: {}", e),
+        )
+    })??;
+
+    tracing::info!(
+        session_id = %session_id,
+        path = %input.path,
+        deleted_files = result.deleted_files,
+        deleted_dirs = result.deleted_dirs,
+        failures = result.failures.len(),
+        "递归删除完成"
     );
 
     Ok(result)
