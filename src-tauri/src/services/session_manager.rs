@@ -638,7 +638,8 @@ impl SessionManager {
 
     /// 密码认证
     ///
-    /// 返回使用的密码，用于缓存以便后续创建独立 session
+    /// 返回使用的密码，用于缓存以便后续创建独立 session。
+    /// 认证失败时密码会被立即清零，防止残留在已释放的内存中。
     fn auth_password(
         &self,
         session: &Session,
@@ -649,7 +650,7 @@ impl SessionManager {
         tracing::debug!(username = %username, "正在进行密码认证");
 
         // 优先使用临时密码，否则从 Keychain 获取
-        let password = if let Some(pwd) = temp_password {
+        let mut password = if let Some(pwd) = temp_password {
             pwd.to_string()
         } else if let Some(ref pwd_ref) = profile.password_ref {
             credential_get(pwd_ref)?
@@ -658,24 +659,27 @@ impl SessionManager {
             return Err(AppError::auth_failed("需要提供密码"));
         };
 
-        let result = session.userauth_password(username, &password);
-
-        result.map_err(|e| {
-            tracing::warn!(error = %e, "密码认证失败");
-            AppError::auth_failed("密码认证失败，请检查用户名和密码")
-        })?;
-
-        if !session.authenticated() {
-            return Err(AppError::auth_failed("认证失败"));
+        match session.userauth_password(username, &password) {
+            Ok(()) if session.authenticated() => {
+                tracing::info!(username = %username, "密码认证成功");
+                Ok(password)
+            }
+            Ok(()) => {
+                password.zeroize();
+                Err(AppError::auth_failed("认证失败"))
+            }
+            Err(e) => {
+                password.zeroize();
+                tracing::warn!(error = %e, "密码认证失败");
+                Err(AppError::auth_failed("密码认证失败，请检查用户名和密码"))
+            }
         }
-
-        tracing::info!(username = %username, "密码认证成功");
-        Ok(password)
     }
 
     /// SSH Key 认证
     ///
-    /// 返回使用的 passphrase（如果有），用于缓存以便后续创建独立 session
+    /// 返回使用的 passphrase（如果有），用于缓存以便后续创建独立 session。
+    /// 认证失败时 passphrase 会被立即清零，防止残留在已释放的内存中。
     fn auth_key(
         &self,
         session: &Session,
@@ -716,7 +720,7 @@ impl SessionManager {
         }
 
         // 获取 passphrase（如果需要）
-        let passphrase = if let Some(pp) = temp_passphrase {
+        let mut passphrase = if let Some(pp) = temp_passphrase {
             Some(pp.to_string())
         } else if let Some(ref pp_ref) = profile.passphrase_ref {
             credential_get(pp_ref)?
@@ -727,22 +731,30 @@ impl SessionManager {
         let has_passphrase = passphrase.is_some();
         let result = session.userauth_pubkey_file(username, None, key_path, passphrase.as_deref());
 
-        result.map_err(|e| {
-            tracing::warn!(error = %e, "Key 认证失败");
-            let msg = if has_passphrase {
-                "Key 认证失败，请检查私钥文件和密码"
-            } else {
-                "Key 认证失败，请检查私钥文件（可能需要 passphrase）"
-            };
-            AppError::auth_failed(msg)
-        })?;
-
-        if !session.authenticated() {
-            return Err(AppError::auth_failed("认证失败"));
+        match result {
+            Ok(()) if session.authenticated() => {
+                tracing::info!(username = %username, "Key 认证成功");
+                Ok(passphrase)
+            }
+            Ok(()) => {
+                if let Some(ref mut pp) = passphrase {
+                    pp.zeroize();
+                }
+                Err(AppError::auth_failed("认证失败"))
+            }
+            Err(e) => {
+                if let Some(ref mut pp) = passphrase {
+                    pp.zeroize();
+                }
+                tracing::warn!(error = %e, "Key 认证失败");
+                let msg = if has_passphrase {
+                    "Key 认证失败，请检查私钥文件和密码"
+                } else {
+                    "Key 认证失败，请检查私钥文件（可能需要 passphrase）"
+                };
+                Err(AppError::auth_failed(msg))
+            }
         }
-
-        tracing::info!(username = %username, "Key 认证成功");
-        Ok(passphrase)
     }
 
     /// 获取远程 home 目录
