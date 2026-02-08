@@ -84,20 +84,18 @@ impl ManagedSession {
             .unwrap_or(0)
     }
 
-    /// 获取缓存的密码（如果存在）
-    pub fn get_cached_password(&self) -> Option<String> {
-        self.cached_credentials
-            .read()
-            .ok()
-            .and_then(|creds| creds.password.clone())
-    }
-
-    /// 获取缓存的 passphrase（如果存在）
-    pub fn get_cached_passphrase(&self) -> Option<String> {
-        self.cached_credentials
-            .read()
-            .ok()
-            .and_then(|creds| creds.passphrase.clone())
+    /// 使用缓存的凭据执行操作（借用而非克隆，避免凭据在内存中扩散）
+    ///
+    /// 回调函数接收 (Option<&str>, Option<&str>) 分别为密码和 passphrase 的引用。
+    /// 凭据不会被克隆，减少内存中的明文副本数量。
+    pub fn with_cached_credentials<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(Option<&str>, Option<&str>) -> R,
+    {
+        match self.cached_credentials.read() {
+            Ok(creds) => f(creds.password.as_deref(), creds.passphrase.as_deref()),
+            Err(_) => f(None, None),
+        }
     }
 }
 
@@ -227,7 +225,8 @@ impl SessionManager {
         let cached_credentials = self.authenticate(&session, profile, password, passphrase)?;
 
         // 4. 完成连接并存储会话（包含缓存的凭据）
-        let result = self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
+        let result =
+            self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
 
         tracing::info!(
             session_id = %result.session_id,
@@ -259,7 +258,8 @@ impl SessionManager {
         let cached_credentials = self.authenticate(&session, profile, password, passphrase)?;
 
         // 4. 完成连接并存储会话（包含缓存的凭据）
-        let result = self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
+        let result =
+            self.finalize_connection(session, &profile.id, fingerprint, cached_credentials)?;
 
         tracing::info!(
             session_id = %result.session_id,
@@ -321,6 +321,7 @@ impl SessionManager {
     /// 为 Terminal 创建独立的 SSH session（阻塞模式，调用方负责后续设置非阻塞）
     ///
     /// 使用主 session 中缓存的凭据进行认证，避免再次访问系统钥匙串。
+    /// 凭据通过借用方式访问（不克隆），认证返回值在使用后立即清零。
     pub fn create_terminal_session(
         &self,
         db: &crate::services::storage_service::Database,
@@ -329,17 +330,6 @@ impl SessionManager {
         // 获取原始会话信息
         let managed_session = self.get_session(session_id)?;
         let profile_id = &managed_session.profile_id;
-
-        // 从缓存获取凭据（避免再次访问钥匙串）
-        let cached_password = managed_session.get_cached_password();
-        let cached_passphrase = managed_session.get_cached_passphrase();
-
-        tracing::debug!(
-            session_id = %session_id,
-            has_cached_password = cached_password.is_some(),
-            has_cached_passphrase = cached_passphrase.is_some(),
-            "使用缓存的凭据创建 Terminal session"
-        );
 
         // 从数据库获取 profile
         let profile = db
@@ -350,25 +340,34 @@ impl SessionManager {
         let timeout = Duration::from_secs(30);
         let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
 
-        // 使用缓存的凭据进行认证
-        match profile.auth_type {
-            AuthType::Password => {
-                self.auth_password(
-                    &session,
-                    &profile.username,
-                    &profile,
-                    cached_password.as_deref(),
-                )?;
+        // 使用缓存的凭据进行认证（借用而非克隆，避免凭据在内存中扩散）
+        managed_session.with_cached_credentials(|cached_password, cached_passphrase| {
+            tracing::debug!(
+                session_id = %session_id,
+                has_cached_password = cached_password.is_some(),
+                has_cached_passphrase = cached_passphrase.is_some(),
+                "使用缓存的凭据创建 Terminal session"
+            );
+
+            match profile.auth_type {
+                AuthType::Password => {
+                    let mut pwd =
+                        self.auth_password(&session, &profile.username, &profile, cached_password)?;
+                    // 认证完成后立即清零返回的密码副本
+                    pwd.zeroize();
+                }
+                AuthType::Key => {
+                    let mut pp =
+                        self.auth_key(&session, &profile.username, &profile, cached_passphrase)?;
+                    // 认证完成后立即清零返回的 passphrase 副本
+                    if let Some(ref mut passphrase) = pp {
+                        passphrase.zeroize();
+                    }
+                }
             }
-            AuthType::Key => {
-                self.auth_key(
-                    &session,
-                    &profile.username,
-                    &profile,
-                    cached_passphrase.as_deref(),
-                )?;
-            }
-        }
+
+            AppResult::Ok(())
+        })?;
 
         tracing::info!(
             session_id = %session_id,

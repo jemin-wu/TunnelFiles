@@ -48,25 +48,19 @@ function getInitialMode(files: FileEntry[]): number {
   return 0o644; // 默认
 }
 
-export function ChmodDialog({
-  open,
-  onOpenChange,
-  files,
-  onSubmit,
-  isPending,
-}: ChmodDialogProps) {
+export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: ChmodDialogProps) {
   const initialMode = useMemo(() => getInitialMode(files), [files]);
   const [permissions, setPermissions] = useState<PermissionBits>(() =>
     modeToPermissions(initialMode)
   );
 
-  // 当 dialog 打开或文件变化时重置权限
+  // 当 dialog 打开时重置权限（使用已 memoize 的 initialMode，避免 files 引用变化导致意外重置）
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset state when dialog opens
-      setPermissions(modeToPermissions(getInitialMode(files)));
+      setPermissions(modeToPermissions(initialMode));
     }
-  }, [open, files]);
+  }, [open, initialMode]);
 
   const handleSubmit = useCallback(() => {
     const mode = permissionsToMode(permissions);
@@ -93,7 +87,9 @@ export function ChmodDialog({
           <div className="space-y-2">
             <div className="text-xs font-mono text-muted-foreground flex items-center gap-2">
               <span className="text-primary">SELECTED:</span>
-              <span>{files.length} {files.length === 1 ? "item" : "items"}</span>
+              <span>
+                {files.length} {files.length === 1 ? "item" : "items"}
+              </span>
             </div>
 
             <ScrollArea className="h-24 bg-background/30 rounded border border-border/50">

@@ -63,10 +63,11 @@ export function FileListContainer({
     enabled: !!sessionId,
   });
 
-  const { createFolder, rename, deleteItem, deleteRecursive, chmod, getDirStats } = useFileOperations({
-    sessionId,
-    currentPath,
-  });
+  const { createFolder, rename, deleteItem, deleteRecursive, chmod, getDirStats } =
+    useFileOperations({
+      sessionId,
+      currentPath,
+    });
 
   // 目录统计信息状态（用于删除确认对话框）
   const [dirStats, setDirStats] = useState<DirectoryStats | null>(null);
@@ -74,7 +75,7 @@ export function FileListContainer({
 
   // 监听递归删除进度
   const { progress: deleteProgress, reset: resetDeleteProgress } = useDeleteProgress({
-    path: deleteRecursive.isPending ? targetFile?.path ?? null : null,
+    path: deleteRecursive.isPending ? (targetFile?.path ?? null) : null,
   });
 
   // 当删除对话框打开时，如果是目录则获取统计信息
@@ -107,14 +108,8 @@ export function FileListContainer({
     return rawFiles.filter((f) => !f.name.startsWith("."));
   }, [rawFiles, showHidden]);
 
-  const {
-    selectedFiles,
-    selectFile,
-    selectAll,
-    clearSelection,
-    isSelected,
-    selectionCount,
-  } = useFileSelection(files);
+  const { selectedFiles, selectFile, selectAll, clearSelection, isSelected, selectionCount } =
+    useFileSelection(files);
 
   const navigateTo = useCallback(
     (path: string) => {
@@ -191,7 +186,8 @@ export function FileListContainer({
     (mode: number) => {
       // 获取需要修改权限的文件列表
       // 如果有多选，使用选中的文件；否则使用目标文件
-      const filesToChmod = selectedFiles.length > 0 ? selectedFiles : (targetFile ? [targetFile] : []);
+      const filesToChmod =
+        selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : [];
       if (filesToChmod.length === 0) return;
 
       const paths = filesToChmod.map((f) => f.path);
@@ -253,7 +249,8 @@ export function FileListContainer({
     if (!targetFile) return;
 
     // 判断是否需要递归删除：目录且非空
-    const isNonEmptyDir = targetFile.isDir && dirStats && (dirStats.fileCount > 0 || dirStats.dirCount > 0);
+    const isNonEmptyDir =
+      targetFile.isDir && dirStats && (dirStats.fileCount > 0 || dirStats.dirCount > 0);
 
     if (isNonEmptyDir) {
       // 递归删除非空目录
@@ -313,9 +310,7 @@ export function FileListContainer({
                     <TerminalSquare className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent className="font-mono text-xs">
-                  切换到终端 (⌘2)
-                </TooltipContent>
+                <TooltipContent className="font-mono text-xs">切换到终端 (⌘2)</TooltipContent>
               </Tooltip>
             </TooltipProvider>
             <span className="text-border">│</span>
@@ -421,8 +416,7 @@ export function FileListContainer({
               selectAll();
             } else if (action === "clearSelection") {
               clearSelection();
-            } else if (action === "delete" && selectedFiles.length > 0) {
-              // 删除第一个选中的文件（后续可支持批量删除）
+            } else if (action === "delete" && selectedFiles.length === 1) {
               setTargetFile(selectedFiles[0]);
               setDeleteOpen(true);
             } else if (action === "newFolder") {
@@ -496,7 +490,7 @@ export function FileListContainer({
           setChmodOpen(open);
           if (!open) setTargetFile(null);
         }}
-        files={selectedFiles.length > 0 ? selectedFiles : (targetFile ? [targetFile] : [])}
+        files={selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : []}
         onSubmit={handleChmodSubmit}
         isPending={chmod.isPending}
       />

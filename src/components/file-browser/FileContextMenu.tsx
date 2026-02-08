@@ -4,7 +4,16 @@
  */
 
 import { useCallback } from "react";
-import { Download, Pencil, Trash2, FolderOpen, FolderPlus, Copy, Files, Shield } from "lucide-react";
+import {
+  Download,
+  Pencil,
+  Trash2,
+  FolderOpen,
+  FolderPlus,
+  Copy,
+  Files,
+  Shield,
+} from "lucide-react";
 
 import {
   ContextMenu,
@@ -139,11 +148,15 @@ export function FileContextMenu({
 
         <ContextMenuSeparator className="bg-border" />
 
-        {/* 删除 - 支持批量 */}
-        <ContextMenuItem variant="destructive" onClick={onDelete} className="text-xs gap-2 justify-between">
+        {/* 删除当前文件（不支持批量，始终操作右键点击的文件） */}
+        <ContextMenuItem
+          variant="destructive"
+          onClick={onDelete}
+          className="text-xs gap-2 justify-between"
+        >
           <span className="flex items-center gap-2">
             <Trash2 className="h-3.5 w-3.5" />
-            <span>{isMultiSelect ? `DELETE_${selectionCount}_ITEMS` : "DELETE"}</span>
+            <span>DELETE</span>
           </span>
           <span className="text-[10px] opacity-70">⌘⌫</span>
         </ContextMenuItem>

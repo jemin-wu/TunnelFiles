@@ -114,7 +114,7 @@ impl SftpService {
                     return None;
                 }
 
-                let full_path = path_buf.to_str().unwrap_or("").to_string();
+                let full_path = path_buf.to_string_lossy().to_string();
 
                 Some(Self::file_stat_to_entry(name, full_path, file_stat))
             })
@@ -443,9 +443,9 @@ impl SftpService {
         // 使用两个列表：files（文件和符号链接）和 dirs（目录，按深度逆序）
         let mut files: Vec<String> = Vec::new();
         let mut dirs: Vec<String> = Vec::new();
-        let mut stack = vec![(normalized.clone(), 0usize)]; // (path, depth)
+        let mut stack = vec![normalized.clone()];
 
-        while let Some((current_path, depth)) = stack.pop() {
+        while let Some(current_path) = stack.pop() {
             let current_obj = Path::new(&current_path);
 
             let entries = match sftp.readdir(current_obj) {
@@ -482,7 +482,7 @@ impl SftpService {
                     files.push(full_path);
                 } else {
                     // 目录：先递归进入，稍后删除
-                    stack.push((full_path.clone(), depth + 1));
+                    stack.push(full_path.clone());
                     dirs.push(full_path);
                 }
             }
@@ -491,8 +491,9 @@ impl SftpService {
         // 将根目录也加入待删除列表
         dirs.push(normalized.clone());
 
-        // 目录需要按深度逆序删除（最深的先删除）
-        dirs.reverse();
+        // 目录按路径长度降序排序（最深的路径最长，先删除）
+        // 不能用 reverse()，因为 stack-based DFS 的发现顺序不保证深度顺序
+        dirs.sort_by_key(|d| std::cmp::Reverse(d.len()));
 
         let total_count = (files.len() + dirs.len()) as u64;
         let mut deleted_count: u64 = 0;

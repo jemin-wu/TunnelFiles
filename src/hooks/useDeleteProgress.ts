@@ -5,7 +5,7 @@
  */
 
 import { useEffect, useCallback, useState, useMemo, useRef } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 import { DeleteProgressSchema } from "@/lib/sftp";
 import type { DeleteProgress } from "@/types/file";
@@ -44,11 +44,20 @@ export function useDeleteProgress({
   const [progress, setProgress] = useState<DeleteProgress | null>(null);
   const [completed, setCompleted] = useState(false);
   const prevPathRef = useRef<string | null>(null);
+  // 使用 ref 持有最新的 onProgress 回调，避免将其放入 useEffect 依赖数组
+  const onProgressRef = useRef(onProgress);
+  // 追踪当前活跃的 unlisten，确保同一时间只有一个监听器
+  const unlistenRef = useRef<Promise<UnlistenFn> | null>(null);
 
   const reset = useCallback(() => {
     setProgress(null);
     setCompleted(false);
   }, []);
+
+  // 同步 onProgress ref（在 effect 中更新，避免渲染阶段修改 ref）
+  useEffect(() => {
+    onProgressRef.current = onProgress;
+  });
 
   // 派生 isDeleting 状态：有路径且未完成时为 true
   const isDeleting = useMemo(() => {
@@ -60,7 +69,7 @@ export function useDeleteProgress({
     // 这是重置依赖 prop 变化的状态的合法模式
     if (prevPathRef.current !== path) {
       prevPathRef.current = path;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when path prop changes
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when path prop changes (intentional pattern)
       setProgress(null);
       setCompleted(false);
     }
@@ -71,6 +80,12 @@ export function useDeleteProgress({
 
     // StrictMode-safe: 防止清理后继续更新状态
     let cancelled = false;
+
+    // 先清理上一个监听器（防止 StrictMode 双挂载时出现重复监听器）
+    const prevUnlisten = unlistenRef.current;
+    if (prevUnlisten) {
+      prevUnlisten.then((fn) => fn());
+    }
 
     const unlisten = listen<unknown>("delete:progress", (event) => {
       // 如果已清理，跳过处理
@@ -87,7 +102,7 @@ export function useDeleteProgress({
       // 只处理当前路径的进度
       if (progressData.path === path) {
         setProgress(progressData);
-        onProgress?.(progressData);
+        onProgressRef.current?.(progressData);
 
         // 如果删除完成，标记完成
         if (progressData.deletedCount >= progressData.totalCount) {
@@ -95,12 +110,14 @@ export function useDeleteProgress({
         }
       }
     });
+    unlistenRef.current = unlisten;
 
     return () => {
       cancelled = true;
       unlisten.then((fn) => fn());
+      unlistenRef.current = null;
     };
-  }, [path, onProgress]);
+  }, [path]);
 
   return {
     progress,

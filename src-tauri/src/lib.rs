@@ -32,7 +32,13 @@ pub fn run() {
     let db = Arc::new(database);
 
     // 2. 从数据库加载设置并初始化日志
-    let settings = db.settings_load().unwrap_or_default();
+    let settings = match db.settings_load() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Warning: Failed to load settings, using defaults: {}", e);
+            Default::default()
+        }
+    };
     let log_level = settings.log_level.to_tracing_level();
 
     if let Err(e) = init_logging(log_level) {
