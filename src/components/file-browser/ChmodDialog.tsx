@@ -10,6 +10,7 @@ import { Loader2, Shield, FileText, Folder } from "lucide-react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -79,6 +80,9 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
             <Shield className="h-4 w-4 text-primary" />
             <span>Change permissions</span>
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Set read, write, and execute permissions for the selected items
+          </DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-4">

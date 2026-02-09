@@ -44,3 +44,24 @@ export async function trustHostKey(input: TrustHostKeyInput): Promise<void> {
 export async function reconnectWithTrustedKey(input: ConnectInput): Promise<SessionConnectResult> {
   return invoke<SessionConnectResult>("session_connect_after_trust", { input });
 }
+
+/**
+ * 列出所有活跃会话 ID
+ */
+export async function listSessions(): Promise<string[]> {
+  return invoke<string[]>("session_list");
+}
+
+/**
+ * 移除已信任的 HostKey
+ */
+export async function removeHostKey(host: string, port: number): Promise<boolean> {
+  return invoke<boolean>("security_remove_hostkey", { host, port });
+}
+
+/**
+ * 检查 HostKey 信任状态
+ */
+export async function checkHostKey(host: string, port: number): Promise<string | null> {
+  return invoke<string | null>("security_check_hostkey", { host, port });
+}

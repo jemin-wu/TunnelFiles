@@ -188,15 +188,14 @@ function PageToolbar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              className={cn(
+                "h-7 w-7 hover:bg-primary/10 hover:text-primary",
+                activeTab === "files" && "bg-primary/10 text-primary"
+              )}
               onClick={() => onTabChange("files")}
+              aria-pressed={activeTab === "files"}
             >
-              <FolderOpen
-                className={cn(
-                  "h-3.5 w-3.5",
-                  activeTab === "files" ? "text-primary" : "text-muted-foreground"
-                )}
-              />
+              <FolderOpen className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-xs">Files</TooltipContent>
@@ -207,15 +206,14 @@ function PageToolbar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+              className={cn(
+                "h-7 w-7 hover:bg-primary/10 hover:text-primary",
+                activeTab === "terminal" && "bg-primary/10 text-primary"
+              )}
               onClick={() => onTabChange("terminal")}
+              aria-pressed={activeTab === "terminal"}
             >
-              <TerminalSquare
-                className={cn(
-                  "h-3.5 w-3.5",
-                  activeTab === "terminal" ? "text-primary" : "text-muted-foreground"
-                )}
-              />
+              <TerminalSquare className="h-3.5 w-3.5" />
             </Button>
           </TooltipTrigger>
           <TooltipContent className="text-xs">Terminal</TooltipContent>

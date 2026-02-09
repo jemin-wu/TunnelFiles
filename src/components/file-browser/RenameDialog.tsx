@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -93,6 +94,9 @@ export function RenameDialog({
               <Pencil className="h-4 w-4 text-primary" />
               <span>Rename</span>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Enter a new name for the selected file or folder
+            </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-3">

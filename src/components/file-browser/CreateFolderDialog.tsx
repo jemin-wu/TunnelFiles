@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -88,6 +89,9 @@ export function CreateFolderDialog({
               <FolderPlus className="h-4 w-4 text-primary" />
               <span>New folder</span>
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Enter a name for the new folder
+            </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-3">

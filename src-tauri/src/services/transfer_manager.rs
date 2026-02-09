@@ -303,7 +303,12 @@ impl TransferManager {
             let file_name = Path::new(&relative_path)
                 .file_name()
                 .and_then(|n| n.to_str())
-                .expect("relative path must have file name after strip_prefix")
+                .ok_or_else(|| {
+                    AppError::new(
+                        ErrorCode::InvalidArgument,
+                        format!("无效的文件名: {}", relative_path),
+                    )
+                })?
                 .to_string();
 
             // 创建任务
@@ -469,7 +474,12 @@ impl TransferManager {
             let file_name = Path::new(relative_path)
                 .file_name()
                 .and_then(|n| n.to_str())
-                .expect("relative path must have file name after strip_prefix")
+                .ok_or_else(|| {
+                    AppError::new(
+                        ErrorCode::InvalidArgument,
+                        format!("无效的文件名: {}", relative_path),
+                    )
+                })?
                 .to_string();
 
             let total = std::fs::metadata(local_file_path)

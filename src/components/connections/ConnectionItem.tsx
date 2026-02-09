@@ -39,15 +39,28 @@ export function ConnectionItem({
       <ContextMenuTrigger asChild>
         <div
           role="listitem"
+          tabIndex={0}
           className={cn(
             "group flex items-center h-[34px] px-3 gap-2 cursor-default",
             "transition-colors duration-100",
-            "hover:bg-accent/50",
+            "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none",
             "animate-fade-in",
             isConnecting && "opacity-50 pointer-events-none"
           )}
           style={{ animationDelay: `${animationDelay}ms` }}
           onDoubleClick={() => onConnect(profile.id)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onConnect(profile.id);
+            } else if (e.key === "Delete" || e.key === "Backspace") {
+              e.preventDefault();
+              onDelete(profile);
+            } else if (e.key === "e" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              onEdit(profile);
+            }
+          }}
         >
           {/* Name */}
           <span className="text-sm font-medium truncate min-w-0 shrink" title={profile.name}>
@@ -66,7 +79,7 @@ export function ConnectionItem({
           {profile.authType === "key" && (
             <Badge
               variant="secondary"
-              className="h-4 gap-0.5 px-1 shrink-0 text-[9px] bg-primary/10 text-primary border-primary/30"
+              className="h-4 gap-0.5 px-1 shrink-0 text-xs bg-primary/10 text-primary border-primary/30"
             >
               <Key className="h-2.5 w-2.5" />
               key
@@ -80,7 +93,7 @@ export function ConnectionItem({
           {isConnecting ? (
             <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
           ) : (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
               <Button
                 variant="outline"
                 size="icon"

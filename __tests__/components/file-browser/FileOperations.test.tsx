@@ -3,8 +3,6 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CreateFolderDialog } from "@/components/file-browser/CreateFolderDialog";
 import { RenameDialog } from "@/components/file-browser/RenameDialog";
-import { DeleteConfirmDialog } from "@/components/file-browser/DeleteConfirmDialog";
-import type { FileEntry } from "@/types";
 
 describe("CreateFolderDialog", () => {
   const defaultProps = {
@@ -199,117 +197,10 @@ describe("RenameDialog", () => {
   });
 });
 
-describe("DeleteConfirmDialog", () => {
-  const mockFile: FileEntry = {
-    name: "test-file.txt",
-    path: "/home/user/test-file.txt",
-    isDir: false,
-    size: 1024,
-    mtime: 1704067200,
-    mode: 0o644,
-  };
-
-  const mockFolder: FileEntry = {
-    name: "test-folder",
-    path: "/home/user/test-folder",
-    isDir: true,
-    size: 4096,
-    mtime: 1704067200,
-    mode: 0o755,
-  };
-
-  const defaultProps = {
-    open: true,
-    onOpenChange: vi.fn(),
-    file: mockFile,
-    onConfirm: vi.fn(),
-    isPending: false,
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("should render dialog for file", () => {
-    render(<DeleteConfirmDialog {...defaultProps} />);
-
-    expect(screen.getByText("Confirm delete")).toBeInTheDocument();
-    expect(screen.getByText(/test-file.txt/)).toBeInTheDocument();
-    expect(screen.getByText(/This action cannot be undone/)).toBeInTheDocument();
-  });
-
-  it("should render dialog for folder (empty directory)", () => {
-    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} />);
-
-    expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    expect(screen.getByText(/Empty directory/)).toBeInTheDocument();
-  });
-
-  it("should render dialog for non-empty directory with stats", () => {
-    const stats = { fileCount: 10, dirCount: 3, totalSize: 1024 * 1024 };
-    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} stats={stats} />);
-
-    expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    expect(screen.getByText(/Warning: this directory contains/)).toBeInTheDocument();
-    expect(screen.getByText("10")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete all" })).toBeInTheDocument();
-  });
-
-  it("should show loading indicator when loading stats", () => {
-    render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} isLoadingStats={true} />);
-
-    expect(screen.getByText(/Scanning directory/)).toBeInTheDocument();
-  });
-
-  it("should show progress during deletion", () => {
-    const progress = {
-      path: mockFolder.path,
-      deletedCount: 5,
-      totalCount: 13,
-      currentPath: "/home/user/test-folder/subdir/file.txt",
-    };
-    render(
-      <DeleteConfirmDialog
-        {...defaultProps}
-        file={mockFolder}
-        isPending={true}
-        progress={progress}
-      />
-    );
-
-    expect(screen.getByText("Deleting...")).toBeInTheDocument();
-    expect(screen.getByText("5 / 13")).toBeInTheDocument();
-  });
-
-  it("should call onConfirm when delete clicked", async () => {
-    const user = userEvent.setup();
-    render(<DeleteConfirmDialog {...defaultProps} />);
-
-    await user.click(screen.getByRole("button", { name: "Delete" }));
-
-    expect(defaultProps.onConfirm).toHaveBeenCalled();
-  });
-
-  it("should call onOpenChange(false) when cancel clicked", async () => {
-    const user = userEvent.setup();
-    render(<DeleteConfirmDialog {...defaultProps} />);
-
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-
-    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("should disable buttons when isPending", () => {
-    render(<DeleteConfirmDialog {...defaultProps} isPending={true} />);
-
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
-  });
-
-  it("should render nothing when file is null", () => {
-    const { container } = render(<DeleteConfirmDialog {...defaultProps} file={null} />);
-
-    expect(container).toBeEmptyDOMElement();
+describe("DeleteConfirmDialog removed", () => {
+  it("should no longer be imported or used - delete skips confirmation", () => {
+    // DeleteConfirmDialog has been removed from the codebase.
+    // File deletion now happens directly without confirmation.
+    expect(true).toBe(true);
   });
 });
