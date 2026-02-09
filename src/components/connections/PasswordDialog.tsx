@@ -1,5 +1,5 @@
 /**
- * 密码输入弹窗 - Cyberpunk Terminal Style
+ * 密码输入弹窗 - Precision Engineering
  * 用于连接时输入密码或 passphrase
  */
 
@@ -74,22 +74,22 @@ export function PasswordDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isConnecting}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-mono">
+          <DialogTitle className="flex items-center gap-2">
             <Icon className="h-4 w-4 text-primary" />
-            <span className="text-primary">&gt;</span>
-            <span>{isPassword ? "AUTH_PASSWORD" : "AUTH_PASSPHRASE"}</span>
+            <span>{isPassword ? "Password required" : "Passphrase required"}</span>
           </DialogTitle>
           <DialogDescription asChild>
             <div className="pt-2 space-y-2">
               {hostInfo && (
-                <div className="flex items-center gap-2 text-xs font-mono bg-background/30 px-3 py-2 rounded">
+                <div className="flex items-center gap-2 text-xs bg-background/30 px-3 py-2 rounded">
                   <Terminal className="h-3 w-3 text-primary" />
-                  <span className="text-muted-foreground">TARGET:</span>
-                  <span className="text-primary">{hostInfo}</span>
+                  <span className="text-primary font-mono">{hostInfo}</span>
                 </div>
               )}
-              <p className="text-xs font-mono text-muted-foreground">
-                {isPassword ? "请输入 SSH 登录密码" : "请输入私钥的口令"}
+              <p className="text-xs text-muted-foreground">
+                {isPassword
+                  ? "Enter your SSH password"
+                  : "Enter the passphrase for your private key"}
               </p>
             </div>
           </DialogDescription>
@@ -99,10 +99,10 @@ export function PasswordDialog({
           <div className="space-y-2">
             <Label
               htmlFor="credential"
-              className="text-xs font-mono text-muted-foreground flex items-center gap-1"
+              className="text-xs text-muted-foreground flex items-center gap-1"
             >
               <Shield className="h-3 w-3" />
-              {isPassword ? "密码" : "口令"}
+              {isPassword ? "Password" : "Passphrase"}
             </Label>
             <div className="relative">
               <Input
@@ -113,7 +113,7 @@ export function PasswordDialog({
                 placeholder={isPassword ? "••••••••" : "••••••••"}
                 disabled={isConnecting}
                 autoFocus
-                className="pr-10 font-mono bg-background/50 border-border focus-visible:ring-primary"
+                className="pr-10 bg-background/50 border-border focus-visible:ring-primary"
               />
               <Button
                 type="button"
@@ -138,17 +138,13 @@ export function PasswordDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isConnecting}
-              className="font-mono text-xs btn-cyber"
+              className="text-xs"
             >
-              CANCEL
+              Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isConnecting || !value.trim()}
-              className="font-mono text-xs btn-cyber"
-            >
+            <Button type="submit" disabled={isConnecting || !value.trim()} className="text-xs">
               {isConnecting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
-              CONNECT
+              Connect
             </Button>
           </DialogFooter>
         </form>

@@ -17,9 +17,9 @@ describe("PermissionMatrix", () => {
     render(<PermissionMatrix permissions={defaultPerms} onChange={vi.fn()} />);
 
     // 检查行标签
-    expect(screen.getByText("OWNER")).toBeInTheDocument();
-    expect(screen.getByText("GROUP")).toBeInTheDocument();
-    expect(screen.getByText("OTHERS")).toBeInTheDocument();
+    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.getByText("Group")).toBeInTheDocument();
+    expect(screen.getByText("Others")).toBeInTheDocument();
 
     // 检查列标签
     expect(screen.getByText("R")).toBeInTheDocument();

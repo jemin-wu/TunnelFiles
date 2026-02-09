@@ -1,5 +1,5 @@
 /**
- * 空状态组件 - Cyberpunk Terminal Style
+ * 空状态组件
  */
 
 import { type ReactNode } from "react";
@@ -76,38 +76,26 @@ export function EmptyState({
         className
       )}
     >
-      {/* Icon with cyber styling */}
-      <div className="relative">
-        <div
-          className={cn(
-            "flex items-center justify-center rounded bg-primary/10 border border-primary/20",
-            sizes.iconWrapper
-          )}
-        >
-          <Icon className={cn("text-primary/60", sizes.icon)} />
-        </div>
-        {/* Corner decorations */}
-        <div className="absolute -top-0.5 -left-0.5 w-2 h-2 border-l border-t border-primary/40" />
-        <div className="absolute -top-0.5 -right-0.5 w-2 h-2 border-r border-t border-primary/40" />
-        <div className="absolute -bottom-0.5 -left-0.5 w-2 h-2 border-l border-b border-primary/40" />
-        <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 border-r border-b border-primary/40" />
+      {/* Icon */}
+      <div
+        className={cn(
+          "flex items-center justify-center rounded bg-primary/10 border border-primary/20",
+          sizes.iconWrapper
+        )}
+      >
+        <Icon className={cn("text-primary/60", sizes.icon)} />
       </div>
 
       {/* Text content */}
       <div className="space-y-1.5 max-w-xs">
         <h3 className={cn("font-medium tracking-wide text-foreground", sizes.title)}>{title}</h3>
         {description && (
-          <p className={cn("text-muted-foreground font-mono", sizes.description)}>
-            <span className="text-primary">&gt;</span> {description}
-          </p>
+          <p className={cn("text-muted-foreground", sizes.description)}>{description}</p>
         )}
       </div>
 
       {/* Action button */}
       {action && <div className="mt-3">{action}</div>}
-
-      {/* Decorative line */}
-      <div className="w-24 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mt-2" />
     </div>
   );
 }

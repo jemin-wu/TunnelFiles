@@ -15,6 +15,7 @@ import {
   XCircleIcon,
   RefreshCwIcon,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function App() {
   const [isDark, setIsDark] = useState(false);
@@ -237,7 +238,7 @@ function App() {
 function ColorSwatch({ name, className }: { name: string; className: string }) {
   return (
     <div className="space-y-1.5">
-      <div className={`h-12 rounded-lg ${className}`} />
+      <div className={cn("h-12 rounded-lg", className)} />
       <p className="text-xs text-muted-foreground">{name}</p>
     </div>
   );
@@ -258,9 +259,10 @@ function FileRow({
 }) {
   return (
     <div
-      className={`flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors ${
-        selected ? "file-selected-active" : ""
-      }`}
+      className={cn(
+        "flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors",
+        selected && "file-selected-active"
+      )}
     >
       {icon}
       <span className="flex-1 text-sm font-medium">{name}</span>
@@ -288,12 +290,12 @@ function TransferItem({
       <div className="flex items-center gap-3">
         {icon}
         <span className="flex-1 text-sm font-medium">{name}</span>
-        <span className={`text-xs ${pending ? "text-muted-foreground" : "text-foreground"}`}>
+        <span className={cn("text-xs", pending ? "text-muted-foreground" : "text-foreground")}>
           {status}
         </span>
         {!pending && <span className="text-xs font-medium">{progress}%</span>}
       </div>
-      <Progress value={progress} className={`h-1.5 ${pending ? "opacity-40" : ""}`} />
+      <Progress value={progress} className={cn("h-1.5", pending && "opacity-40")} />
     </div>
   );
 }

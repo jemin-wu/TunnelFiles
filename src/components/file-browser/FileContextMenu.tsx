@@ -1,6 +1,6 @@
 /**
- * 文件右键菜单 - Cyberpunk Terminal Style
- * 支持单选和多选操作
+ * File Context Menu - Precision Engineering
+ * Supports single and multi-selection operations
  */
 
 import { useCallback } from "react";
@@ -26,9 +26,9 @@ import { showSuccessToast, showErrorToast } from "@/lib/error";
 import type { FileEntry } from "@/types";
 
 interface FileContextMenuProps {
-  /** 当前右键点击的文件 */
+  /** The file that was right-clicked */
   file: FileEntry;
-  /** 选中的文件数量（用于显示批量操作） */
+  /** Number of selected files (for batch operations) */
   selectionCount?: number;
   children: React.ReactNode;
   onEnterDir?: () => void;
@@ -52,21 +52,21 @@ export function FileContextMenu({
 }: FileContextMenuProps) {
   const isMultiSelect = selectionCount > 1;
 
-  // 复制路径到剪贴板
+  // Copy path to clipboard
   const handleCopyPath = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(file.path);
-      showSuccessToast("路径已复制");
+      showSuccessToast("Path copied");
     } catch (error) {
       showErrorToast(error);
     }
   }, [file.path]);
 
-  // 复制文件名到剪贴板
+  // Copy file name to clipboard
   const handleCopyName = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(file.name);
-      showSuccessToast("文件名已复制");
+      showSuccessToast("Name copied");
     } catch (error) {
       showErrorToast(error);
     }
@@ -75,14 +75,14 @@ export function FileContextMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-52 font-mono border-border bg-card">
-        {/* 目录专属：进入 */}
+      <ContextMenuContent className="w-52 border-border bg-card">
+        {/* Directory only: enter */}
         {file.isDir && onEnterDir && !isMultiSelect && (
           <>
             <ContextMenuItem onClick={onEnterDir} className="text-xs gap-2 justify-between">
               <span className="flex items-center gap-2">
                 <FolderOpen className="h-3.5 w-3.5 text-primary" />
-                <span>CD_INTO</span>
+                <span>Open</span>
               </span>
               <span className="text-muted-foreground text-[10px]">↵</span>
             </ContextMenuItem>
@@ -90,65 +90,65 @@ export function FileContextMenu({
           </>
         )}
 
-        {/* 下载 - 支持批量 */}
+        {/* Download - supports batch */}
         {onDownload && (
           <ContextMenuItem onClick={onDownload} className="text-xs gap-2">
             <Download className="h-3.5 w-3.5 text-primary" />
-            <span>{isMultiSelect ? `DOWNLOAD_${selectionCount}_ITEMS` : "DOWNLOAD"}</span>
+            <span>{isMultiSelect ? `Download ${selectionCount} items` : "Download"}</span>
           </ContextMenuItem>
         )}
 
-        {/* 复制操作组 */}
+        {/* Copy operations */}
         <ContextMenuSeparator className="bg-border" />
 
         <ContextMenuItem onClick={handleCopyPath} className="text-xs gap-2">
           <Copy className="h-3.5 w-3.5" />
-          <span>COPY_PATH</span>
+          <span>Copy path</span>
         </ContextMenuItem>
 
         {!isMultiSelect && (
           <ContextMenuItem onClick={handleCopyName} className="text-xs gap-2">
             <Files className="h-3.5 w-3.5" />
-            <span>COPY_NAME</span>
+            <span>Copy name</span>
           </ContextMenuItem>
         )}
 
-        {/* 编辑操作组 */}
+        {/* Edit operations */}
         <ContextMenuSeparator className="bg-border" />
 
-        {/* 新建文件夹 */}
+        {/* New folder */}
         {onNewFolder && (
           <ContextMenuItem onClick={onNewFolder} className="text-xs gap-2 justify-between">
             <span className="flex items-center gap-2">
               <FolderPlus className="h-3.5 w-3.5 text-primary" />
-              <span>NEW_FOLDER</span>
+              <span>New folder</span>
             </span>
             <span className="text-muted-foreground text-[10px]">⌘N</span>
           </ContextMenuItem>
         )}
 
-        {/* 重命名 - 仅单选 */}
+        {/* Rename - single selection only */}
         {!isMultiSelect && onRename && (
           <ContextMenuItem onClick={onRename} className="text-xs gap-2 justify-between">
             <span className="flex items-center gap-2">
               <Pencil className="h-3.5 w-3.5" />
-              <span>RENAME</span>
+              <span>Rename</span>
             </span>
             <span className="text-muted-foreground text-[10px]">⌘R</span>
           </ContextMenuItem>
         )}
 
-        {/* 修改权限 - 支持批量 */}
+        {/* Change permissions - supports batch */}
         {onChmod && (
           <ContextMenuItem onClick={onChmod} className="text-xs gap-2">
             <Shield className="h-3.5 w-3.5" />
-            <span>{isMultiSelect ? `CHMOD_${selectionCount}_ITEMS` : "CHMOD"}</span>
+            <span>{isMultiSelect ? `Chmod ${selectionCount} items` : "Chmod"}</span>
           </ContextMenuItem>
         )}
 
         <ContextMenuSeparator className="bg-border" />
 
-        {/* 删除当前文件（不支持批量，始终操作右键点击的文件） */}
+        {/* Delete current file (no batch, always operates on right-clicked file) */}
         <ContextMenuItem
           variant="destructive"
           onClick={onDelete}
@@ -156,7 +156,7 @@ export function FileContextMenu({
         >
           <span className="flex items-center gap-2">
             <Trash2 className="h-3.5 w-3.5" />
-            <span>DELETE</span>
+            <span>Delete</span>
           </span>
           <span className="text-[10px] opacity-70">⌘⌫</span>
         </ContextMenuItem>

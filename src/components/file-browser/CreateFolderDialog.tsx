@@ -1,10 +1,11 @@
 /**
- * 新建文件夹弹窗 - Cyberpunk Terminal Style
+ * Create Folder Dialog - Precision Engineering
  */
 
 import { useState, useCallback } from "react";
-import { Loader2, FolderPlus, Terminal } from "lucide-react";
+import { Loader2, FolderPlus } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -23,19 +24,19 @@ interface CreateFolderDialogProps {
   isPending?: boolean;
 }
 
-// 校验文件夹名称
+// Validate folder name
 function validateFolderName(name: string): string | null {
   if (!name.trim()) {
-    return "文件夹名称不能为空";
+    return "Folder name cannot be empty";
   }
   if (name.includes("/")) {
-    return "文件夹名称不能包含 /";
+    return "Folder name cannot contain /";
   }
   if (name.includes("\0")) {
-    return "文件夹名称包含非法字符";
+    return "Folder name contains invalid characters";
   }
   if (name === "." || name === "..") {
-    return "文件夹名称不能是 . 或 ..";
+    return "Folder name cannot be . or ..";
   }
   return null;
 }
@@ -83,17 +84,15 @@ export function CreateFolderDialog({
       <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isPending}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-mono">
+            <DialogTitle className="flex items-center gap-2">
               <FolderPlus className="h-4 w-4 text-primary" />
-              <span className="text-primary">&gt;</span>
-              <span>MKDIR</span>
+              <span>New folder</span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="py-4 space-y-3">
-            <Label htmlFor="folder-name" className="text-xs font-mono text-muted-foreground">
-              <Terminal className="inline h-3 w-3 mr-1" />
-              输入文件夹名称
+            <Label htmlFor="folder-name" className="text-xs text-muted-foreground">
+              Enter folder name
             </Label>
             <Input
               id="folder-name"
@@ -102,10 +101,15 @@ export function CreateFolderDialog({
               placeholder="new_folder"
               disabled={isPending}
               autoFocus
-              className={`font-mono bg-background/50 ${error ? "border-destructive focus-visible:ring-destructive" : "border-border focus-visible:ring-primary"}`}
+              className={cn(
+                "font-mono bg-background/50",
+                error
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : "border-border focus-visible:ring-primary"
+              )}
             />
             {error && (
-              <p className="text-xs text-destructive font-mono flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <span className="text-destructive">!</span> {error}
               </p>
             )}
@@ -117,17 +121,13 @@ export function CreateFolderDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isPending}
-              className="font-mono text-xs btn-cyber"
+              className="text-xs"
             >
-              CANCEL
+              Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending || !name.trim()}
-              className="font-mono text-xs btn-cyber"
-            >
+            <Button type="submit" disabled={isPending || !name.trim()} className="text-xs">
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              CREATE
+              Create
             </Button>
           </DialogFooter>
         </form>

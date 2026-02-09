@@ -1,5 +1,5 @@
 /**
- * 文件列表容器组件 - Cyberpunk Terminal Style
+ * File List Container Component - Precision Engineering
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
@@ -30,7 +30,7 @@ interface FileListContainerProps {
   initialPath?: string;
   homePath?: string;
   onPathChange?: (path: string) => void;
-  /** 切换到 Terminal 模式 */
+  /** Switch to Terminal mode */
   onSwitchToTerminal?: () => void;
 }
 
@@ -69,16 +69,16 @@ export function FileListContainer({
       currentPath,
     });
 
-  // 目录统计信息状态（用于删除确认对话框）
+  // Directory stats state (for delete confirm dialog)
   const [dirStats, setDirStats] = useState<DirectoryStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
-  // 监听递归删除进度
+  // Listen for recursive delete progress
   const { progress: deleteProgress, reset: resetDeleteProgress } = useDeleteProgress({
     path: deleteRecursive.isPending ? (targetFile?.path ?? null) : null,
   });
 
-  // 当删除对话框打开时，如果是目录则获取统计信息
+  // When delete dialog opens, fetch stats if it's a directory
   useEffect(() => {
     if (!deleteOpen || !targetFile?.isDir) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when dialog closes or file changes
@@ -184,8 +184,8 @@ export function FileListContainer({
 
   const handleChmodSubmit = useCallback(
     (mode: number) => {
-      // 获取需要修改权限的文件列表
-      // 如果有多选，使用选中的文件；否则使用目标文件
+      // Get list of files to change permissions for
+      // If multi-selected, use selected files; otherwise use target file
       const filesToChmod =
         selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : [];
       if (filesToChmod.length === 0) return;
@@ -207,36 +207,36 @@ export function FileListContainer({
   const handleDownload = useCallback(
     async (file: FileEntry) => {
       try {
-        // 优先使用默认下载目录，否则弹窗选择
+        // Prefer default download directory, otherwise prompt selection
         let localDir = settings.defaultDownloadDir;
         if (!localDir) {
           const selected = await openDialog({
             directory: true,
             multiple: false,
-            title: "选择下载保存位置",
+            title: "Choose download location",
           });
-          if (!selected) return; // 用户取消
+          if (!selected) return; // User cancelled
           localDir = selected;
         }
 
         if (file.isDir) {
-          // 下载目录
+          // Download directory
           const taskIds = await downloadDirectory(sessionId, file.path, localDir);
           if (taskIds.length === 0) {
-            showSuccessToast("目录为空，无文件可下载");
+            showSuccessToast("Directory is empty, no files to download");
             return;
           }
           for (const taskId of taskIds) {
             const task = await getTransfer(taskId);
             if (task) addTask(task);
           }
-          showSuccessToast(`已创建 ${taskIds.length} 个下载任务`);
+          showSuccessToast(`Created ${taskIds.length} download tasks`);
         } else {
-          // 下载单个文件
+          // Download single file
           const taskId = await downloadFile(sessionId, file.path, localDir);
           const task = await getTransfer(taskId);
           if (task) addTask(task);
-          showSuccessToast(`开始下载: ${file.name}`);
+          showSuccessToast(`Downloading: ${file.name}`);
         }
       } catch (error) {
         showErrorToast(error);
@@ -248,12 +248,12 @@ export function FileListContainer({
   const handleDeleteConfirm = useCallback(() => {
     if (!targetFile) return;
 
-    // 判断是否需要递归删除：目录且非空
+    // Check if recursive delete is needed: non-empty directory
     const isNonEmptyDir =
       targetFile.isDir && dirStats && (dirStats.fileCount > 0 || dirStats.dirCount > 0);
 
     if (isNonEmptyDir) {
-      // 递归删除非空目录
+      // Recursively delete non-empty directory
       deleteRecursive.mutate(
         { path: targetFile.path },
         {
@@ -266,7 +266,7 @@ export function FileListContainer({
         }
       );
     } else {
-      // 普通删除（文件或空目录）
+      // Normal delete (file or empty directory)
       deleteItem.mutate(
         { path: targetFile.path, isDir: targetFile.isDir },
         {
@@ -293,9 +293,9 @@ export function FileListContainer({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 工具栏 - Terminal Style */}
+      {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/50">
-        {/* 切换到 Terminal */}
+        {/* Switch to Terminal */}
         {onSwitchToTerminal && (
           <>
             <TooltipProvider delayDuration={300}>
@@ -310,14 +310,13 @@ export function FileListContainer({
                     <TerminalSquare className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent className="font-mono text-xs">切换到终端 (⌘2)</TooltipContent>
+                <TooltipContent className="text-xs">Switch to terminal (⌘2)</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <span className="text-border">│</span>
           </>
         )}
 
-        {/* 面包屑导航 */}
+        {/* Breadcrumb navigation */}
         <Breadcrumb
           path={currentPath}
           homePath={homePath}
@@ -325,24 +324,24 @@ export function FileListContainer({
           className="flex-1 min-w-0"
         />
 
-        {/* 文件计数 & 选中计数 */}
-        <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-mono shrink-0">
+        {/* File count & selection count */}
+        <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground shrink-0">
           <span>
-            <span className="text-primary">{files.length}</span>
+            <span className="text-primary font-mono">{files.length}</span>
             <span className="ml-1">items</span>
           </span>
           {selectionCount > 0 && (
             <span className="animate-in fade-in duration-150">
-              <span className="text-primary">{selectionCount}</span>
+              <span className="text-primary font-mono">{selectionCount}</span>
               <span className="ml-1">selected</span>
             </span>
           )}
         </div>
 
-        <span className="text-border hidden sm:block">│</span>
+        <span className="hidden sm:block w-px h-4 bg-border" />
 
         <TooltipProvider delayDuration={300}>
-          {/* 新建文件夹 */}
+          {/* New folder */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -354,10 +353,10 @@ export function FileListContainer({
                 <FolderPlus className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="font-mono text-xs">MKDIR</TooltipContent>
+            <TooltipContent className="text-xs">New folder</TooltipContent>
           </Tooltip>
 
-          {/* 刷新 */}
+          {/* Refresh */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -374,10 +373,10 @@ export function FileListContainer({
                 )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="font-mono text-xs">REFRESH</TooltipContent>
+            <TooltipContent className="text-xs">Refresh</TooltipContent>
           </Tooltip>
 
-          {/* 隐藏文件切换 */}
+          {/* Toggle hidden files */}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -390,14 +389,14 @@ export function FileListContainer({
                 {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
               </Button>
             </TooltipTrigger>
-            <TooltipContent className="font-mono text-xs">
-              {showHidden ? "HIDE_DOTFILES" : "SHOW_DOTFILES"}
+            <TooltipContent className="text-xs">
+              {showHidden ? "Hide hidden files" : "Show hidden files"}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
 
-      {/* 文件列表 */}
+      {/* File list */}
       <div className="flex-1 min-h-0">
         <FileList
           files={files}
@@ -422,7 +421,7 @@ export function FileListContainer({
             } else if (action === "newFolder") {
               setCreateFolderOpen(true);
             } else if (action === "preview" && selectedFiles.length === 1) {
-              // Space 键预览 - 如果是目录则进入，否则下载
+              // Space key preview - enter directory or download file
               const file = selectedFiles[0];
               if (file.isDir) {
                 navigateTo(file.path);
@@ -430,13 +429,13 @@ export function FileListContainer({
                 handleDownload(file);
               }
             } else if (action === "parentDir") {
-              // Cmd+↑ 返回上级目录
+              // Cmd+Up: go to parent directory
               if (currentPath !== "/") {
                 const parentPath = currentPath.substring(0, currentPath.lastIndexOf("/")) || "/";
                 navigateTo(parentPath);
               }
             } else if (action === "rename" && selectedFiles.length === 1) {
-              // Cmd+R / F2 重命名
+              // Cmd+R / F2: rename
               handleRename(selectedFiles[0]);
             }
           }}
@@ -444,7 +443,7 @@ export function FileListContainer({
         />
       </div>
 
-      {/* 新建文件夹弹窗 */}
+      {/* Create folder dialog */}
       <CreateFolderDialog
         open={createFolderOpen}
         onOpenChange={setCreateFolderOpen}
@@ -452,7 +451,7 @@ export function FileListContainer({
         isPending={createFolder.isPending}
       />
 
-      {/* 重命名弹窗 */}
+      {/* Rename dialog */}
       <RenameDialog
         open={renameOpen}
         onOpenChange={(open) => {
@@ -464,7 +463,7 @@ export function FileListContainer({
         isPending={rename.isPending}
       />
 
-      {/* 删除确认弹窗 */}
+      {/* Delete confirm dialog */}
       <DeleteConfirmDialog
         open={deleteOpen}
         onOpenChange={(open) => {
@@ -483,7 +482,7 @@ export function FileListContainer({
         progress={deleteProgress}
       />
 
-      {/* 权限修改弹窗 */}
+      {/* Chmod dialog */}
       <ChmodDialog
         open={chmodOpen}
         onOpenChange={(open) => {

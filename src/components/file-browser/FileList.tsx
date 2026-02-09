@@ -1,6 +1,6 @@
 /**
- * 文件列表组件 - Cyberpunk Terminal Style
- * 支持列宽拖拽调整
+ * File List Component - Precision Engineering
+ * Supports column width drag resizing
  */
 
 import { useRef, useCallback, useEffect, memo } from "react";
@@ -19,9 +19,9 @@ import type { FileEntry, SortField, SortSpec } from "@/types";
 
 interface FileListProps {
   files: FileEntry[];
-  /** 检查文件是否选中 */
+  /** Check if file is selected */
   isSelected: (path: string) => boolean;
-  /** 选中数量 */
+  /** Selection count */
   selectionCount: number;
   sort: SortSpec;
   onFileClick: (file: FileEntry, modifiers: { metaKey: boolean; shiftKey: boolean }) => void;
@@ -31,15 +31,24 @@ interface FileListProps {
   onRename?: (file: FileEntry) => void;
   onDelete?: (file: FileEntry) => void;
   onChmod?: (file: FileEntry) => void;
-  /** 键盘快捷键处理 */
-  onKeyAction?: (action: "selectAll" | "clearSelection" | "delete" | "newFolder" | "preview" | "parentDir" | "rename") => void;
+  /** Keyboard shortcut handler */
+  onKeyAction?: (
+    action:
+      | "selectAll"
+      | "clearSelection"
+      | "delete"
+      | "newFolder"
+      | "preview"
+      | "parentDir"
+      | "rename"
+  ) => void;
   isLoading?: boolean;
 }
 
 const ROW_HEIGHT = 40;
 const ICON_WIDTH = 32;
 
-// 列宽分隔符组件
+// Column resize handle component
 interface ResizeHandleProps {
   column: ColumnKey;
   onMouseDown: (column: ColumnKey, e: React.MouseEvent) => void;
@@ -59,7 +68,7 @@ function ResizeHandle({ column, onMouseDown }: ResizeHandleProps) {
   );
 }
 
-// 表头组件
+// Header cell component
 interface HeaderCellProps {
   field: SortField;
   currentSort: SortSpec;
@@ -89,7 +98,7 @@ function HeaderCell({
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 gap-1 w-full justify-start text-[10px] font-mono font-medium text-muted-foreground hover:text-primary hover:bg-transparent transition-colors tracking-wider",
+          "h-auto p-0 gap-1 w-full justify-start text-[10px] font-medium text-muted-foreground hover:text-primary hover:bg-transparent transition-colors tracking-wide",
           isActive && "text-primary",
           className
         )}
@@ -110,7 +119,7 @@ function HeaderCell({
   );
 }
 
-// 文件行组件
+// File row component
 interface FileRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onClick"> {
   file: FileEntry;
   isSelected: boolean;
@@ -150,12 +159,12 @@ const FileRow = memo(function FileRow({
       }}
       {...rest}
     >
-      {/* 图标 */}
+      {/* Icon */}
       <div style={{ width: ICON_WIDTH }} className="flex-shrink-0">
         <FileIcon file={file} />
       </div>
 
-      {/* 名称 */}
+      {/* Name */}
       <TooltipProvider delayDuration={500}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -172,15 +181,19 @@ const FileRow = memo(function FileRow({
         </Tooltip>
       </TooltipProvider>
 
-      {/* 大小 */}
+      {/* Size */}
       <div
         className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
         style={{ width: sizeWidth }}
       >
-        {file.isDir ? <span className="text-primary/50">DIR</span> : formatFileSize(file.size)}
+        {file.isDir ? (
+          <span className="text-muted-foreground/50">&mdash;</span>
+        ) : (
+          formatFileSize(file.size)
+        )}
       </div>
 
-      {/* 修改时间 */}
+      {/* Modified time */}
       <div
         className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
         style={{ width: mtimeWidth }}
@@ -217,7 +230,7 @@ export function FileList({
     overscan: 5,
   });
 
-  // 处理列宽拖拽开始
+  // Handle column width resize start
   const handleResizeStart = useCallback(
     (column: ColumnKey, e: React.MouseEvent) => {
       const containerWidth = headerRef.current?.clientWidth ?? 0;
@@ -226,7 +239,7 @@ export function FileList({
     [startResize]
   );
 
-  // 获取当前选中的第一个文件索引
+  // Get first selected file index
   const getFirstSelectedIndex = useCallback(() => {
     for (let i = 0; i < files.length; i++) {
       if (isSelected(files[i].path)) {
@@ -236,7 +249,7 @@ export function FileList({
     return -1;
   }, [files, isSelected]);
 
-  // 键盘导航和快捷键
+  // Keyboard navigation and shortcuts
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (!parentRef.current?.contains(document.activeElement)) return;
@@ -244,21 +257,21 @@ export function FileList({
       const currentIndex = getFirstSelectedIndex();
       const modifiers = { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey };
 
-      // Escape: 清除选择
+      // Escape: clear selection
       if (e.key === "Escape") {
         e.preventDefault();
         onKeyAction?.("clearSelection");
         return;
       }
 
-      // Cmd+A: 全选
+      // Cmd+A: select all
       if ((e.metaKey || e.ctrlKey) && e.key === "a") {
         e.preventDefault();
         onKeyAction?.("selectAll");
         return;
       }
 
-      // Delete / Cmd+Backspace: 删除
+      // Delete / Cmd+Backspace: delete
       if (e.key === "Delete" || ((e.metaKey || e.ctrlKey) && e.key === "Backspace")) {
         e.preventDefault();
         if (selectionCount > 0) {
@@ -267,14 +280,14 @@ export function FileList({
         return;
       }
 
-      // Cmd+N: 新建文件夹
+      // Cmd+N: new folder
       if ((e.metaKey || e.ctrlKey) && e.key === "n") {
         e.preventDefault();
         onKeyAction?.("newFolder");
         return;
       }
 
-      // Space: 快速预览 (Quick Look)
+      // Space: quick preview (Quick Look)
       if (e.key === " " && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
         if (selectionCount === 1 && currentIndex >= 0) {
@@ -283,14 +296,14 @@ export function FileList({
         return;
       }
 
-      // Cmd+↑: 返回上级目录
+      // Cmd+Up: go to parent directory
       if ((e.metaKey || e.ctrlKey) && e.key === "ArrowUp") {
         e.preventDefault();
         onKeyAction?.("parentDir");
         return;
       }
 
-      // Cmd+R / F2: 重命名
+      // Cmd+R / F2: rename
       if (((e.metaKey || e.ctrlKey) && e.key === "r") || e.key === "F2") {
         e.preventDefault();
         if (selectionCount === 1) {
@@ -299,7 +312,7 @@ export function FileList({
         return;
       }
 
-      // 方向键导航
+      // Arrow key navigation
       if (e.key === "ArrowUp" && currentIndex > 0) {
         e.preventDefault();
         onFileClick(files[currentIndex - 1], modifiers);
@@ -313,7 +326,16 @@ export function FileList({
         onFileDblClick(files[currentIndex]);
       }
     },
-    [files, getFirstSelectedIndex, isSelected, selectionCount, onFileClick, onFileDblClick, onKeyAction, virtualizer]
+    [
+      files,
+      getFirstSelectedIndex,
+      isSelected,
+      selectionCount,
+      onFileClick,
+      onFileDblClick,
+      onKeyAction,
+      virtualizer,
+    ]
   );
 
   useEffect(() => {
@@ -321,24 +343,15 @@ export function FileList({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
-  // 空状态
+  // Empty state
   if (!isLoading && files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground animate-fade-in">
-        <div className="relative">
-          <div className="w-16 h-16 flex items-center justify-center rounded bg-primary/10 border border-primary/20">
-            <FolderOpen className="h-8 w-8 text-primary/60" />
-          </div>
-          {/* Corner decorations */}
-          <div className="absolute -top-0.5 -left-0.5 w-2 h-2 border-l border-t border-primary/40" />
-          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 border-r border-t border-primary/40" />
-          <div className="absolute -bottom-0.5 -left-0.5 w-2 h-2 border-l border-b border-primary/40" />
-          <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 border-r border-b border-primary/40" />
+        <div className="w-14 h-14 flex items-center justify-center rounded-lg bg-muted/50 border border-border">
+          <FolderOpen className="h-7 w-7 text-muted-foreground/60" />
         </div>
-        <p className="text-sm font-mono mt-4">DIR_EMPTY</p>
-        <p className="text-xs font-mono text-muted-foreground/60 mt-1">
-          <span className="text-primary">&gt;</span> 拖拽文件到此上传
-        </p>
+        <p className="text-sm mt-4">Directory is empty</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">Drag files here to upload</p>
       </div>
     );
   }
@@ -350,7 +363,7 @@ export function FileList({
 
   return (
     <div className="flex flex-col h-full">
-      {/* 表头 */}
+      {/* Header */}
       <div
         ref={headerRef}
         className="flex items-center h-8 px-3 border-b border-border bg-card/50 flex-shrink-0"
@@ -364,7 +377,7 @@ export function FileList({
           resizable
           onResizeStart={handleResizeStart}
         >
-          NAME
+          Name
         </HeaderCell>
         <HeaderCell
           field="size"
@@ -375,7 +388,7 @@ export function FileList({
           resizable
           onResizeStart={handleResizeStart}
         >
-          SIZE
+          Size
         </HeaderCell>
         <HeaderCell
           field="mtime"
@@ -386,17 +399,17 @@ export function FileList({
           resizable
           onResizeStart={handleResizeStart}
         >
-          MODIFIED
+          Modified
         </HeaderCell>
       </div>
 
-      {/* 虚拟列表 */}
+      {/* Virtual list */}
       <div
         ref={parentRef}
         className="flex-1 overflow-auto"
         tabIndex={0}
         onClick={(e) => {
-          // 点击空白处清除选择
+          // Click empty area to clear selection
           if (e.target === e.currentTarget) {
             onKeyAction?.("clearSelection");
           }
@@ -409,7 +422,7 @@ export function FileList({
             position: "relative",
           }}
           onClick={(e) => {
-            // 点击虚拟容器空白处也清除选择
+            // Click virtual container empty area to clear selection
             if (e.target === e.currentTarget) {
               onKeyAction?.("clearSelection");
             }

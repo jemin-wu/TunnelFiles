@@ -37,9 +37,7 @@ describe("HostKeyDialog", () => {
   });
 
   it("should not render when payload is null", () => {
-    const { container } = render(
-      <HostKeyDialog {...defaultProps} payload={null} />
-    );
+    const { container } = render(<HostKeyDialog {...defaultProps} payload={null} />);
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -47,8 +45,8 @@ describe("HostKeyDialog", () => {
   it("should render first connection dialog with correct title", () => {
     render(<HostKeyDialog {...defaultProps} />);
 
-    expect(screen.getByText("HOSTKEY_VERIFY")).toBeInTheDocument();
-    expect(screen.getByText(/首次连接此服务器/)).toBeInTheDocument();
+    expect(screen.getByText("Verify host key")).toBeInTheDocument();
+    expect(screen.getByText(/First connection to this server/)).toBeInTheDocument();
   });
 
   it("should display server information", () => {
@@ -62,31 +60,29 @@ describe("HostKeyDialog", () => {
   it("should render mismatch warning dialog", () => {
     render(<HostKeyDialog {...defaultProps} payload={mismatchPayload} />);
 
-    expect(screen.getByText("HOSTKEY_MISMATCH")).toBeInTheDocument();
-    expect(screen.getByText(/服务器指纹与记录不一致/)).toBeInTheDocument();
-    expect(screen.getByText(/请仔细核实服务器指纹/)).toBeInTheDocument();
+    expect(screen.getByText("Host key mismatch")).toBeInTheDocument();
+    expect(screen.getByText(/fingerprint does not match/)).toBeInTheDocument();
+    expect(screen.getByText(/Carefully verify the server fingerprint/)).toBeInTheDocument();
   });
 
   it("should show different button text for first connection", () => {
     render(<HostKeyDialog {...defaultProps} />);
 
-    expect(screen.getByRole("button", { name: "TRUST" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "REJECT" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trust" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeInTheDocument();
   });
 
   it("should show different button text for mismatch", () => {
     render(<HostKeyDialog {...defaultProps} payload={mismatchPayload} />);
 
-    expect(
-      screen.getByRole("button", { name: "TRUST_ANYWAY" })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Trust anyway" })).toBeInTheDocument();
   });
 
   it("should call onTrust when trust button clicked", async () => {
     const user = userEvent.setup();
     render(<HostKeyDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "TRUST" }));
+    await user.click(screen.getByRole("button", { name: "Trust" }));
 
     expect(mockOnTrust).toHaveBeenCalledTimes(1);
   });
@@ -95,7 +91,7 @@ describe("HostKeyDialog", () => {
     const user = userEvent.setup();
     render(<HostKeyDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "REJECT" }));
+    await user.click(screen.getByRole("button", { name: "Reject" }));
 
     expect(mockOnReject).toHaveBeenCalledTimes(1);
   });
@@ -103,14 +99,14 @@ describe("HostKeyDialog", () => {
   it("should disable buttons when processing", () => {
     render(<HostKeyDialog {...defaultProps} isProcessing={true} />);
 
-    expect(screen.getByRole("button", { name: "REJECT" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /TRUST/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Trust/ })).toBeDisabled();
   });
 
   it("should show loading indicator when processing", () => {
     render(<HostKeyDialog {...defaultProps} isProcessing={true} />);
 
-    const trustButton = screen.getByRole("button", { name: /TRUST/ });
+    const trustButton = screen.getByRole("button", { name: /Trust/ });
     expect(trustButton).toBeInTheDocument();
   });
 

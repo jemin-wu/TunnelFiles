@@ -1,7 +1,7 @@
 /**
- * 权限修改弹窗 - Cyberpunk Terminal Style
+ * Change Permissions Dialog - Precision Engineering
  *
- * 支持单选和多选文件的权限修改
+ * Supports single and multi-file permission changes
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
@@ -21,31 +21,31 @@ import { modeToPermissions, permissionsToMode } from "@/lib/file";
 import type { FileEntry, PermissionBits } from "@/types/file";
 
 interface ChmodDialogProps {
-  /** 是否打开 */
+  /** Whether the dialog is open */
   open: boolean;
-  /** 打开状态变更 */
+  /** Open state change handler */
   onOpenChange: (open: boolean) => void;
-  /** 选中的文件列表 */
+  /** Selected file list */
   files: FileEntry[];
-  /** 提交回调 (mode 为八进制权限值) */
+  /** Submit callback (mode is octal permission value) */
   onSubmit: (mode: number) => void;
-  /** 是否正在提交 */
+  /** Whether submission is pending */
   isPending: boolean;
 }
 
 /**
- * 从文件列表计算初始权限
- * - 单文件: 直接使用文件权限
- * - 多文件: 使用第一个有权限的文件，否则默认 644
+ * Calculate initial permissions from file list
+ * - Single file: use file permissions directly
+ * - Multiple files: use first file with permissions, otherwise default 644
  */
 function getInitialMode(files: FileEntry[]): number {
   for (const file of files) {
     if (file.mode !== undefined) {
-      // 只取低 9 位 (权限位)
+      // Only take lower 9 bits (permission bits)
       return file.mode & 0o777;
     }
   }
-  return 0o644; // 默认
+  return 0o644; // default
 }
 
 export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: ChmodDialogProps) {
@@ -54,7 +54,7 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
     modeToPermissions(initialMode)
   );
 
-  // 当 dialog 打开时重置权限（使用已 memoize 的 initialMode，避免 files 引用变化导致意外重置）
+  // Reset permissions when dialog opens (using memoized initialMode to avoid unexpected resets from files reference changes)
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional: reset state when dialog opens
@@ -75,18 +75,17 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isPending}>
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-mono">
+          <DialogTitle className="flex items-center gap-2">
             <Shield className="h-4 w-4 text-primary" />
-            <span className="text-primary">&gt;</span>
-            <span>CHMOD_PERMISSIONS</span>
+            <span>Change permissions</span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="py-4 space-y-4">
-          {/* 选中文件列表 */}
+          {/* Selected file list */}
           <div className="space-y-2">
-            <div className="text-xs font-mono text-muted-foreground flex items-center gap-2">
-              <span className="text-primary">SELECTED:</span>
+            <div className="text-xs text-muted-foreground flex items-center gap-2">
+              <span>Selected:</span>
               <span>
                 {files.length} {files.length === 1 ? "item" : "items"}
               </span>
@@ -111,7 +110,7 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
             </ScrollArea>
           </div>
 
-          {/* 权限矩阵 */}
+          {/* Permission matrix */}
           <PermissionMatrix
             permissions={permissions}
             onChange={setPermissions}
@@ -125,18 +124,13 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
             variant="outline"
             onClick={handleCancel}
             disabled={isPending}
-            className="font-mono text-xs btn-cyber"
+            className="text-xs"
           >
-            CANCEL
+            Cancel
           </Button>
-          <Button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isPending}
-            className="font-mono text-xs btn-cyber"
-          >
+          <Button type="button" onClick={handleSubmit} disabled={isPending} className="text-xs">
             {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-            APPLY
+            Apply
           </Button>
         </DialogFooter>
       </DialogContent>

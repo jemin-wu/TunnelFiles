@@ -32,7 +32,7 @@ export function RecentConnections({ onConnect, connectingId, className }: Recent
     return (
       <div className={cn("text-center py-8 text-muted-foreground", className)}>
         <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-        <p className="text-sm">暂无连接记录</p>
+        <p className="text-sm">No recent connections</p>
       </div>
     );
   }
@@ -41,7 +41,7 @@ export function RecentConnections({ onConnect, connectingId, className }: Recent
     <div className={cn("", className)}>
       <div className="flex items-center gap-2 mb-3 px-1">
         <Clock className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium text-muted-foreground">最近连接</span>
+        <span className="text-sm font-medium text-muted-foreground">Recent connections</span>
       </div>
       <ScrollArea className="h-[200px]">
         <div className="space-y-1">
@@ -81,7 +81,7 @@ function RecentConnectionItem({ profile, isConnecting, onConnect }: RecentConnec
         )}
         <div className="flex-1 min-w-0 text-left">
           <div className="text-sm font-medium truncate">{profile.name}</div>
-          <div className="text-xs text-muted-foreground truncate">
+          <div className="text-xs text-muted-foreground truncate font-mono">
             {profile.username}@{profile.host}
             {profile.port !== 22 && `:${profile.port}`}
           </div>

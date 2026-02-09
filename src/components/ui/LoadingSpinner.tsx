@@ -24,7 +24,7 @@ export function LoadingSpinner({ size = "md", className, label }: LoadingSpinner
     <div
       className={cn("flex flex-col items-center justify-center gap-2", className)}
       role="status"
-      aria-label={label || "加载中"}
+      aria-label={label || "Loading"}
     >
       <Loader2 className={cn("animate-spin text-muted-foreground", sizeClasses[size])} />
       {label && <span className="text-sm text-muted-foreground">{label}</span>}

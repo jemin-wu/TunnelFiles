@@ -1,5 +1,5 @@
 /**
- * 传输任务队列组件 - Cyberpunk Terminal Style
+ * 传输任务队列组件 - Precision Engineering
  */
 
 import { useCallback, useMemo } from "react";
@@ -7,6 +7,7 @@ import {
   Upload,
   Download,
   X,
+  Check,
   RotateCcw,
   CheckCircle,
   XCircle,
@@ -64,14 +65,13 @@ export function TransferQueue({ className }: TransferQueueProps) {
           className
         )}
       >
-        <div className="relative mb-4">
+        <div className="mb-4">
           <ArrowUpFromLine className="h-10 w-10 opacity-30" />
-          <div className="absolute inset-0 animate-ping opacity-10">
-            <ArrowUpFromLine className="h-10 w-10" />
-          </div>
         </div>
-        <p className="text-xs font-medium tracking-wide mb-1">NO_ACTIVE_TRANSFERS</p>
-        <p className="text-[10px] text-muted-foreground/60">拖拽文件到左侧区域开始上传</p>
+        <p className="text-xs font-medium tracking-wide mb-1">No active transfers</p>
+        <p className="text-[10px] text-muted-foreground/60">
+          Drag files to the left panel to start uploading
+        </p>
       </div>
     );
   }
@@ -81,21 +81,18 @@ export function TransferQueue({ className }: TransferQueueProps) {
       {/* 工具栏 */}
       {(activeTasks.length > 0 || completedTasks.length > 0) && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30">
-          <div className="flex items-center gap-2 text-[10px] font-mono">
+          <div className="flex items-center gap-2 text-[10px]">
             {activeTasks.length > 0 && (
               <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
                 <span className="text-accent">{activeTasks.length}</span>
-                <span className="text-muted-foreground">ACTIVE</span>
+                <span className="text-muted-foreground">active</span>
               </span>
-            )}
-            {activeTasks.length > 0 && completedTasks.length > 0 && (
-              <span className="text-border">│</span>
             )}
             {completedTasks.length > 0 && (
               <span className="flex items-center gap-1">
                 <span className="text-success">{completedTasks.length}</span>
-                <span className="text-muted-foreground">DONE</span>
+                <span className="text-muted-foreground">done</span>
               </span>
             )}
           </div>
@@ -112,7 +109,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
                     <Trash2 className="h-3 w-3" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent className="font-mono text-xs">CLEAR_COMPLETED</TooltipContent>
+                <TooltipContent className="text-xs">Clear completed</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
@@ -185,13 +182,8 @@ function TransferItem({ task }: TransferItemProps) {
         <div className="space-y-1">
           <Progress
             value={task.percent ?? 0}
-            className={cn("h-1 progress-cyber", status === "waiting" && "opacity-40")}
+            className={cn("h-1", status === "waiting" && "opacity-40")}
           />
-          {status === "running" && (
-            <div className="h-0.5 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full w-1/3 animate-data-stream" />
-            </div>
-          )}
         </div>
       )}
 
@@ -206,7 +198,7 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       return (
         <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
           <span className="text-accent">{formatSpeed(task.speed)}</span>
-          <span className="text-border">│</span>
+          <span className="text-muted-foreground/50">·</span>
           <span>
             <span className="text-primary">{task.percent ?? 0}%</span>
             {" · "}
@@ -218,27 +210,30 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       );
     case "waiting":
       return (
-        <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
-          <span className="w-1 h-1 rounded-full bg-warning animate-pulse" />
-          <span>QUEUED...</span>
+        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+          <span className="w-1 h-1 rounded-full bg-warning" />
+          <span>Queued</span>
         </div>
       );
     case "success":
       return (
-        <div className="text-[10px] text-success font-mono flex items-center gap-1">
-          <span>✓</span>
-          <span>TRANSFER_COMPLETE</span>
+        <div className="text-[10px] text-success flex items-center gap-1">
+          <Check className="h-3 w-3" />
+          <span>Transfer complete</span>
         </div>
       );
     case "failed":
       return (
-        <div className="text-[10px] text-destructive font-mono truncate" title={task.errorMessage}>
-          <span className="mr-1">✗</span>
-          {task.errorMessage || "TRANSFER_FAILED"}
+        <div
+          className="text-[10px] text-destructive flex items-center gap-1 truncate"
+          title={task.errorMessage}
+        >
+          <X className="h-3 w-3 shrink-0" />
+          <span className="truncate">{task.errorMessage || "Transfer failed"}</span>
         </div>
       );
     case "canceled":
-      return <div className="text-[10px] text-muted-foreground font-mono">CANCELED</div>;
+      return <div className="text-[10px] text-muted-foreground">Canceled</div>;
   }
 }
 
@@ -264,16 +259,7 @@ function TaskIcon({
             ? "text-transfer-upload"
             : "text-transfer-download"
           : "text-muted-foreground";
-      return (
-        <div className="relative">
-          <Icon className={cn(baseClasses, colorClass)} />
-          {status === "running" && (
-            <div className="absolute inset-0 animate-ping opacity-30">
-              <Icon className={cn(baseClasses, colorClass)} />
-            </div>
-          )}
-        </div>
-      );
+      return <Icon className={cn(baseClasses, colorClass)} />;
     }
   }
 }
@@ -295,7 +281,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
         {isActive && (
           <ActionButton
             icon={X}
-            tooltip="CANCEL"
+            tooltip="Cancel"
             onClick={onCancel}
             className="hover:text-destructive"
           />
@@ -303,7 +289,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
         {status === "failed" && retryable && (
           <ActionButton
             icon={RotateCcw}
-            tooltip="RETRY"
+            tooltip="Retry"
             onClick={onRetry}
             className="hover:text-warning"
           />
@@ -311,7 +297,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
         {!isActive && (
           <ActionButton
             icon={X}
-            tooltip="REMOVE"
+            tooltip="Remove"
             onClick={onRemove}
             className="hover:text-muted-foreground"
           />
@@ -339,7 +325,7 @@ function ActionButton({
           <Icon className="h-3 w-3" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent className="font-mono text-xs">{tooltip}</TooltipContent>
+      <TooltipContent className="text-xs">{tooltip}</TooltipContent>
     </Tooltip>
   );
 }

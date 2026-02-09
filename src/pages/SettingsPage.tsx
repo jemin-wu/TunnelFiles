@@ -1,6 +1,6 @@
 /**
- * 设置页面 - Minimalist Terminal Style
- * 简洁的左侧导航 + 右侧内容布局
+ * Settings Page
+ * Clean left navigation + right content layout
  */
 
 import { useCallback, useState } from "react";
@@ -27,16 +27,16 @@ import { useSettings } from "@/hooks/useSettings";
 import type { LogLevel } from "@/types/settings";
 
 const LOG_LEVELS: { value: LogLevel; label: string }[] = [
-  { value: "error", label: "ERROR" },
-  { value: "warn", label: "WARNING" },
-  { value: "info", label: "INFO" },
-  { value: "debug", label: "DEBUG" },
+  { value: "error", label: "Error" },
+  { value: "warn", label: "Warning" },
+  { value: "info", label: "Info" },
+  { value: "debug", label: "Debug" },
 ];
 
 const settingsSchema = z.object({
   defaultDownloadDir: z.string().optional(),
   maxConcurrentTransfers: z.number().min(1).max(6),
-  connectionTimeoutSecs: z.number().min(1, "TIMEOUT_MIN_ERROR"),
+  connectionTimeoutSecs: z.number().min(1, "Minimum timeout is 1 second"),
   transferRetryCount: z.number().min(0).max(10),
   logLevel: z.enum(["error", "warn", "info", "debug"]),
 });
@@ -68,7 +68,7 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       >
         {icon}
       </span>
-      <span className="font-medium tracking-wide">{label}</span>
+      <span className="font-medium">{label}</span>
     </Button>
   );
 }
@@ -124,7 +124,7 @@ export function SettingsPage() {
     const selected = await openDialog({
       directory: true,
       multiple: false,
-      title: "SELECT_DOWNLOAD_DIR",
+      title: "Select download directory",
     });
     if (selected) {
       form.setValue("defaultDownloadDir", selected as string, { shouldDirty: true });
@@ -139,50 +139,48 @@ export function SettingsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">
-          <span className="text-primary">&gt;</span> LOADING_CONFIG...
-        </span>
+        <span className="text-xs text-muted-foreground">Loading settings...</span>
       </div>
     );
   }
 
   return (
     <div className="h-full flex">
-      {/* LEFT_NAV */}
+      {/* Left navigation */}
       <aside className="w-44 border-r border-border bg-sidebar/50 p-3 shrink-0 flex flex-col">
         <nav className="space-y-1 flex-1 pt-2">
           <NavItem
             icon={<Download className="h-3.5 w-3.5" />}
-            label="TRANSFER"
+            label="Transfer"
             active={activeSection === "transfer"}
             onClick={() => setActiveSection("transfer")}
           />
           <NavItem
             icon={<Zap className="h-3.5 w-3.5" />}
-            label="CONNECTION"
+            label="Connection"
             active={activeSection === "connection"}
             onClick={() => setActiveSection("connection")}
           />
           <NavItem
             icon={<FileText className="h-3.5 w-3.5" />}
-            label="LOGGING"
+            label="Logging"
             active={activeSection === "logs"}
             onClick={() => setActiveSection("logs")}
           />
         </nav>
       </aside>
 
-      {/* CONTENT */}
-      <div className="flex-1 overflow-auto flex justify-center">
+      {/* Content */}
+      <div className="flex-1 overflow-auto flex justify-center min-h-0">
         <div className="w-full max-w-lg p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)}>
               {/* TRANSFER_CONFIG */}
               {activeSection === "transfer" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium tracking-wide mb-1">TRANSFER_CONFIG</h2>
+                  <h2 className="text-sm font-medium mb-1">Transfer settings</h2>
                   <p className="text-[10px] text-muted-foreground mb-6">
-                    FILE_UPLOAD_DOWNLOAD_SETTINGS
+                    File upload and download settings
                   </p>
 
                   <div>
@@ -190,12 +188,12 @@ export function SettingsPage() {
                       control={form.control}
                       name="defaultDownloadDir"
                       render={({ field }) => (
-                        <SettingRow label="DOWNLOAD_DIR" description="DEFAULT_SAVE_LOCATION">
+                        <SettingRow label="Download directory" description="Default save location">
                           <FormItem className="space-y-0">
                             <FormControl>
                               <div className="flex gap-2">
                                 <Input
-                                  placeholder="SYSTEM_DEFAULT"
+                                  placeholder="System default"
                                   {...field}
                                   disabled={isUpdating}
                                   className="flex-1 text-xs h-9"
@@ -223,8 +221,8 @@ export function SettingsPage() {
                       name="maxConcurrentTransfers"
                       render={({ field }) => (
                         <SettingRow
-                          label="MAX_CONCURRENT"
-                          description="SIMULTANEOUS_TRANSFER_TASKS"
+                          label="Max concurrent"
+                          description="Simultaneous transfer tasks"
                         >
                           <FormItem className="space-y-0">
                             <div className="flex items-center gap-4">
@@ -255,7 +253,7 @@ export function SettingsPage() {
                       control={form.control}
                       name="transferRetryCount"
                       render={({ field }) => (
-                        <SettingRow label="RETRY_COUNT" description="AUTO_RETRY_ON_FAILURE (0-10)">
+                        <SettingRow label="Retry count" description="Auto retry on failure (0-10)">
                           <FormItem className="space-y-0">
                             <FormControl>
                               <Input
@@ -280,15 +278,15 @@ export function SettingsPage() {
               {/* CONNECTION_CONFIG */}
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium tracking-wide mb-1">CONNECTION_CONFIG</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">SSH_CONNECTION_SETTINGS</p>
+                  <h2 className="text-sm font-medium mb-1">Connection settings</h2>
+                  <p className="text-[10px] text-muted-foreground mb-6">SSH connection settings</p>
 
                   <div>
                     <FormField
                       control={form.control}
                       name="connectionTimeoutSecs"
                       render={({ field }) => (
-                        <SettingRow label="TIMEOUT" description="SSH_CONNECTION_TIMEOUT">
+                        <SettingRow label="Timeout" description="SSH connection timeout">
                           <FormItem className="space-y-0">
                             <div className="flex items-center gap-2">
                               <FormControl>
@@ -301,7 +299,7 @@ export function SettingsPage() {
                                   className="w-20 text-xs h-9"
                                 />
                               </FormControl>
-                              <span className="text-xs text-muted-foreground">SECONDS</span>
+                              <span className="text-xs text-muted-foreground">seconds</span>
                             </div>
                             <FormMessage className="text-[10px]" />
                           </FormItem>
@@ -315,15 +313,15 @@ export function SettingsPage() {
               {/* LOGGING_CONFIG */}
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium tracking-wide mb-1">LOGGING_CONFIG</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">APPLICATION_LOG_OUTPUT</p>
+                  <h2 className="text-sm font-medium mb-1">Logging settings</h2>
+                  <p className="text-[10px] text-muted-foreground mb-6">Application log output</p>
 
                   <div>
                     <FormField
                       control={form.control}
                       name="logLevel"
                       render={({ field }) => (
-                        <SettingRow label="LOG_LEVEL" description="LOG_VERBOSITY_CONTROL">
+                        <SettingRow label="Log level" description="Log verbosity control">
                           <FormItem className="space-y-0">
                             <Select
                               value={field.value}
@@ -332,7 +330,7 @@ export function SettingsPage() {
                             >
                               <FormControl>
                                 <SelectTrigger className="w-36 text-xs h-9">
-                                  <SelectValue placeholder="SELECT_LEVEL" />
+                                  <SelectValue placeholder="Select level" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent className="text-xs">
@@ -362,16 +360,16 @@ export function SettingsPage() {
                   disabled={isUpdating}
                   className="text-xs h-9 px-4"
                 >
-                  CANCEL
+                  Cancel
                 </Button>
                 <Button
                   type="submit"
                   size="sm"
                   disabled={isUpdating || !isDirty}
-                  className="text-xs h-9 px-5 btn-cyber gap-2"
+                  className="text-xs h-9 px-5 gap-2"
                 >
                   {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  <span>SAVE</span>
+                  <span>Save</span>
                 </Button>
               </div>
             </form>

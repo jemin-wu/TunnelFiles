@@ -1,6 +1,6 @@
 /**
- * 连接表单页面 - Minimalist Terminal Style
- * 简洁扁平的表单设计
+ * Connection Form Page - Precision Engineering
+ * Add/edit connection configuration
  */
 
 import { useEffect, useCallback, useState } from "react";
@@ -8,7 +8,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, FolderOpen, Eye, EyeOff, Terminal, Key, KeyRound } from "lucide-react";
+import { Loader2, FolderOpen, Eye, EyeOff, Key, KeyRound } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Button } from "@/components/ui/button";
@@ -69,10 +69,14 @@ function PasswordInput({ value, onChange, placeholder, disabled, className }: Pa
 const formSchema = z
   .object({
     authType: z.enum(["password", "key"]),
-    name: z.string().min(1, "NAME_REQUIRED"),
-    host: z.string().min(1, "HOST_REQUIRED"),
-    port: z.number().int().min(1, "PORT_MIN_ERROR").max(65535, "PORT_MAX_ERROR"),
-    username: z.string().min(1, "USER_REQUIRED"),
+    name: z.string().min(1, "Name is required"),
+    host: z.string().min(1, "Host is required"),
+    port: z
+      .number()
+      .int()
+      .min(1, "Port must be at least 1")
+      .max(65535, "Port must be at most 65535"),
+    username: z.string().min(1, "Username is required"),
     password: z.string().optional(),
     rememberPassword: z.boolean().optional(),
     privateKeyPath: z.string().optional(),
@@ -88,7 +92,7 @@ const formSchema = z
       return true;
     },
     {
-      message: "KEY_PATH_REQUIRED",
+      message: "Private key path is required",
       path: ["privateKeyPath"],
     }
   );
@@ -115,19 +119,16 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
           "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
           value === "password"
             ? [
-                // 浅色模式：简洁样式
                 "bg-background text-foreground shadow-sm border border-border/80",
                 "hover:bg-background hover:text-foreground",
-                // 暗黑模式：霓虹发光效果
                 "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
                 "dark:hover:bg-primary/20 dark:hover:text-primary",
-                "dark:shadow-[0_0_12px_rgba(0,255,159,0.25)]",
               ]
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
-        <Key className={cn("h-3.5 w-3.5", value === "password" && "dark:drop-shadow-[0_0_3px_rgba(0,255,159,0.5)]")} />
-        <span>PASSWORD</span>
+        <Key className="h-3.5 w-3.5" />
+        <span>Password</span>
       </Button>
       <Button
         type="button"
@@ -138,19 +139,16 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
           "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
           value === "key"
             ? [
-                // 浅色模式：简洁样式
                 "bg-background text-foreground shadow-sm border border-border/80",
                 "hover:bg-background hover:text-foreground",
-                // 暗黑模式：霓虹发光效果
                 "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
                 "dark:hover:bg-primary/20 dark:hover:text-primary",
-                "dark:shadow-[0_0_12px_rgba(0,255,159,0.25)]",
               ]
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
-        <KeyRound className={cn("h-3.5 w-3.5", value === "key" && "dark:drop-shadow-[0_0_3px_rgba(0,255,159,0.5)]")} />
-        <span>SSH_KEY</span>
+        <KeyRound className="h-3.5 w-3.5" />
+        <span>SSH key</span>
       </Button>
     </div>
   );
@@ -222,8 +220,8 @@ export function ConnectionFormPage() {
   const handleSelectKeyFile = useCallback(async () => {
     const selected = await openDialog({
       multiple: false,
-      title: "SELECT_PRIVATE_KEY",
-      filters: [{ name: "ALL_FILES", extensions: ["*"] }],
+      title: "Select private key",
+      filters: [{ name: "All files", extensions: ["*"] }],
     });
     if (selected) {
       form.setValue("privateKeyPath", selected as string, { shouldValidate: true });
@@ -238,9 +236,7 @@ export function ConnectionFormPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">
-          <span className="text-primary">&gt;</span> LOADING_PROFILE...
-        </span>
+        <span className="text-xs text-muted-foreground">Loading profile...</span>
       </div>
     );
   }
@@ -248,12 +244,9 @@ export function ConnectionFormPage() {
   if (isEditing && !profile && !isLoadingProfile) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <Terminal className="h-10 w-10 text-destructive" />
-        <p className="text-xs text-muted-foreground">
-          <span className="text-destructive">ERROR:</span> PROFILE_NOT_FOUND
-        </p>
+        <p className="text-sm text-muted-foreground">Profile not found</p>
         <Button variant="outline" onClick={handleCancel} size="sm" className="text-xs">
-          BACK_TO_LIST
+          Back to list
         </Button>
       </div>
     );
@@ -270,7 +263,7 @@ export function ConnectionFormPage() {
               name="authType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground">AUTH_METHOD</FormLabel>
+                  <FormLabel className="text-xs text-muted-foreground">Auth method</FormLabel>
                   <FormControl>
                     <AuthTypeSelector
                       value={field.value}
@@ -289,7 +282,7 @@ export function ConnectionFormPage() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground">NAME</FormLabel>
+                  <FormLabel className="text-xs text-muted-foreground">Name</FormLabel>
                   <FormControl>
                     <Input
                       placeholder="production-server"
@@ -309,7 +302,7 @@ export function ConnectionFormPage() {
                 name="host"
                 render={({ field }) => (
                   <FormItem className="col-span-3">
-                    <FormLabel className="text-xs text-muted-foreground">HOST</FormLabel>
+                    <FormLabel className="text-xs text-muted-foreground">Host</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="192.168.1.100"
@@ -327,7 +320,7 @@ export function ConnectionFormPage() {
                 name="port"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-xs text-muted-foreground">PORT</FormLabel>
+                    <FormLabel className="text-xs text-muted-foreground">Port</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -349,7 +342,7 @@ export function ConnectionFormPage() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-xs text-muted-foreground">USER</FormLabel>
+                  <FormLabel className="text-xs text-muted-foreground">Username</FormLabel>
                   <FormControl>
                     <Input placeholder="root" {...field} disabled={upsertProfile.isPending} />
                   </FormControl>
@@ -366,12 +359,12 @@ export function ConnectionFormPage() {
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">PASSWORD</FormLabel>
+                      <FormLabel className="text-xs text-muted-foreground">Password</FormLabel>
                       <FormControl>
                         <PasswordInput
                           value={field.value ?? ""}
                           onChange={field.onChange}
-                          placeholder={isEditing ? "LEAVE_EMPTY_TO_KEEP" : "********"}
+                          placeholder={isEditing ? "Leave empty to keep current" : "********"}
                           disabled={upsertProfile.isPending}
                         />
                       </FormControl>
@@ -393,7 +386,7 @@ export function ConnectionFormPage() {
                         />
                       </FormControl>
                       <FormLabel className="text-xs font-normal cursor-pointer text-muted-foreground">
-                        SAVE_TO_KEYCHAIN
+                        Save to keychain
                       </FormLabel>
                     </FormItem>
                   )}
@@ -409,7 +402,7 @@ export function ConnectionFormPage() {
                   name="privateKeyPath"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">PRIVATE_KEY</FormLabel>
+                      <FormLabel className="text-xs text-muted-foreground">Private key</FormLabel>
                       <FormControl>
                         <div className="flex gap-2">
                           <Input
@@ -441,14 +434,14 @@ export function ConnectionFormPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-xs text-muted-foreground">
-                        PASSPHRASE
-                        <span className="ml-1.5 text-muted-foreground/60">(OPTIONAL)</span>
+                        Passphrase
+                        <span className="ml-1.5 text-muted-foreground/60">(optional)</span>
                       </FormLabel>
                       <FormControl>
                         <PasswordInput
                           value={field.value ?? ""}
                           onChange={field.onChange}
-                          placeholder="KEY_PASSPHRASE"
+                          placeholder="Key passphrase"
                           disabled={upsertProfile.isPending}
                         />
                       </FormControl>
@@ -470,7 +463,7 @@ export function ConnectionFormPage() {
                         />
                       </FormControl>
                       <FormLabel className="text-xs font-normal cursor-pointer text-muted-foreground">
-                        SAVE_TO_KEYCHAIN
+                        Save to keychain
                       </FormLabel>
                     </FormItem>
                   )}
@@ -485,14 +478,14 @@ export function ConnectionFormPage() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs text-muted-foreground">
-                    INIT_PATH
-                    <span className="ml-1.5 text-muted-foreground/60">(OPTIONAL)</span>
+                    Initial path
+                    <span className="ml-1.5 text-muted-foreground/60">(optional)</span>
                   </FormLabel>
                   <FormControl>
                     <Input placeholder="/home/user" {...field} disabled={upsertProfile.isPending} />
                   </FormControl>
                   <FormDescription className="text-[10px] text-muted-foreground/70">
-                    DEFAULT_DIRECTORY_AFTER_CONNECT
+                    Default directory after connecting
                   </FormDescription>
                   <FormMessage className="text-[10px]" />
                 </FormItem>
@@ -509,16 +502,16 @@ export function ConnectionFormPage() {
                 disabled={upsertProfile.isPending}
                 className="text-xs h-9 px-4"
               >
-                CANCEL
+                Cancel
               </Button>
               <Button
                 type="submit"
                 size="sm"
                 disabled={upsertProfile.isPending}
-                className="text-xs h-9 px-5 btn-cyber gap-2"
+                className="text-xs h-9 px-5 gap-2"
               >
                 {upsertProfile.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <span>{isEditing ? "SAVE" : "CREATE"}</span>
+                <span>{isEditing ? "Save" : "Create"}</span>
               </Button>
             </div>
           </form>

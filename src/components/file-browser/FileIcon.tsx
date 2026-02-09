@@ -1,5 +1,5 @@
 /**
- * 文件类型图标组件
+ * File Type Icon Component
  */
 
 import {

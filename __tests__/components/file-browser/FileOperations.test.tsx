@@ -21,16 +21,16 @@ describe("CreateFolderDialog", () => {
   it("should render dialog when open", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
-    expect(screen.getByText("MKDIR")).toBeInTheDocument();
+    expect(screen.getByText("New folder")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("new_folder")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "CANCEL" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "CREATE" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument();
   });
 
   it("should disable create button when name is empty", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
-    expect(screen.getByRole("button", { name: "CREATE" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
   it("should enable create button when name is entered", async () => {
@@ -39,7 +39,7 @@ describe("CreateFolderDialog", () => {
 
     await user.type(screen.getByPlaceholderText("new_folder"), "new-folder");
 
-    expect(screen.getByRole("button", { name: "CREATE" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Create" })).toBeEnabled();
   });
 
   it("should call onSubmit with trimmed name", async () => {
@@ -47,7 +47,7 @@ describe("CreateFolderDialog", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("new_folder"), "  new-folder  ");
-    await user.click(screen.getByRole("button", { name: "CREATE" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
     expect(defaultProps.onSubmit).toHaveBeenCalledWith("new-folder");
   });
@@ -58,7 +58,7 @@ describe("CreateFolderDialog", () => {
 
     await user.type(screen.getByPlaceholderText("new_folder"), "   ");
 
-    expect(screen.getByRole("button", { name: "CREATE" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create" })).toBeDisabled();
   });
 
   it("should show error for name containing /", async () => {
@@ -66,9 +66,9 @@ describe("CreateFolderDialog", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("new_folder"), "folder/name");
-    await user.click(screen.getByRole("button", { name: "CREATE" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(screen.getByText(/文件夹名称不能包含/)).toBeInTheDocument();
+    expect(screen.getByText(/Folder name cannot contain/)).toBeInTheDocument();
     expect(defaultProps.onSubmit).not.toHaveBeenCalled();
   });
 
@@ -77,16 +77,16 @@ describe("CreateFolderDialog", () => {
     render(<CreateFolderDialog {...defaultProps} />);
 
     await user.type(screen.getByPlaceholderText("new_folder"), ".");
-    await user.click(screen.getByRole("button", { name: "CREATE" }));
+    await user.click(screen.getByRole("button", { name: "Create" }));
 
-    expect(screen.getByText(/文件夹名称不能是/)).toBeInTheDocument();
+    expect(screen.getByText(/Folder name cannot be/)).toBeInTheDocument();
   });
 
   it("should call onOpenChange(false) when cancel clicked", async () => {
     const user = userEvent.setup();
     render(<CreateFolderDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "CANCEL" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -95,13 +95,11 @@ describe("CreateFolderDialog", () => {
     render(<CreateFolderDialog {...defaultProps} isPending={true} />);
 
     expect(screen.getByPlaceholderText("new_folder")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 
   it("should reset state when reopened", async () => {
-    const { rerender } = render(
-      <CreateFolderDialog {...defaultProps} open={false} />
-    );
+    const { rerender } = render(<CreateFolderDialog {...defaultProps} open={false} />);
 
     rerender(<CreateFolderDialog {...defaultProps} open={true} />);
 
@@ -125,7 +123,7 @@ describe("RenameDialog", () => {
   it("should render dialog with current name", () => {
     render(<RenameDialog {...defaultProps} />);
 
-    expect(screen.getByText("RENAME")).toBeInTheDocument();
+    expect(screen.getByText("Rename")).toBeInTheDocument();
     expect(screen.getByDisplayValue("old-name.txt")).toBeInTheDocument();
   });
 
@@ -136,7 +134,7 @@ describe("RenameDialog", () => {
     const input = screen.getByDisplayValue("old-name.txt");
     await user.clear(input);
     await user.type(input, "new-name.txt");
-    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
     expect(defaultProps.onSubmit).toHaveBeenCalledWith("new-name.txt");
   });
@@ -145,9 +143,9 @@ describe("RenameDialog", () => {
     const user = userEvent.setup();
     render(<RenameDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(screen.getByText("新名称与原名称相同")).toBeInTheDocument();
+    expect(screen.getByText("New name is the same as the original")).toBeInTheDocument();
     expect(defaultProps.onSubmit).not.toHaveBeenCalled();
   });
 
@@ -160,7 +158,7 @@ describe("RenameDialog", () => {
     await user.type(input, "   ");
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "CONFIRM" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled();
     });
   });
 
@@ -171,9 +169,9 @@ describe("RenameDialog", () => {
     const input = screen.getByDisplayValue("old-name.txt");
     await user.clear(input);
     await user.type(input, "path/name.txt");
-    await user.click(screen.getByRole("button", { name: "CONFIRM" }));
+    await user.click(screen.getByRole("button", { name: "Confirm" }));
 
-    expect(screen.getByText(/名称不能包含/)).toBeInTheDocument();
+    expect(screen.getByText(/Name cannot contain/)).toBeInTheDocument();
   });
 
   it("should disable confirm button when name is cleared", async () => {
@@ -186,7 +184,7 @@ describe("RenameDialog", () => {
 
     await waitFor(
       () => {
-        const button = screen.getByRole("button", { name: "CONFIRM" });
+        const button = screen.getByRole("button", { name: "Confirm" });
         expect(button).toHaveAttribute("disabled");
       },
       { timeout: 2000 }
@@ -197,7 +195,7 @@ describe("RenameDialog", () => {
     render(<RenameDialog {...defaultProps} isPending={true} />);
 
     expect(screen.getByDisplayValue("old-name.txt")).toBeDisabled();
-    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
   });
 });
 
@@ -235,17 +233,16 @@ describe("DeleteConfirmDialog", () => {
   it("should render dialog for file", () => {
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    expect(screen.getByText("DELETE_CONFIRM")).toBeInTheDocument();
+    expect(screen.getByText("Confirm delete")).toBeInTheDocument();
     expect(screen.getByText(/test-file.txt/)).toBeInTheDocument();
-    expect(screen.getByText(/此操作无法撤销/)).toBeInTheDocument();
+    expect(screen.getByText(/This action cannot be undone/)).toBeInTheDocument();
   });
 
   it("should render dialog for folder (empty directory)", () => {
     render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} />);
 
     expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    // 没有 stats 时显示 "空目录"
-    expect(screen.getByText(/空目录/)).toBeInTheDocument();
+    expect(screen.getByText(/Empty directory/)).toBeInTheDocument();
   });
 
   it("should render dialog for non-empty directory with stats", () => {
@@ -253,16 +250,16 @@ describe("DeleteConfirmDialog", () => {
     render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} stats={stats} />);
 
     expect(screen.getByText(/test-folder/)).toBeInTheDocument();
-    expect(screen.getByText(/警告：此目录包含以下内容/)).toBeInTheDocument();
-    expect(screen.getByText("10")).toBeInTheDocument(); // 文件数
-    expect(screen.getByText("3")).toBeInTheDocument(); // 目录数
-    expect(screen.getByRole("button", { name: "DELETE_ALL" })).toBeInTheDocument();
+    expect(screen.getByText(/Warning: this directory contains/)).toBeInTheDocument();
+    expect(screen.getByText("10")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete all" })).toBeInTheDocument();
   });
 
   it("should show loading indicator when loading stats", () => {
     render(<DeleteConfirmDialog {...defaultProps} file={mockFolder} isLoadingStats={true} />);
 
-    expect(screen.getByText(/正在扫描目录/)).toBeInTheDocument();
+    expect(screen.getByText(/Scanning directory/)).toBeInTheDocument();
   });
 
   it("should show progress during deletion", () => {
@@ -281,7 +278,7 @@ describe("DeleteConfirmDialog", () => {
       />
     );
 
-    expect(screen.getByText("DELETING")).toBeInTheDocument();
+    expect(screen.getByText("Deleting...")).toBeInTheDocument();
     expect(screen.getByText("5 / 13")).toBeInTheDocument();
   });
 
@@ -289,7 +286,7 @@ describe("DeleteConfirmDialog", () => {
     const user = userEvent.setup();
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "DELETE" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
 
     expect(defaultProps.onConfirm).toHaveBeenCalled();
   });
@@ -298,7 +295,7 @@ describe("DeleteConfirmDialog", () => {
     const user = userEvent.setup();
     render(<DeleteConfirmDialog {...defaultProps} />);
 
-    await user.click(screen.getByRole("button", { name: "CANCEL" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
     expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -306,14 +303,12 @@ describe("DeleteConfirmDialog", () => {
   it("should disable buttons when isPending", () => {
     render(<DeleteConfirmDialog {...defaultProps} isPending={true} />);
 
-    expect(screen.getByRole("button", { name: "CANCEL" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "DELETE" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
   });
 
   it("should render nothing when file is null", () => {
-    const { container } = render(
-      <DeleteConfirmDialog {...defaultProps} file={null} />
-    );
+    const { container } = render(<DeleteConfirmDialog {...defaultProps} file={null} />);
 
     expect(container).toBeEmptyDOMElement();
   });

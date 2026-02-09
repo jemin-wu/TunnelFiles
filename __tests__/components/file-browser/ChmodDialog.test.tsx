@@ -28,7 +28,7 @@ describe("ChmodDialog", () => {
       />
     );
 
-    expect(screen.getByText("CHMOD_PERMISSIONS")).toBeInTheDocument();
+    expect(screen.getByText("Change permissions")).toBeInTheDocument();
   });
 
   it("should not render when closed", () => {
@@ -42,7 +42,7 @@ describe("ChmodDialog", () => {
       />
     );
 
-    expect(screen.queryByText("CHMOD_PERMISSIONS")).not.toBeInTheDocument();
+    expect(screen.queryByText("Change permissions")).not.toBeInTheDocument();
   });
 
   it("should display selected file count", () => {
@@ -74,7 +74,7 @@ describe("ChmodDialog", () => {
     expect(screen.getByText("script.sh")).toBeInTheDocument();
   });
 
-  it("should call onSubmit with mode when APPLY is clicked", async () => {
+  it("should call onSubmit with mode when Apply is clicked", async () => {
     const onSubmit = vi.fn();
     render(
       <ChmodDialog
@@ -86,7 +86,7 @@ describe("ChmodDialog", () => {
       />
     );
 
-    const applyButton = screen.getByRole("button", { name: /APPLY/i });
+    const applyButton = screen.getByRole("button", { name: /Apply/i });
     fireEvent.click(applyButton);
 
     await waitFor(() => {
@@ -94,7 +94,7 @@ describe("ChmodDialog", () => {
     });
   });
 
-  it("should call onOpenChange when CANCEL is clicked", () => {
+  it("should call onOpenChange when Cancel is clicked", () => {
     const onOpenChange = vi.fn();
     render(
       <ChmodDialog
@@ -106,7 +106,7 @@ describe("ChmodDialog", () => {
       />
     );
 
-    const cancelButton = screen.getByRole("button", { name: /CANCEL/i });
+    const cancelButton = screen.getByRole("button", { name: /Cancel/i });
     fireEvent.click(cancelButton);
 
     expect(onOpenChange).toHaveBeenCalledWith(false);
@@ -123,7 +123,7 @@ describe("ChmodDialog", () => {
       />
     );
 
-    const applyButton = screen.getByRole("button", { name: /APPLY/i });
+    const applyButton = screen.getByRole("button", { name: /Apply/i });
     expect(applyButton).toBeDisabled();
   });
 
@@ -139,8 +139,8 @@ describe("ChmodDialog", () => {
     );
 
     // PermissionMatrix 应该渲染
-    expect(screen.getByText("OWNER")).toBeInTheDocument();
-    expect(screen.getByText("GROUP")).toBeInTheDocument();
-    expect(screen.getByText("OTHERS")).toBeInTheDocument();
+    expect(screen.getByText("Owner")).toBeInTheDocument();
+    expect(screen.getByText("Group")).toBeInTheDocument();
+    expect(screen.getByText("Others")).toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 /**
- * 内联编辑单元格
- * 支持双击编辑文件/文件夹名称，类似 Finder
+ * Inline Editable Cell
+ * Supports double-click editing of file/folder names, similar to Finder
  */
 
 import { useRef, useCallback, memo } from "react";
@@ -19,7 +19,7 @@ interface InlineEditableCellProps {
   style?: React.CSSProperties;
 }
 
-// 内部编辑组件，通过 key 重新挂载来重置状态
+// Internal edit component, remounts via key to reset state
 function EditInput({
   value,
   onSubmit,
@@ -73,7 +73,7 @@ function EditInput({
     errorRef.current = null;
   }, []);
 
-  // 自动聚焦并选择文件名
+  // Auto focus and select file name
   const handleRef = useCallback(
     (el: HTMLInputElement | null) => {
       if (el) {

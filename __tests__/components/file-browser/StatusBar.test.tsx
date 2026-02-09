@@ -41,16 +41,16 @@ describe("StatusBar", () => {
   });
 
   describe("隐藏文件状态", () => {
-    it("showHidden 为 false 时不显示 DOTFILES 标签", () => {
+    it("showHidden 为 false 时不显示 Hidden files 标签", () => {
       render(<StatusBar totalCount={10} selectionCount={0} showHidden={false} />);
 
-      expect(screen.queryByText("DOTFILES")).not.toBeInTheDocument();
+      expect(screen.queryByText("Hidden files")).not.toBeInTheDocument();
     });
 
-    it("showHidden 为 true 时显示 DOTFILES 标签", () => {
+    it("showHidden 为 true 时显示 Hidden files 标签", () => {
       render(<StatusBar totalCount={10} selectionCount={0} showHidden={true} />);
 
-      expect(screen.getByText("DOTFILES")).toBeInTheDocument();
+      expect(screen.getByText("Hidden files")).toBeInTheDocument();
     });
   });
 

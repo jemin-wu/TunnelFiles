@@ -9,12 +9,7 @@ import { Download, Pencil, Trash2, FolderOpen, X, File } from "lucide-react";
 import { FileIcon } from "./FileIcon";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatFileSize } from "@/types/file";
 import { formatFileTime, getFileType } from "@/lib/file";
 import { cn } from "@/lib/utils";
@@ -45,9 +40,7 @@ interface InfoRowProps {
 function InfoRow({ label, value }: InfoRowProps) {
   return (
     <div className="flex justify-between items-center py-1.5">
-      <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
-        {label}
-      </span>
+      <span className="text-xs font-mono text-muted-foreground tracking-wider">{label}</span>
       <span className="text-sm font-mono text-foreground truncate ml-4 max-w-[60%] text-right tabular-nums">
         {value}
       </span>
@@ -77,7 +70,7 @@ function ActionButton({ icon, label, onClick, variant = "outline" }: ActionButto
             {icon}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="font-mono text-xs">
+        <TooltipContent side="bottom" className="text-xs">
           {label}
         </TooltipContent>
       </Tooltip>
@@ -103,20 +96,11 @@ export const FilePreview = memo(function FilePreview({
           className
         )}
       >
-        <div className="relative">
-          <div className="w-12 h-12 flex items-center justify-center rounded bg-primary/10 border border-primary/20">
-            <File className="h-6 w-6 text-primary/60" />
-          </div>
-          {/* Corner decorations */}
-          <div className="absolute -top-0.5 -left-0.5 w-1.5 h-1.5 border-l border-t border-primary/40" />
-          <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 border-r border-t border-primary/40" />
-          <div className="absolute -bottom-0.5 -left-0.5 w-1.5 h-1.5 border-l border-b border-primary/40" />
-          <div className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 border-r border-b border-primary/40" />
+        <div className="w-12 h-12 flex items-center justify-center rounded bg-primary/10 border border-primary/20">
+          <File className="h-6 w-6 text-primary/60" />
         </div>
-        <p className="text-xs font-mono mt-3">NO_SELECTION</p>
-        <p className="text-xs font-mono text-muted-foreground/60 mt-1">
-          <span className="text-primary">&gt;</span> Select a file to preview
-        </p>
+        <p className="text-xs font-mono mt-3">No file selected</p>
+        <p className="text-xs text-muted-foreground/60 mt-1">Select a file to preview</p>
       </div>
     );
   }
@@ -124,12 +108,7 @@ export const FilePreview = memo(function FilePreview({
   const fileType = getFileType(file);
 
   return (
-    <div
-      className={cn(
-        "flex flex-col h-full border-l border-border bg-card/50",
-        className
-      )}
-    >
+    <div className={cn("flex flex-col h-full border-l border-border bg-card/50", className)}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-2 min-w-0">
@@ -137,11 +116,13 @@ export const FilePreview = memo(function FilePreview({
           <TooltipProvider delayDuration={500}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <h3 className="text-sm font-mono font-medium truncate">
-                  {file.name}
-                </h3>
+                <h3 className="text-sm font-mono font-medium truncate">{file.name}</h3>
               </TooltipTrigger>
-              <TooltipContent side="bottom" align="start" className="font-mono text-xs max-w-[300px]">
+              <TooltipContent
+                side="bottom"
+                align="start"
+                className="font-mono text-xs max-w-[300px]"
+              >
                 {file.name}
               </TooltipContent>
             </Tooltip>
@@ -163,10 +144,8 @@ export const FilePreview = memo(function FilePreview({
       {/* File Info */}
       <div className="flex-1 overflow-auto p-4">
         <div className="space-y-1">
-          <InfoRow label="Type" value={file.isDir ? "Directory" : fileType.toUpperCase()} />
-          {!file.isDir && (
-            <InfoRow label="Size" value={formatFileSize(file.size)} />
-          )}
+          <InfoRow label="Type" value={file.isDir ? "Directory" : fileType} />
+          {!file.isDir && <InfoRow label="Size" value={formatFileSize(file.size)} />}
           <InfoRow label="Modified" value={formatFileTime(file.mtime)} />
           <InfoRow label="Path" value={file.path} />
         </div>
@@ -176,7 +155,7 @@ export const FilePreview = memo(function FilePreview({
           <>
             <Separator className="my-4" />
             <div className="space-y-1">
-              <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">
+              <span className="text-xs font-mono text-muted-foreground tracking-wider">
                 Full Path
               </span>
               <p className="text-xs font-mono text-foreground/80 break-all bg-muted/30 p-2 rounded border border-border/50">

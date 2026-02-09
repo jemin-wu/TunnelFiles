@@ -1,7 +1,7 @@
 /**
- * 权限矩阵组件 - 3x3 复选框矩阵
+ * Permission Matrix Component - 3x3 Checkbox Matrix
  *
- * 显示 Owner/Group/Others × Read/Write/Execute 权限
+ * Displays Owner/Group/Others x Read/Write/Execute permissions
  */
 
 import { useCallback } from "react";
@@ -14,20 +14,20 @@ type Role = "owner" | "group" | "others";
 type Permission = "read" | "write" | "execute";
 
 interface PermissionMatrixProps {
-  /** 当前权限值 */
+  /** Current permission values */
   permissions: PermissionBits;
-  /** 权限变更回调 */
+  /** Permission change callback */
   onChange: (permissions: PermissionBits) => void;
-  /** 是否禁用 */
+  /** Whether disabled */
   disabled?: boolean;
-  /** 自定义类名 */
+  /** Custom class name */
   className?: string;
 }
 
 const ROLES: { key: Role; label: string }[] = [
-  { key: "owner", label: "OWNER" },
-  { key: "group", label: "GROUP" },
-  { key: "others", label: "OTHERS" },
+  { key: "owner", label: "Owner" },
+  { key: "group", label: "Group" },
+  { key: "others", label: "Others" },
 ];
 
 const PERMISSIONS: { key: Permission; label: string }[] = [
@@ -59,23 +59,20 @@ export function PermissionMatrix({
 
   return (
     <div className={cn("font-mono text-xs", className)}>
-      {/* 表格 */}
+      {/* Table */}
       <table className="w-full border-collapse">
-        {/* 表头 */}
+        {/* Header */}
         <thead>
           <tr>
             <th className="w-20 text-left py-1.5 text-muted-foreground font-normal" />
             {PERMISSIONS.map(({ key, label }) => (
-              <th
-                key={key}
-                className="w-12 text-center py-1.5 text-muted-foreground font-normal"
-              >
+              <th key={key} className="w-12 text-center py-1.5 text-muted-foreground font-normal">
                 {label}
               </th>
             ))}
           </tr>
         </thead>
-        {/* 表体 */}
+        {/* Body */}
         <tbody>
           {ROLES.map(({ key: role, label }) => (
             <tr key={role} className="border-t border-border/50">
@@ -84,9 +81,7 @@ export function PermissionMatrix({
                 <td key={perm} className="text-center py-1.5">
                   <Checkbox
                     checked={permissions[role][perm]}
-                    onCheckedChange={(checked) =>
-                      handleChange(role, perm, checked === true)
-                    }
+                    onCheckedChange={(checked) => handleChange(role, perm, checked === true)}
                     disabled={disabled}
                     aria-label={`${role} ${perm}`}
                   />
@@ -97,9 +92,9 @@ export function PermissionMatrix({
         </tbody>
       </table>
 
-      {/* 八进制显示 */}
+      {/* Octal display */}
       <div className="mt-3 flex items-center gap-2 text-muted-foreground">
-        <span>OCTAL:</span>
+        <span>Octal:</span>
         <span className="text-primary font-bold">{formatOctalMode(octalMode)}</span>
       </div>
     </div>

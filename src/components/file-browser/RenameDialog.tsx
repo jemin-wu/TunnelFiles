@@ -1,10 +1,11 @@
 /**
- * 重命名弹窗 - Cyberpunk Terminal Style
+ * Rename Dialog - Precision Engineering
  */
 
 import { useState, useCallback } from "react";
-import { Loader2, Pencil, Terminal } from "lucide-react";
+import { Loader2, Pencil } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -24,22 +25,22 @@ interface RenameDialogProps {
   isPending?: boolean;
 }
 
-// 校验文件名
+// Validate file name
 function validateName(name: string, originalName: string): string | null {
   if (!name.trim()) {
-    return "名称不能为空";
+    return "Name cannot be empty";
   }
   if (name.includes("/")) {
-    return "名称不能包含 /";
+    return "Name cannot contain /";
   }
   if (name.includes("\0")) {
-    return "名称包含非法字符";
+    return "Name contains invalid characters";
   }
   if (name === "." || name === "..") {
-    return "名称不能是 . 或 ..";
+    return "Name cannot be . or ..";
   }
   if (name.trim() === originalName) {
-    return "新名称与原名称相同";
+    return "New name is the same as the original";
   }
   return null;
 }
@@ -88,23 +89,21 @@ export function RenameDialog({
       <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isPending}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 font-mono">
+            <DialogTitle className="flex items-center gap-2">
               <Pencil className="h-4 w-4 text-primary" />
-              <span className="text-primary">&gt;</span>
-              <span>RENAME</span>
+              <span>Rename</span>
             </DialogTitle>
           </DialogHeader>
 
           <div className="py-4 space-y-3">
-            {/* 当前名称 */}
-            <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground bg-background/30 px-3 py-2 rounded">
-              <span className="text-primary">FROM:</span>
-              <span className="text-foreground truncate">{currentName}</span>
+            {/* Current name */}
+            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded">
+              <span>Current:</span>
+              <span className="font-mono text-foreground truncate">{currentName}</span>
             </div>
 
-            <Label htmlFor="new-name" className="text-xs font-mono text-muted-foreground">
-              <Terminal className="inline h-3 w-3 mr-1" />
-              输入新名称
+            <Label htmlFor="new-name" className="text-xs text-muted-foreground">
+              Enter new name
             </Label>
             <Input
               id="new-name"
@@ -114,7 +113,7 @@ export function RenameDialog({
               disabled={isPending}
               autoFocus
               onFocus={(e) => {
-                // 选中文件名部分（不含扩展名）
+                // Select file name part (without extension)
                 const dotIndex = e.target.value.lastIndexOf(".");
                 if (dotIndex > 0) {
                   e.target.setSelectionRange(0, dotIndex);
@@ -122,10 +121,15 @@ export function RenameDialog({
                   e.target.select();
                 }
               }}
-              className={`font-mono bg-background/50 ${error ? "border-destructive focus-visible:ring-destructive" : "border-border focus-visible:ring-primary"}`}
+              className={cn(
+                "font-mono bg-background/50",
+                error
+                  ? "border-destructive focus-visible:ring-destructive"
+                  : "border-border focus-visible:ring-primary"
+              )}
             />
             {error && (
-              <p className="text-xs text-destructive font-mono flex items-center gap-1">
+              <p className="text-xs text-destructive flex items-center gap-1">
                 <span className="text-destructive">!</span> {error}
               </p>
             )}
@@ -137,17 +141,13 @@ export function RenameDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isPending}
-              className="font-mono text-xs btn-cyber"
+              className="text-xs"
             >
-              CANCEL
+              Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isPending || !name.trim()}
-              className="font-mono text-xs btn-cyber"
-            >
+            <Button type="submit" disabled={isPending || !name.trim()} className="text-xs">
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              CONFIRM
+              Confirm
             </Button>
           </DialogFooter>
         </form>

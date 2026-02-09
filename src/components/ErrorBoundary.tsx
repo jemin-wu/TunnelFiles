@@ -54,7 +54,7 @@ export class ErrorBoundary extends Component<Props, State> {
 export function RouteErrorBoundary() {
   const error = useRouteError();
 
-  let errorMessage = "发生未知错误";
+  let errorMessage = "An unknown error occurred";
   let errorDetail: string | undefined;
 
   if (isRouteErrorResponse(error)) {
@@ -82,19 +82,19 @@ interface ErrorFallbackProps {
 
 function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
   const [copied, setCopied] = useState(false);
-  const message = error instanceof Error ? error.message : (error?.message ?? "未知错误");
+  const message = error instanceof Error ? error.message : (error?.message ?? "Unknown error");
   const detail = error instanceof Error ? error.stack : (error as { detail?: string })?.detail;
 
   const getFullErrorText = () => {
     const lines = [
-      "=== TunnelFiles 错误报告 ===",
-      `时间: ${new Date().toISOString()}`,
-      `错误: ${message}`,
+      "=== TunnelFiles Error Report ===",
+      `Time: ${new Date().toISOString()}`,
+      `Error: ${message}`,
     ];
     if (detail) {
-      lines.push("", "堆栈跟踪:", detail);
+      lines.push("", "Stack trace:", detail);
     }
-    lines.push("", "=== 错误报告结束 ===");
+    lines.push("", "=== End of Error Report ===");
     return lines.join("\n");
   };
 
@@ -119,7 +119,7 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full p-8">
       <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-      <h2 className="text-xl font-semibold mb-2">出错了</h2>
+      <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
       <p className="text-muted-foreground text-center mb-4 max-w-md">{message}</p>
       {detail && (
         <pre className="text-xs text-muted-foreground bg-muted p-4 rounded-lg max-w-2xl overflow-auto max-h-48 mb-4">
@@ -131,21 +131,21 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
           {copied ? (
             <>
               <Check className="h-4 w-4 mr-2" />
-              已复制
+              Copied
             </>
           ) : (
             <>
               <Copy className="h-4 w-4 mr-2" />
-              复制错误信息
+              Copy error info
             </>
           )}
         </Button>
         <Button onClick={onReset}>
           <RefreshCw className="h-4 w-4 mr-2" />
-          重试
+          Retry
         </Button>
         <Button variant="outline" onClick={() => (window.location.href = "/connections")}>
-          返回连接页
+          Back to connections
         </Button>
       </div>
     </div>

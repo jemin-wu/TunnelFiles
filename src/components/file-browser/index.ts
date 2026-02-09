@@ -1,4 +1,4 @@
-// 文件浏览器组件导出
+// File browser component exports
 
 export { FileListContainer } from "./FileListContainer";
 export { FileList } from "./FileList";

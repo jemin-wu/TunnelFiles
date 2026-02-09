@@ -1,6 +1,6 @@
 /**
- * 文件管理页面 - Cyberpunk Terminal Style
- * 支持 Files/Terminal Tab 切换
+ * File Manager Page
+ * Supports Files/Terminal tab switching
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -46,7 +46,7 @@ export function FileManagerPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [currentPath, setCurrentPath] = useState("/");
 
-  // 从 URL 读取 mode，默认为 files
+  // Read mode from URL, default to files
   const activeTab = (searchParams.get("mode") as TabMode) || "files";
   const setActiveTab = useCallback(
     (mode: TabMode) => {
@@ -65,7 +65,7 @@ export function FileManagerPage() {
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
 
-  // Terminal hook - 仅在有 sessionId 时初始化
+  // Terminal hook - only initialize when sessionId exists
   const {
     terminalInfo,
     status: terminalStatus,
@@ -76,21 +76,21 @@ export function FileManagerPage() {
     setStatus: setTerminalStatus,
   } = useTerminal({ sessionId: sessionId ?? "" });
 
-  // 切换到 Terminal tab 时自动打开终端
+  // Auto-open terminal when switching to Terminal tab
   useEffect(() => {
     if (activeTab === "terminal" && sessionId && !terminalInfo && !isTerminalOpening) {
       openTerminal();
     }
   }, [activeTab, sessionId, terminalInfo, isTerminalOpening, openTerminal]);
 
-  // 键盘快捷键: ⌘T 切换, ⌘1 文件, ⌘2 终端
+  // Keyboard shortcuts: Cmd+T toggle, Cmd+1 files, Cmd+2 terminal
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const modKey = e.metaKey || e.ctrlKey;
 
       if (modKey && e.key === "t") {
         e.preventDefault();
-        // 切换模式
+        // Toggle mode
         const currentMode = searchParams.get("mode") || "files";
         setActiveTab(currentMode === "files" ? "terminal" : "files");
       } else if (modKey && e.key === "1") {
@@ -106,7 +106,7 @@ export function FileManagerPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // 处理终端状态变化
+  // Handle terminal status changes
   const handleTerminalStatusChange = useCallback(
     (payload: TerminalStatusPayload) => {
       setTerminalStatus(payload.status);
@@ -135,14 +135,9 @@ export function FileManagerPage() {
   if (!sessionId || isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="relative">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <div className="absolute inset-0 h-10 w-10 animate-ping opacity-20 rounded-full bg-primary" />
-        </div>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <div className="flex flex-col items-center gap-1">
-          <span className="text-xs text-muted-foreground font-mono">
-            <span className="text-primary">&gt;</span> INITIALIZING_SFTP...
-          </span>
+          <span className="text-xs text-muted-foreground">Initializing SFTP...</span>
           <span className="text-[10px] text-muted-foreground/60">
             Establishing secure connection
           </span>
@@ -161,7 +156,7 @@ export function FileManagerPage() {
 
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
-      {/* 主内容区 - Files/Terminal Tab (75%) */}
+      {/* Main content - Files/Terminal Tab (75%) */}
       <ResizablePanel
         id="main-panel"
         defaultSize={mainPanelSize}
@@ -196,7 +191,7 @@ export function FileManagerPage() {
                 activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
               )}
             >
-              {/* Terminal 工具栏 */}
+              {/* Terminal toolbar */}
               <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/50">
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
@@ -210,96 +205,84 @@ export function FileManagerPage() {
                         <FolderOpen className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent className="font-mono text-xs">
-                      切换到文件浏览 (⌘1)
-                    </TooltipContent>
+                    <TooltipContent className="text-xs">Switch to files (⌘1)</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
 
-                <span className="text-border">│</span>
-
                 <div className="flex items-center gap-1.5">
                   <TerminalSquare className="h-3.5 w-3.5 text-accent" />
-                  <span className="text-xs font-mono text-accent tracking-wider">TERMINAL</span>
+                  <span className="text-xs text-accent">Terminal</span>
                   {terminalStatus === "connected" && (
-                    <span className="h-1.5 w-1.5 rounded-full bg-accent animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent" />
                   )}
                 </div>
 
-                {/* Terminal 连接状态 */}
-                <div className="ml-auto flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+                {/* Terminal connection status */}
+                <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground">
                   {isTerminalOpening && (
                     <>
                       <Loader2 className="h-3 w-3 animate-spin text-accent" />
-                      <span>CONNECTING...</span>
+                      <span>Connecting...</span>
                     </>
                   )}
                   {terminalInfo && terminalStatus === "connected" && (
-                    <>
-                      <span className="text-accent">&gt;</span>
-                      <span>PTY_{terminalInfo.terminalId.slice(0, 8)}</span>
-                    </>
+                    <span className="font-mono">{terminalInfo.terminalId.slice(0, 8)}</span>
                   )}
                   {terminalStatus === "error" && (
-                    <span className="text-destructive">CONNECTION_ERROR</span>
+                    <span className="text-destructive">Connection error</span>
                   )}
                 </div>
               </div>
 
-              {/* Terminal 内容 */}
+              {/* Terminal content */}
               <div className="flex-1 min-h-0">
-              {terminalInfo ? (
-                <Terminal
-                  terminalId={terminalInfo.terminalId}
-                  onInput={writeInput}
-                  onResize={resize}
-                  onStatusChange={handleTerminalStatusChange}
-                />
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full gap-4 bg-background">
-                  {isTerminalOpening ? (
-                    <>
-                      <div className="relative">
+                {terminalInfo ? (
+                  <Terminal
+                    terminalId={terminalInfo.terminalId}
+                    onInput={writeInput}
+                    onResize={resize}
+                    onStatusChange={handleTerminalStatusChange}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full gap-4 bg-background">
+                    {isTerminalOpening ? (
+                      <>
                         <TerminalSquare className="h-10 w-10 text-accent" />
-                        <div className="absolute inset-0 h-10 w-10 animate-ping opacity-20 rounded-full bg-accent" />
-                      </div>
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs text-muted-foreground font-mono">
-                          <span className="text-accent">&gt;</span> SPAWNING_PTY...
-                        </span>
-                        <span className="text-[10px] text-muted-foreground/60">
-                          Initializing terminal session
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <TerminalSquare className="h-10 w-10 text-muted-foreground/50" />
-                      <div className="flex flex-col items-center gap-1">
-                        <span className="text-xs text-muted-foreground font-mono">
-                          Terminal not connected
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={openTerminal}
-                          className="mt-2 font-mono text-xs border-accent/50 text-accent hover:bg-accent/10"
-                        >
-                          <TerminalSquare className="h-3.5 w-3.5 mr-1.5" />
-                          CONNECT
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs text-muted-foreground">Opening terminal...</span>
+                          <span className="text-[10px] text-muted-foreground/60">
+                            Initializing terminal session
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <TerminalSquare className="h-10 w-10 text-muted-foreground/50" />
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-xs text-muted-foreground">
+                            Terminal not connected
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={openTerminal}
+                            className="mt-2 text-xs"
+                          >
+                            <TerminalSquare className="h-3.5 w-3.5 mr-1.5" />
+                            Connect
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
       </ResizablePanel>
 
-      {/* 右侧边栏 - 传输队列 (仅文件模式显示) */}
+      {/* Right sidebar - Transfer queue (files mode only) */}
       {!isTerminalMode && !sidebarCollapsed && (
         <>
           <ResizableHandle
@@ -313,11 +296,11 @@ export function FileManagerPage() {
             maxSize={MAX_SIDEBAR_SIZE}
           >
             <div className="flex flex-col h-full border-l border-border bg-sidebar">
-              {/* 边栏头部 - Terminal Style */}
+              {/* Sidebar header */}
               <div className="flex items-center justify-between px-3 h-10 border-b border-sidebar-border bg-sidebar">
                 <div className="flex items-center gap-2">
-                  <Activity className="h-3.5 w-3.5 text-accent animate-pulse" />
-                  <span className="text-xs font-medium tracking-wide">TRANSFER_QUEUE</span>
+                  <Activity className="h-3.5 w-3.5 text-accent" />
+                  <span className="text-xs font-medium">Transfer queue</span>
                 </div>
                 <TooltipProvider delayDuration={300}>
                   <Tooltip>
@@ -331,14 +314,14 @@ export function FileManagerPage() {
                         <PanelRightClose className="h-3.5 w-3.5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="left" className="font-mono text-xs">
-                      收起面板 / :hide
+                    <TooltipContent side="left" className="text-xs">
+                      Collapse panel
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
 
-              {/* 传输队列内容 */}
+              {/* Transfer queue content */}
               <div className="flex-1 min-h-0">
                 <TransferQueue className="h-full" />
               </div>
@@ -347,7 +330,7 @@ export function FileManagerPage() {
         </>
       )}
 
-      {/* 收起状态下的展开按钮 (仅文件模式显示) */}
+      {/* Expand button when collapsed (files mode only) */}
       {!isTerminalMode && sidebarCollapsed && (
         <ResizablePanel id="collapsed-sidebar" defaultSize={4} minSize={3} maxSize={6}>
           <div
@@ -368,16 +351,16 @@ export function FileManagerPage() {
                     <PanelRightOpen className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="left" className="font-mono text-xs">
-                  展开传输队列 / :show
+                <TooltipContent side="left" className="text-xs">
+                  Expand transfer queue
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
 
-            {/* 收起状态下的图标指示 */}
+            {/* Collapsed state icon indicator */}
             <div className="flex flex-col items-center gap-1 mt-2">
               <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-[9px] text-muted-foreground writing-mode-vertical">QUEUE</span>
+              <span className="text-[9px] text-muted-foreground writing-mode-vertical">Queue</span>
             </div>
           </div>
         </ResizablePanel>

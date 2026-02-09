@@ -48,7 +48,7 @@ function parseError(error: AppError | Error | string): AppError {
 
   return {
     code: ErrorCode.UNKNOWN,
-    message: error.message || "发生未知错误",
+    message: error.message || "An unknown error occurred",
     retryable: true,
   };
 }
@@ -95,11 +95,11 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
           >
             {detailExpanded ? (
               <>
-                收起详情 <ChevronUp className="h-3 w-3" />
+                Hide details <ChevronUp className="h-3 w-3" />
               </>
             ) : (
               <>
-                查看详情 <ChevronDown className="h-3 w-3" />
+                Show details <ChevronDown className="h-3 w-3" />
               </>
             )}
           </Button>
@@ -114,7 +114,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
       {showRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
           <RefreshCw className="h-4 w-4" />
-          重试
+          Retry
         </Button>
       )}
     </div>

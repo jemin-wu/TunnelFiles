@@ -1,5 +1,5 @@
 /**
- * 路径面包屑导航组件 - Cyberpunk Terminal Style
+ * Breadcrumb Navigation Component - Precision Engineering
  */
 
 import { MoreHorizontal } from "lucide-react";
@@ -34,7 +34,10 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
   const collapsedSegments = needCollapse ? segments.slice(1, -2) : [];
 
   return (
-    <nav className={cn("flex items-center text-xs font-mono", className)} aria-label="面包屑导航">
+    <nav
+      className={cn("flex items-center text-xs font-mono", className)}
+      aria-label="Breadcrumb navigation"
+    >
       {visibleSegments.map((segment, index) => {
         if (segment === null) {
           return (

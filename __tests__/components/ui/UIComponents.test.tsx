@@ -11,7 +11,7 @@ describe("LoadingSpinner", () => {
     render(<LoadingSpinner />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "加载中");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-label", "Loading");
   });
 
   it("should render spinner with custom label", () => {
@@ -72,9 +72,7 @@ describe("ErrorState", () => {
 
     render(<ErrorState error={appError} onRetry={mockOnRetry} />);
 
-    expect(
-      screen.getByText("认证失败，请检查用户名和密码")
-    ).toBeInTheDocument();
+    expect(screen.getByText("认证失败，请检查用户名和密码")).toBeInTheDocument();
   });
 
   it("should render retry button when retryable", () => {
@@ -86,7 +84,7 @@ describe("ErrorState", () => {
 
     render(<ErrorState error={appError} onRetry={mockOnRetry} />);
 
-    expect(screen.getByRole("button", { name: /重试/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Retry/ })).toBeInTheDocument();
   });
 
   it("should not render retry button when not retryable", () => {
@@ -98,7 +96,7 @@ describe("ErrorState", () => {
 
     render(<ErrorState error={appError} onRetry={mockOnRetry} />);
 
-    expect(screen.queryByRole("button", { name: /重试/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retry/ })).not.toBeInTheDocument();
   });
 
   it("should call onRetry when retry button clicked", async () => {
@@ -111,7 +109,7 @@ describe("ErrorState", () => {
 
     render(<ErrorState error={appError} onRetry={mockOnRetry} />);
 
-    await user.click(screen.getByRole("button", { name: /重试/ }));
+    await user.click(screen.getByRole("button", { name: /Retry/ }));
 
     expect(mockOnRetry).toHaveBeenCalledTimes(1);
   });
@@ -128,23 +126,17 @@ describe("ErrorState", () => {
     render(<ErrorState error={appError} />);
 
     // Initially detail is hidden
-    expect(
-      screen.queryByText("Detailed error information here")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Detailed error information here")).not.toBeInTheDocument();
 
     // Click to expand
-    await user.click(screen.getByText("查看详情"));
+    await user.click(screen.getByText("Show details"));
 
-    expect(
-      screen.getByText("Detailed error information here")
-    ).toBeInTheDocument();
+    expect(screen.getByText("Detailed error information here")).toBeInTheDocument();
 
     // Click to collapse
-    await user.click(screen.getByText("收起详情"));
+    await user.click(screen.getByText("Hide details"));
 
-    expect(
-      screen.queryByText("Detailed error information here")
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Detailed error information here")).not.toBeInTheDocument();
   });
 
   it("should truncate long error messages", () => {
@@ -163,22 +155,16 @@ describe("ErrorState", () => {
 
   it("should display different icons for different error codes", () => {
     const { rerender } = render(
-      <ErrorState
-        error={{ code: ErrorCode.NETWORK_LOST, message: "Network lost" }}
-      />
+      <ErrorState error={{ code: ErrorCode.NETWORK_LOST, message: "Network lost" }} />
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
     rerender(
-      <ErrorState
-        error={{ code: ErrorCode.PERMISSION_DENIED, message: "Permission denied" }}
-      />
+      <ErrorState error={{ code: ErrorCode.PERMISSION_DENIED, message: "Permission denied" }} />
     );
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
-    rerender(
-      <ErrorState error={{ code: ErrorCode.NOT_FOUND, message: "Not found" }} />
-    );
+    rerender(<ErrorState error={{ code: ErrorCode.NOT_FOUND, message: "Not found" }} />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 });
@@ -215,13 +201,7 @@ describe("EmptyState", () => {
   it("should render with action button", () => {
     const mockAction = <button>上传文件</button>;
 
-    render(
-      <EmptyState
-        title="空目录"
-        description="没有文件"
-        action={mockAction}
-      />
-    );
+    render(<EmptyState title="空目录" description="没有文件" action={mockAction} />);
 
     expect(screen.getByRole("button", { name: "上传文件" })).toBeInTheDocument();
   });
