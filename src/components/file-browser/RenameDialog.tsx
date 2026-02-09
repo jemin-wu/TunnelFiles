@@ -102,7 +102,7 @@ export function RenameDialog({
               <span className="font-mono text-foreground truncate">{currentName}</span>
             </div>
 
-            <Label htmlFor="new-name" className="text-xs text-muted-foreground">
+            <Label htmlFor="new-name" className="text-sm text-muted-foreground">
               Enter new name
             </Label>
             <Input
@@ -141,11 +141,10 @@ export function RenameDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isPending}
-              className="text-xs"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !name.trim()} className="text-xs">
+            <Button type="submit" disabled={isPending || !name.trim()}>
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Confirm
             </Button>

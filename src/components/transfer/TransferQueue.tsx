@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+  EmptyDescription,
+} from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -59,20 +66,15 @@ export function TransferQueue({ className }: TransferQueueProps) {
 
   if (tasks.length === 0) {
     return (
-      <div
-        className={cn(
-          "flex flex-col items-center justify-center p-6 text-muted-foreground",
-          className
-        )}
-      >
-        <div className="mb-4">
-          <ArrowUpFromLine className="h-10 w-10 opacity-30" />
-        </div>
-        <p className="text-xs font-medium tracking-wide mb-1">No active transfers</p>
-        <p className="text-[10px] text-muted-foreground/60">
-          Drag files to the left panel to start uploading
-        </p>
-      </div>
+      <Empty className={className}>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <ArrowUpFromLine />
+          </EmptyMedia>
+          <EmptyTitle>No active transfers</EmptyTitle>
+          <EmptyDescription>Drag files to the left panel to start uploading</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
@@ -81,7 +83,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
       {/* 工具栏 */}
       {(activeTasks.length > 0 || completedTasks.length > 0) && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30">
-          <div className="flex items-center gap-2 text-[10px]">
+          <div className="flex items-center gap-2 text-xs">
             {activeTasks.length > 0 && (
               <span className="flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-accent" />
@@ -166,7 +168,7 @@ function TransferItem({ task }: TransferItemProps) {
     >
       <div className="flex items-center gap-2">
         <TaskIcon direction={task.direction} status={status} />
-        <span className="flex-1 text-xs font-medium truncate" title={task.fileName}>
+        <span className="flex-1 text-sm font-medium truncate" title={task.fileName}>
           {task.fileName}
         </span>
         <TaskActions
@@ -196,7 +198,7 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
   switch (task.status) {
     case "running":
       return (
-        <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
           <span className="text-accent">{formatSpeed(task.speed)}</span>
           <span className="text-muted-foreground/50">·</span>
           <span>
@@ -210,14 +212,14 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       );
     case "waiting":
       return (
-        <div className="text-[10px] text-muted-foreground flex items-center gap-1">
+        <div className="text-xs text-muted-foreground flex items-center gap-1">
           <span className="w-1 h-1 rounded-full bg-warning" />
           <span>Queued</span>
         </div>
       );
     case "success":
       return (
-        <div className="text-[10px] text-success flex items-center gap-1">
+        <div className="text-xs text-success flex items-center gap-1">
           <Check className="h-3 w-3" />
           <span>Transfer complete</span>
         </div>
@@ -225,7 +227,7 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
     case "failed":
       return (
         <div
-          className="text-[10px] text-destructive flex items-center gap-1 truncate"
+          className="text-xs text-destructive flex items-center gap-1 truncate"
           title={task.errorMessage}
         >
           <X className="h-3 w-3 shrink-0" />
@@ -233,7 +235,7 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
         </div>
       );
     case "canceled":
-      return <div className="text-[10px] text-muted-foreground">Canceled</div>;
+      return <div className="text-xs text-muted-foreground">Canceled</div>;
   }
 }
 

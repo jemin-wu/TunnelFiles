@@ -111,7 +111,7 @@ export function ConnectionsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">Loading profiles...</span>
+        <span className="text-sm text-muted-foreground">Loading profiles...</span>
       </div>
     );
   }
@@ -126,8 +126,8 @@ export function ConnectionsPage() {
         )}
       >
         <div className="flex items-center gap-3">
-          <span className="text-xs font-medium">SSH hosts</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-sm font-medium">SSH hosts</span>
+          <span className="text-xs text-muted-foreground">
             {profiles.length === 0 ? "No connections" : `${profiles.length} connections`}
           </span>
         </div>
@@ -209,13 +209,13 @@ export function ConnectionsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting} className="text-xs h-8">
+            <AlertDialogCancel disabled={isDeleting} className="h-8">
               Cancel
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs h-8"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-8"
             >
               {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
             </AlertDialogAction>

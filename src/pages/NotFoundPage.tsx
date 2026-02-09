@@ -18,10 +18,10 @@ export function NotFoundPage() {
       </div>
 
       <div className="flex items-center gap-3">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)} className="text-xs">
+        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
           Go back
         </Button>
-        <Button size="sm" onClick={() => navigate("/connections")} className="gap-2 text-xs">
+        <Button size="sm" onClick={() => navigate("/connections")} className="gap-2">
           <Home className="h-3.5 w-3.5" />
           Home
         </Button>

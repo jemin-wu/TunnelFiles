@@ -98,7 +98,7 @@ export function HostKeyDialog({
             <span className="text-muted-foreground">Key type</span>
             <Badge
               variant="secondary"
-              className="font-mono text-[10px] bg-primary/10 text-primary border-primary/30"
+              className="font-mono text-xs bg-primary/10 text-primary border-primary/30"
             >
               {payload.keyType}
             </Badge>
@@ -110,7 +110,7 @@ export function HostKeyDialog({
               <Fingerprint className="h-3.5 w-3.5 text-primary" />
               <span>SHA256 fingerprint</span>
             </div>
-            <div className="rounded bg-background/50 border border-border p-3 font-mono text-[11px] break-all leading-relaxed text-foreground">
+            <div className="rounded bg-background/50 border border-border p-3 font-mono text-xs break-all leading-relaxed text-foreground">
               {payload.fingerprint}
             </div>
           </div>
@@ -131,14 +131,13 @@ export function HostKeyDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onReject} disabled={isProcessing} className="text-xs">
+          <Button variant="outline" onClick={onReject} disabled={isProcessing}>
             Reject
           </Button>
           <Button
             onClick={onTrust}
             disabled={isProcessing}
             variant={isMismatch ? "destructive" : "default"}
-            className="text-xs"
           >
             {isProcessing && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
             {isMismatch ? "Trust anyway" : "Trust"}

@@ -55,7 +55,7 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         disabled={disabled}
         onClick={() => onChange("password")}
         className={cn(
-          "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
+          "h-auto py-2 px-3 text-sm font-medium transition-all duration-200",
           value === "password"
             ? [
                 "bg-background text-foreground shadow-sm border border-border/80",
@@ -75,7 +75,7 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         disabled={disabled}
         onClick={() => onChange("key")}
         className={cn(
-          "h-auto py-2 px-3 text-xs font-medium transition-all duration-200",
+          "h-auto py-2 px-3 text-sm font-medium transition-all duration-200",
           value === "key"
             ? [
                 "bg-background text-foreground shadow-sm border border-border/80",
@@ -251,7 +251,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="authType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">Auth method</FormLabel>
+                      <FormLabel className="text-sm text-muted-foreground">Auth method</FormLabel>
                       <FormControl>
                         <AuthTypeSelector
                           value={field.value}
@@ -259,7 +259,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                           disabled={upsertProfile.isPending}
                         />
                       </FormControl>
-                      <FormMessage className="text-[10px]" />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -270,7 +270,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">Name</FormLabel>
+                      <FormLabel className="text-sm text-muted-foreground">Name</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="production-server"
@@ -278,7 +278,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                           disabled={upsertProfile.isPending}
                         />
                       </FormControl>
-                      <FormMessage className="text-[10px]" />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -290,7 +290,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                     name="host"
                     render={({ field }) => (
                       <FormItem className="col-span-3">
-                        <FormLabel className="text-xs text-muted-foreground">Host</FormLabel>
+                        <FormLabel className="text-sm text-muted-foreground">Host</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="192.168.1.100"
@@ -298,7 +298,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                             disabled={upsertProfile.isPending}
                           />
                         </FormControl>
-                        <FormMessage className="text-[10px]" />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
@@ -308,7 +308,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                     name="port"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">Port</FormLabel>
+                        <FormLabel className="text-sm text-muted-foreground">Port</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -319,7 +319,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                             disabled={upsertProfile.isPending}
                           />
                         </FormControl>
-                        <FormMessage className="text-[10px]" />
+                        <FormMessage className="text-xs" />
                       </FormItem>
                     )}
                   />
@@ -331,11 +331,11 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">Username</FormLabel>
+                      <FormLabel className="text-sm text-muted-foreground">Username</FormLabel>
                       <FormControl>
                         <Input placeholder="root" {...field} disabled={upsertProfile.isPending} />
                       </FormControl>
-                      <FormMessage className="text-[10px]" />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -348,10 +348,10 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-muted-foreground">
+                          <FormLabel className="text-sm text-muted-foreground">
                             Password
                             {isEditing && editProfile?.passwordRef && (
-                              <span className="ml-1.5 text-success text-[10px]">
+                              <span className="ml-1.5 text-success text-xs">
                                 (saved in keychain)
                               </span>
                             )}
@@ -367,11 +367,11 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                             />
                           </FormControl>
                           {isEditing && (
-                            <FormDescription className="text-[10px] text-muted-foreground/70">
+                            <FormDescription className="text-xs text-muted-foreground/70">
                               Leave empty to keep current password
                             </FormDescription>
                           )}
-                          <FormMessage className="text-[10px]" />
+                          <FormMessage className="text-xs" />
                         </FormItem>
                       )}
                     />
@@ -388,7 +388,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                               disabled={upsertProfile.isPending}
                             />
                           </FormControl>
-                          <FormLabel className="text-xs font-normal cursor-pointer text-muted-foreground">
+                          <FormLabel className="text-sm font-normal cursor-pointer text-muted-foreground">
                             Save to keychain
                           </FormLabel>
                         </FormItem>
@@ -405,7 +405,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="privateKeyPath"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-muted-foreground">
+                          <FormLabel className="text-sm text-muted-foreground">
                             Private key
                           </FormLabel>
                           <FormControl>
@@ -428,7 +428,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                               </Button>
                             </div>
                           </FormControl>
-                          <FormMessage className="text-[10px]" />
+                          <FormMessage className="text-xs" />
                         </FormItem>
                       )}
                     />
@@ -438,10 +438,10 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="passphrase"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-xs text-muted-foreground">
+                          <FormLabel className="text-sm text-muted-foreground">
                             Passphrase
                             {isEditing && editProfile?.passphraseRef ? (
-                              <span className="ml-1.5 text-success text-[10px]">
+                              <span className="ml-1.5 text-success text-xs">
                                 (saved in keychain)
                               </span>
                             ) : (
@@ -459,11 +459,11 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                             />
                           </FormControl>
                           {isEditing && editProfile?.passphraseRef && (
-                            <FormDescription className="text-[10px] text-muted-foreground/70">
+                            <FormDescription className="text-xs text-muted-foreground/70">
                               Leave empty to keep current passphrase
                             </FormDescription>
                           )}
-                          <FormMessage className="text-[10px]" />
+                          <FormMessage className="text-xs" />
                         </FormItem>
                       )}
                     />
@@ -480,7 +480,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                               disabled={upsertProfile.isPending}
                             />
                           </FormControl>
-                          <FormLabel className="text-xs font-normal cursor-pointer text-muted-foreground">
+                          <FormLabel className="text-sm font-normal cursor-pointer text-muted-foreground">
                             Save to keychain
                           </FormLabel>
                         </FormItem>
@@ -495,7 +495,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="initialPath"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-xs text-muted-foreground">
+                      <FormLabel className="text-sm text-muted-foreground">
                         Initial path
                         <span className="ml-1.5 text-muted-foreground/60">(optional)</span>
                       </FormLabel>
@@ -506,10 +506,10 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                           disabled={upsertProfile.isPending}
                         />
                       </FormControl>
-                      <FormDescription className="text-[10px] text-muted-foreground/70">
+                      <FormDescription className="text-xs text-muted-foreground/70">
                         Default directory after connecting
                       </FormDescription>
-                      <FormMessage className="text-[10px]" />
+                      <FormMessage className="text-xs" />
                     </FormItem>
                   )}
                 />
@@ -526,7 +526,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
               size="sm"
               onClick={() => onOpenChange(false)}
               disabled={upsertProfile.isPending}
-              className="text-xs h-8 px-4"
+              className="h-8 px-4"
             >
               Cancel
             </Button>
@@ -535,7 +535,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
               form="connection-form"
               size="sm"
               disabled={upsertProfile.isPending}
-              className="text-xs h-8 px-5 gap-2"
+              className="h-8 px-5 gap-2"
             >
               {upsertProfile.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               <span>{isEditing ? "Save" : "Create"}</span>

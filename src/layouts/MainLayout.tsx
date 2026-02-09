@@ -71,7 +71,7 @@ export function MainLayout() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 gap-1 text-xs hover:bg-primary/10 hover:text-primary"
+                    className="h-7 px-2 gap-1 text-sm hover:bg-primary/10 hover:text-primary"
                     onClick={handleBack}
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
@@ -90,7 +90,7 @@ export function MainLayout() {
 
         {/* Center title */}
         <div className="flex-1 flex items-center justify-center" data-tauri-drag-region>
-          <span className="text-xs font-medium">{pageInfo.title}</span>
+          <span className="text-sm font-medium">{pageInfo.title}</span>
         </div>
 
         {/* Right toolbar */}
@@ -150,7 +150,7 @@ export function MainLayout() {
       <footer
         className={cn(
           "flex items-center justify-between h-6 px-3 border-t border-border",
-          "bg-card/50 text-[10px] text-muted-foreground shrink-0"
+          "bg-card/50 text-xs text-muted-foreground shrink-0"
         )}
       >
         <div className="flex items-center gap-3">

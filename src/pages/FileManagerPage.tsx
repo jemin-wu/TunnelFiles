@@ -1,9 +1,9 @@
 /**
  * File Manager Page
- * Supports Files/Terminal tab switching
+ * Supports Files/Terminal tab switching with unified toolbar
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Loader2,
@@ -12,9 +12,14 @@ import {
   Activity,
   FolderOpen,
   TerminalSquare,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  FolderPlus,
 } from "lucide-react";
 
 import { FileListContainer } from "@/components/file-browser/FileListContainer";
+import { Breadcrumb } from "@/components/file-browser/Breadcrumb";
 import { DropZone } from "@/components/transfer/DropZone";
 import { TransferQueue } from "@/components/transfer/TransferQueue";
 import { Terminal } from "@/components/terminal";
@@ -24,9 +29,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useSessionStatus } from "@/hooks/useSessionStatus";
 import { useTransferEvents } from "@/hooks/useTransferEvents";
 import { useTerminal } from "@/hooks/useTerminal";
+import { useFileList } from "@/hooks/useFileList";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cn } from "@/lib/utils";
 import type { TerminalStatusPayload } from "@/types/terminal";
+import { DEFAULT_SORT } from "@/types";
 
 type TabMode = "files" | "terminal";
 
@@ -40,64 +47,181 @@ function getInitialSidebarCollapsed(): boolean {
   return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
 }
 
-/** Tab bar for switching between Files and Terminal */
-function TabBar({
+/** Unified toolbar for Files and Terminal modes */
+function PageToolbar({
   activeTab,
   onTabChange,
+  // Files mode props
+  currentPath,
+  homePath,
+  onNavigate,
+  fileCount,
+  isFetching,
+  onRefresh,
+  showHidden,
+  onToggleHidden,
+  onCreateFolder,
+  // Terminal mode props
   terminalStatus,
   isTerminalOpening,
   terminalInfo,
 }: {
   activeTab: TabMode;
   onTabChange: (tab: TabMode) => void;
+  currentPath: string;
+  homePath?: string;
+  onNavigate: (path: string) => void;
+  fileCount: number;
+  isFetching: boolean;
+  onRefresh: () => void;
+  showHidden: boolean;
+  onToggleHidden: () => void;
+  onCreateFolder: () => void;
   terminalStatus: string;
   isTerminalOpening: boolean;
   terminalInfo: { terminalId: string } | null;
 }) {
   return (
-    <div className="flex items-center h-8 border-b border-border bg-card/30 shrink-0 px-1">
-      {/* Tabs */}
-      <Button
-        variant="ghost"
-        className={cn(
-          "px-3 h-full rounded-none text-xs font-medium gap-1.5",
-          activeTab === "files"
-            ? "text-foreground border-b-2 border-primary"
-            : "text-muted-foreground hover:text-foreground hover:bg-primary/5"
-        )}
-        onClick={() => onTabChange("files")}
-      >
-        <FolderOpen className="h-3.5 w-3.5" />
-        Files
-      </Button>
-      <Button
-        variant="ghost"
-        className={cn(
-          "px-3 h-full rounded-none text-xs font-medium gap-1.5",
-          activeTab === "terminal"
-            ? "text-foreground border-b-2 border-primary"
-            : "text-muted-foreground hover:text-foreground hover:bg-primary/5"
-        )}
-        onClick={() => onTabChange("terminal")}
-      >
-        <TerminalSquare className="h-3.5 w-3.5" />
-        Terminal
-        {terminalStatus === "connected" && <span className="h-1.5 w-1.5 rounded-full bg-success" />}
-      </Button>
+    <div className="flex items-center gap-1.5 px-2 h-9 border-b border-border bg-card/30 shrink-0">
+      {activeTab === "files" ? (
+        <>
+          {/* Breadcrumb navigation */}
+          <Breadcrumb
+            path={currentPath}
+            homePath={homePath}
+            onNavigate={onNavigate}
+            className="flex-1 min-w-0"
+          />
 
-      {/* Right side: terminal connection status */}
-      <div className="ml-auto flex items-center gap-2 text-[10px] text-muted-foreground pr-2">
-        {isTerminalOpening && (
-          <>
-            <Loader2 className="h-3 w-3 animate-spin text-accent" />
-            <span>Connecting...</span>
-          </>
-        )}
-        {terminalInfo && terminalStatus === "connected" && (
-          <span className="font-mono">{terminalInfo.terminalId.slice(0, 8)}</span>
-        )}
-        {terminalStatus === "error" && <span className="text-destructive">Connection error</span>}
-      </div>
+          {/* File count */}
+          <div className="hidden sm:flex items-center text-xs text-muted-foreground tabular-nums shrink-0">
+            <span>{fileCount} items</span>
+          </div>
+
+          <span className="hidden sm:block w-px h-4 bg-border" />
+
+          <TooltipProvider delayDuration={300}>
+            {/* New folder */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  onClick={onCreateFolder}
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">New folder</TooltipContent>
+            </Tooltip>
+
+            {/* Refresh */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  onClick={onRefresh}
+                  disabled={isFetching}
+                >
+                  {isFetching ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">Refresh</TooltipContent>
+            </Tooltip>
+
+            {/* Toggle hidden files */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  onClick={onToggleHidden}
+                  aria-pressed={showHidden}
+                >
+                  {showHidden ? (
+                    <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <EyeOff className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">
+                {showHidden ? "Hide hidden files" : "Show hidden files"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </>
+      ) : (
+        <>
+          {/* Terminal mode: connection status info */}
+          <div className="flex-1 flex items-center gap-2 text-xs text-muted-foreground">
+            {isTerminalOpening && (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                <span>Connecting...</span>
+              </>
+            )}
+            {terminalInfo && terminalStatus === "connected" && (
+              <span className="font-mono text-xs">{terminalInfo.terminalId.slice(0, 8)}</span>
+            )}
+            {terminalStatus === "error" && (
+              <span className="text-destructive">Connection error</span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Separator before mode toggle */}
+      <span className="w-px h-4 bg-border" />
+
+      {/* Mode toggle icons */}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onTabChange("files")}
+            >
+              <FolderOpen
+                className={cn(
+                  "h-3.5 w-3.5",
+                  activeTab === "files" ? "text-primary" : "text-muted-foreground"
+                )}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">Files</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => onTabChange("terminal")}
+            >
+              <TerminalSquare
+                className={cn(
+                  "h-3.5 w-3.5",
+                  activeTab === "terminal" ? "text-primary" : "text-muted-foreground"
+                )}
+              />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent className="text-xs">Terminal</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     </div>
   );
 }
@@ -106,10 +230,18 @@ function TabBar({
 function MainContent({
   sessionId,
   activeTab,
-  sessionInfo,
   currentPath,
+  homePath,
   onPathChange,
   onTabChange,
+  showHidden,
+  onToggleHidden,
+  fileCount,
+  isFetching,
+  onRefresh,
+  onCreateFolderRequest,
+  createFolderOpen,
+  onCreateFolderOpenChange,
   terminalInfo,
   terminalStatus,
   isTerminalOpening,
@@ -120,10 +252,18 @@ function MainContent({
 }: {
   sessionId: string;
   activeTab: TabMode;
-  sessionInfo: { homePath?: string } | null;
   currentPath: string;
+  homePath?: string;
   onPathChange: (path: string) => void;
   onTabChange: (tab: TabMode) => void;
+  showHidden: boolean;
+  onToggleHidden: () => void;
+  fileCount: number;
+  isFetching: boolean;
+  onRefresh: () => void;
+  onCreateFolderRequest: () => void;
+  createFolderOpen: boolean;
+  onCreateFolderOpenChange: (open: boolean) => void;
   terminalInfo: { terminalId: string } | null;
   terminalStatus: string;
   isTerminalOpening: boolean;
@@ -134,10 +274,19 @@ function MainContent({
 }) {
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar */}
-      <TabBar
+      {/* Unified toolbar */}
+      <PageToolbar
         activeTab={activeTab}
         onTabChange={onTabChange}
+        currentPath={currentPath}
+        homePath={homePath}
+        onNavigate={onPathChange}
+        fileCount={fileCount}
+        isFetching={isFetching}
+        onRefresh={onRefresh}
+        showHidden={showHidden}
+        onToggleHidden={onToggleHidden}
+        onCreateFolder={onCreateFolderRequest}
         terminalStatus={terminalStatus}
         isTerminalOpening={isTerminalOpening}
         terminalInfo={terminalInfo}
@@ -155,9 +304,11 @@ function MainContent({
           <DropZone sessionId={sessionId} remotePath={currentPath} className="h-full">
             <FileListContainer
               sessionId={sessionId}
-              initialPath={sessionInfo?.homePath ?? "/"}
-              homePath={sessionInfo?.homePath}
+              currentPath={currentPath}
               onPathChange={onPathChange}
+              showHidden={showHidden}
+              createFolderOpen={createFolderOpen}
+              onCreateFolderOpenChange={onCreateFolderOpenChange}
             />
           </DropZone>
         </div>
@@ -184,8 +335,8 @@ function MainContent({
                   <>
                     <TerminalSquare className="h-10 w-10 text-accent" />
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-xs text-muted-foreground">Opening terminal...</span>
-                      <span className="text-[10px] text-muted-foreground/60">
+                      <span className="text-sm text-muted-foreground">Opening terminal...</span>
+                      <span className="text-xs text-muted-foreground/60">
                         Initializing terminal session
                       </span>
                     </div>
@@ -194,13 +345,8 @@ function MainContent({
                   <>
                     <TerminalSquare className="h-10 w-10 text-muted-foreground/50" />
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-xs text-muted-foreground">Terminal not connected</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={openTerminal}
-                        className="mt-2 text-xs"
-                      >
+                      <span className="text-sm text-muted-foreground">Terminal not connected</span>
+                      <Button variant="outline" size="sm" onClick={openTerminal} className="mt-2">
                         <TerminalSquare className="h-3.5 w-3.5 mr-1.5" />
                         Connect
                       </Button>
@@ -222,6 +368,8 @@ export function FileManagerPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
   const [currentPath, setCurrentPath] = useState("/");
+  const [showHidden, setShowHidden] = useState(false);
+  const [createFolderOpen, setCreateFolderOpen] = useState(false);
 
   // Read mode from URL, default to files
   const activeTab = (searchParams.get("mode") as TabMode) || "files";
@@ -242,8 +390,45 @@ export function FileManagerPage() {
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
 
+  // Initialize currentPath to homePath when session loads (once only)
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current && sessionInfo?.homePath && currentPath === "/") {
+      initializedRef.current = true;
+      setCurrentPath(sessionInfo.homePath);
+    }
+  }, [sessionInfo?.homePath, currentPath]);
+
   // Active transfer count for collapsed sidebar badge
   const activeTransferCount = useTransferStore((s) => s.getActiveTasks().length);
+
+  // File list for toolbar info (count, refresh, fetching state)
+  const {
+    files: rawFiles,
+    isFetching,
+    refetch,
+  } = useFileList({
+    sessionId: sessionId ?? "",
+    path: currentPath,
+    sort: DEFAULT_SORT,
+    enabled: !!sessionId,
+  });
+
+  const fileCount = showHidden
+    ? rawFiles.length
+    : rawFiles.filter((f) => !f.name.startsWith(".")).length;
+
+  const handleRefresh = useCallback(() => {
+    refetch();
+  }, [refetch]);
+
+  const toggleHidden = useCallback(() => {
+    setShowHidden((prev) => !prev);
+  }, []);
+
+  const handleCreateFolderRequest = useCallback(() => {
+    setCreateFolderOpen(true);
+  }, []);
 
   // Terminal hook - only initialize when sessionId exists
   const {
@@ -317,10 +502,8 @@ export function FileManagerPage() {
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <div className="flex flex-col items-center gap-1">
-          <span className="text-xs text-muted-foreground">Initializing SFTP...</span>
-          <span className="text-[10px] text-muted-foreground/60">
-            Establishing secure connection
-          </span>
+          <span className="text-sm text-muted-foreground">Initializing SFTP...</span>
+          <span className="text-xs text-muted-foreground/60">Establishing secure connection</span>
         </div>
       </div>
     );
@@ -330,15 +513,24 @@ export function FileManagerPage() {
     return null;
   }
 
+  const homePath = sessionInfo?.homePath;
   const isTerminalMode = activeTab === "terminal";
 
   const mainContentProps = {
     sessionId,
     activeTab,
-    sessionInfo,
     currentPath,
+    homePath,
     onPathChange: handlePathChange,
     onTabChange: setActiveTab,
+    showHidden,
+    onToggleHidden: toggleHidden,
+    fileCount,
+    isFetching,
+    onRefresh: handleRefresh,
+    onCreateFolderRequest: handleCreateFolderRequest,
+    createFolderOpen,
+    onCreateFolderOpenChange: setCreateFolderOpen,
     terminalInfo,
     terminalStatus,
     isTerminalOpening,
@@ -381,7 +573,7 @@ export function FileManagerPage() {
             <div className="flex items-center justify-between px-3 h-10 border-b border-sidebar-border bg-sidebar">
               <div className="flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-accent" />
-                <span className="text-xs font-medium">Transfer queue</span>
+                <span className="text-sm font-medium">Transfer queue</span>
               </div>
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
@@ -452,9 +644,7 @@ export function FileManagerPage() {
               </span>
             )}
           </div>
-          <span className="text-[11px] text-muted-foreground [writing-mode:vertical-rl]">
-            Queue
-          </span>
+          <span className="text-xs text-muted-foreground [writing-mode:vertical-rl]">Queue</span>
         </div>
       </div>
     </div>

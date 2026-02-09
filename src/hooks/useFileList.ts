@@ -2,7 +2,7 @@
  * 文件列表数据获取 Hook
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { invokeWithErrorHandling } from "@/lib/error";
 import * as sftp from "@/lib/sftp";
@@ -36,6 +36,7 @@ export function useFileList(options: UseFileListOptions): UseFileListReturn {
       return files ?? [];
     },
     enabled: enabled && !!sessionId && !!path,
+    placeholderData: keepPreviousData,
     staleTime: 5000,
     gcTime: 5 * 60 * 1000,
   });

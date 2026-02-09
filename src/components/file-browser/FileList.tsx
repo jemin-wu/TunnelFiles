@@ -1,6 +1,5 @@
 /**
  * File List Component - Precision Engineering
- * Supports column width drag resizing
  */
 
 import { useRef, useCallback, useEffect, memo } from "react";
@@ -14,13 +13,6 @@ import { Button } from "@/components/ui/button";
 import { formatFileTime } from "@/lib/file";
 import { formatFileSize, formatFileMode } from "@/types/file";
 import { cn } from "@/lib/utils";
-import {
-  useColumnWidths,
-  ICON_WIDTH,
-  PERM_WIDTH,
-  type ColumnKey,
-  type ColumnWidths,
-} from "@/hooks/useColumnWidths";
 import type { FileEntry, SortField, SortSpec } from "@/types";
 
 interface FileListProps {
@@ -52,26 +44,10 @@ interface FileListProps {
 }
 
 const ROW_HEIGHT = 32;
-
-// Column resize handle component
-interface ResizeHandleProps {
-  column: ColumnKey;
-  onMouseDown: (column: ColumnKey, e: React.MouseEvent) => void;
-}
-
-function ResizeHandle({ column, onMouseDown }: ResizeHandleProps) {
-  return (
-    <div
-      className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-primary/50 active:bg-primary group z-10"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        onMouseDown(column, e);
-      }}
-    >
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-px h-4 bg-border group-hover:bg-primary/50 group-active:bg-primary" />
-    </div>
-  );
-}
+const ICON_WIDTH = 24;
+const PERM_WIDTH = 80;
+const SIZE_WIDTH = 72;
+const MTIME_WIDTH = 112;
 
 // Header cell component
 interface HeaderCellProps {
@@ -81,45 +57,34 @@ interface HeaderCellProps {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
-  resizable?: boolean;
-  onResizeStart?: (column: ColumnKey, e: React.MouseEvent) => void;
 }
 
-function HeaderCell({
-  field,
-  currentSort,
-  onSort,
-  children,
-  className,
-  style,
-  resizable,
-  onResizeStart,
-}: HeaderCellProps) {
+function HeaderCell({ field, currentSort, onSort, children, className, style }: HeaderCellProps) {
   const isActive = currentSort.field === field;
 
   return (
-    <div className="relative" style={style}>
+    <div style={style}>
       <Button
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 px-2 gap-1 w-full justify-start text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
+          "h-auto p-0 gap-1 w-full justify-start text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
           isActive && "text-primary bg-primary/5",
           className
         )}
         onClick={() => onSort(field)}
       >
         {children}
-        {isActive &&
-          (currentSort.order === "asc" ? (
+        {isActive ? (
+          currentSort.order === "asc" ? (
             <ChevronUp className="h-3 w-3" />
           ) : (
             <ChevronDown className="h-3 w-3" />
-          ))}
+          )
+        ) : (
+          <ChevronUp className="h-3 w-3 opacity-0" />
+        )}
       </Button>
-      {resizable && onResizeStart && (
-        <ResizeHandle column={field as ColumnKey} onMouseDown={onResizeStart} />
-      )}
     </div>
   );
 }
@@ -130,7 +95,6 @@ interface FileRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onCli
   isSelected: boolean;
   onClick: (e: React.MouseEvent) => void;
   onDoubleClick: () => void;
-  columnWidths: ColumnWidths;
 }
 
 const FileRow = memo(function FileRow({
@@ -138,20 +102,15 @@ const FileRow = memo(function FileRow({
   isSelected,
   onClick,
   onDoubleClick,
-  columnWidths,
   className,
   ...rest
 }: FileRowProps) {
-  const sizeWidth = columnWidths.size;
-  const mtimeWidth = columnWidths.mtime;
-  const nameWidth = columnWidths.name;
-
   return (
     <div
       role="row"
       tabIndex={0}
       className={cn(
-        "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent",
+        "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent overflow-hidden",
         "hover:bg-accent/5 transition-colors",
         "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20 focus-visible:ring-inset",
         isSelected && "bg-primary/10 !border-l-primary",
@@ -175,10 +134,9 @@ const FileRow = memo(function FileRow({
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "min-w-0 truncate text-xs px-2",
+              "flex-1 min-w-0 truncate text-sm",
               file.isDir ? "text-foreground font-medium" : "text-foreground/80"
             )}
-            style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
           >
             {file.name}
           </div>
@@ -190,8 +148,8 @@ const FileRow = memo(function FileRow({
 
       {/* Size */}
       <div
-        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground px-2"
-        style={{ width: sizeWidth }}
+        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        style={{ width: SIZE_WIDTH }}
       >
         {file.isDir ? (
           <span className="text-muted-foreground/40">&mdash;</span>
@@ -202,7 +160,7 @@ const FileRow = memo(function FileRow({
 
       {/* Permissions */}
       <div
-        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground px-2"
+        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
         style={{ width: PERM_WIDTH }}
       >
         {formatFileMode(file.mode)}
@@ -210,8 +168,8 @@ const FileRow = memo(function FileRow({
 
       {/* Modified time */}
       <div
-        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground pr-2"
-        style={{ width: mtimeWidth }}
+        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        style={{ width: MTIME_WIDTH }}
       >
         {formatFileTime(file.mtime)}
       </div>
@@ -235,8 +193,6 @@ export function FileList({
   isLoading,
 }: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  const headerRef = useRef<HTMLDivElement>(null);
-  const { widths, startResize } = useColumnWidths();
 
   const virtualizer = useVirtualizer({
     count: files.length,
@@ -244,15 +200,6 @@ export function FileList({
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
   });
-
-  // Handle column width resize start
-  const handleResizeStart = useCallback(
-    (column: ColumnKey, e: React.MouseEvent) => {
-      const containerWidth = headerRef.current?.clientWidth ?? 0;
-      startResize(column, e.clientX, containerWidth);
-    },
-    [startResize]
-  );
 
   // Get first selected file index
   const getFirstSelectedIndex = useCallback(() => {
@@ -374,12 +321,10 @@ export function FileList({
           <div className="w-12 h-12 flex items-center justify-center rounded-lg bg-muted/30 border border-border/50">
             <FolderOpen className="h-8 w-8 text-muted-foreground/50" />
           </div>
-          <p className="text-xs">Directory is empty</p>
+          <p className="text-sm">Directory is empty</p>
           <div className="flex flex-col items-center gap-0.5">
-            <p className="text-[11px] text-muted-foreground/50">Drag files here to upload</p>
-            <p className="text-[11px] text-muted-foreground/40">
-              or press &#8984;N to create a folder
-            </p>
+            <p className="text-xs text-muted-foreground/50">Drag files here to upload</p>
+            <p className="text-xs text-muted-foreground/40">or press &#8984;N to create a folder</p>
           </div>
         </div>
       </div>
@@ -387,28 +332,17 @@ export function FileList({
   }
 
   const items = virtualizer.getVirtualItems();
-  const nameWidth = widths.name;
-  const sizeWidth = widths.size;
-  const mtimeWidth = widths.mtime;
 
   return (
     <TooltipProvider delayDuration={500}>
       <div className="flex flex-col h-full" role="grid" aria-label="File list">
         {/* Header */}
         <div
-          ref={headerRef}
           role="row"
-          className="flex items-center h-7 px-3 border-b border-border bg-card/30 flex-shrink-0"
+          className="flex items-center h-7 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
         >
           <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
-          <HeaderCell
-            field="name"
-            currentSort={sort}
-            onSort={onSortChange}
-            style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
-            resizable
-            onResizeStart={handleResizeStart}
-          >
+          <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>
             Name
           </HeaderCell>
           <HeaderCell
@@ -416,14 +350,12 @@ export function FileList({
             currentSort={sort}
             onSort={onSortChange}
             className="justify-end"
-            style={{ width: sizeWidth, flexShrink: 0 }}
-            resizable
-            onResizeStart={handleResizeStart}
+            style={{ width: SIZE_WIDTH, flexShrink: 0 }}
           >
             Size
           </HeaderCell>
           <div
-            className="flex-shrink-0 flex items-center justify-end px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider"
+            className="flex-shrink-0 flex items-center justify-end text-xs font-medium text-muted-foreground uppercase tracking-wider"
             style={{ width: PERM_WIDTH }}
           >
             Perms
@@ -433,9 +365,7 @@ export function FileList({
             currentSort={sort}
             onSort={onSortChange}
             className="justify-end"
-            style={{ width: mtimeWidth, flexShrink: 0 }}
-            resizable
-            onResizeStart={handleResizeStart}
+            style={{ width: MTIME_WIDTH, flexShrink: 0 }}
           >
             Modified
           </HeaderCell>
@@ -444,7 +374,7 @@ export function FileList({
         {/* Virtual list */}
         <div
           ref={parentRef}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-y-auto overflow-x-hidden"
           tabIndex={0}
           onClick={(e) => {
             // Click empty area to clear selection
@@ -463,7 +393,6 @@ export function FileList({
             {items.map((virtualItem) => {
               const file = files[virtualItem.index];
               if (!file) return null;
-              const isEven = virtualItem.index % 2 === 0;
               return (
                 <div
                   key={virtualItem.key}
@@ -493,8 +422,6 @@ export function FileList({
                         onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
                       }
                       onDoubleClick={() => onFileDblClick(file)}
-                      columnWidths={widths}
-                      className={isEven ? "bg-muted/[0.07]" : undefined}
                     />
                   </FileContextMenu>
                 </div>

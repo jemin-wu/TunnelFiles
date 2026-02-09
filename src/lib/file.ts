@@ -141,7 +141,7 @@ export function formatFileTime(mtime?: number): string {
     return `${hours}h ago`;
   }
 
-  // Over 24 hours: show full date
+  // Over 24 hours: show date
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -153,7 +153,9 @@ export function formatFileTime(mtime?: number): string {
     return `${month}-${day} ${hours}:${minutes}`;
   }
 
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
+  // Use 2-digit year to fit compact column width
+  const shortYear = String(year).slice(-2);
+  return `${shortYear}-${month}-${day} ${hours}:${minutes}`;
 }
 
 /** Join path segments */
@@ -258,15 +260,14 @@ export function parsePath(path: string, homePath?: string): PathSegment[] {
     });
   }
 
-  // If path starts with homePath, collapse home segments into ~
+  // If path starts with homePath, collapse home segments into / > ~
   if (homePath) {
     const normalizedHome = normalizePath(homePath);
     if (normalized === normalizedHome || normalized.startsWith(normalizedHome + "/")) {
       const homeParts = normalizedHome.split("/").filter(Boolean);
-      // Replace root + home path segments with a single "~" segment
-      const homeSegment: PathSegment = { name: "~", path: normalizedHome };
+      // Keep root "/" and collapse home path segments into "~"
       const remaining = segments.slice(homeParts.length + 1);
-      return [homeSegment, ...remaining];
+      return [{ name: "/", path: "/" }, { name: "~", path: normalizedHome }, ...remaining];
     }
   }
 

@@ -79,12 +79,12 @@ export function FileContextMenu({
         {/* Directory only: enter */}
         {file.isDir && onEnterDir && !isMultiSelect && (
           <>
-            <ContextMenuItem onClick={onEnterDir} className="text-xs gap-2 justify-between">
+            <ContextMenuItem onClick={onEnterDir} className="gap-2 justify-between">
               <span className="flex items-center gap-2">
                 <FolderOpen className="h-3.5 w-3.5 text-primary" />
                 <span>Open</span>
               </span>
-              <span className="text-muted-foreground text-[10px]">↵</span>
+              <span className="text-muted-foreground text-xs">↵</span>
             </ContextMenuItem>
             <ContextMenuSeparator className="bg-border" />
           </>
@@ -92,7 +92,7 @@ export function FileContextMenu({
 
         {/* Download - supports batch */}
         {onDownload && (
-          <ContextMenuItem onClick={onDownload} className="text-xs gap-2">
+          <ContextMenuItem onClick={onDownload} className="gap-2">
             <Download className="h-3.5 w-3.5 text-primary" />
             <span>{isMultiSelect ? `Download ${selectionCount} items` : "Download"}</span>
           </ContextMenuItem>
@@ -101,13 +101,13 @@ export function FileContextMenu({
         {/* Copy operations */}
         <ContextMenuSeparator className="bg-border" />
 
-        <ContextMenuItem onClick={handleCopyPath} className="text-xs gap-2">
+        <ContextMenuItem onClick={handleCopyPath} className="gap-2">
           <Copy className="h-3.5 w-3.5" />
           <span>Copy path</span>
         </ContextMenuItem>
 
         {!isMultiSelect && (
-          <ContextMenuItem onClick={handleCopyName} className="text-xs gap-2">
+          <ContextMenuItem onClick={handleCopyName} className="gap-2">
             <Files className="h-3.5 w-3.5" />
             <span>Copy name</span>
           </ContextMenuItem>
@@ -118,29 +118,29 @@ export function FileContextMenu({
 
         {/* New folder */}
         {onNewFolder && (
-          <ContextMenuItem onClick={onNewFolder} className="text-xs gap-2 justify-between">
+          <ContextMenuItem onClick={onNewFolder} className="gap-2 justify-between">
             <span className="flex items-center gap-2">
               <FolderPlus className="h-3.5 w-3.5 text-primary" />
               <span>New folder</span>
             </span>
-            <span className="text-muted-foreground text-[10px]">⌘N</span>
+            <span className="text-muted-foreground text-xs">⌘N</span>
           </ContextMenuItem>
         )}
 
         {/* Rename - single selection only */}
         {!isMultiSelect && onRename && (
-          <ContextMenuItem onClick={onRename} className="text-xs gap-2 justify-between">
+          <ContextMenuItem onClick={onRename} className="gap-2 justify-between">
             <span className="flex items-center gap-2">
               <Pencil className="h-3.5 w-3.5" />
               <span>Rename</span>
             </span>
-            <span className="text-muted-foreground text-[10px]">⌘R</span>
+            <span className="text-muted-foreground text-xs">⌘R</span>
           </ContextMenuItem>
         )}
 
         {/* Change permissions - supports batch */}
         {onChmod && (
-          <ContextMenuItem onClick={onChmod} className="text-xs gap-2">
+          <ContextMenuItem onClick={onChmod} className="gap-2">
             <Shield className="h-3.5 w-3.5" />
             <span>{isMultiSelect ? `Chmod ${selectionCount} items` : "Chmod"}</span>
           </ContextMenuItem>
@@ -149,16 +149,12 @@ export function FileContextMenu({
         <ContextMenuSeparator className="bg-border" />
 
         {/* Delete current file (no batch, always operates on right-clicked file) */}
-        <ContextMenuItem
-          variant="destructive"
-          onClick={onDelete}
-          className="text-xs gap-2 justify-between"
-        >
+        <ContextMenuItem variant="destructive" onClick={onDelete} className="gap-2 justify-between">
           <span className="flex items-center gap-2">
             <Trash2 className="h-3.5 w-3.5" />
             <span>Delete</span>
           </span>
-          <span className="text-[10px] opacity-70">⌘⌫</span>
+          <span className="text-xs opacity-70">⌘⌫</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

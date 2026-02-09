@@ -91,7 +91,7 @@ export function CreateFolderDialog({
           </DialogHeader>
 
           <div className="py-4 space-y-3">
-            <Label htmlFor="folder-name" className="text-xs text-muted-foreground">
+            <Label htmlFor="folder-name" className="text-sm text-muted-foreground">
               Enter folder name
             </Label>
             <Input
@@ -121,11 +121,10 @@ export function CreateFolderDialog({
               variant="outline"
               onClick={() => handleOpenChange(false)}
               disabled={isPending}
-              className="text-xs"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !name.trim()} className="text-xs">
+            <Button type="submit" disabled={isPending || !name.trim()}>
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Create
             </Button>

@@ -58,7 +58,7 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       variant="ghost"
       onClick={onClick}
       className={cn(
-        "justify-start gap-2.5 w-full h-auto px-3 py-2.5 text-xs transition-all duration-200",
+        "justify-start gap-2.5 w-full h-auto px-3 py-2.5 text-sm transition-all duration-200",
         "hover:bg-muted/80",
         active ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-muted-foreground"
       )}
@@ -83,9 +83,9 @@ function SettingRow({ label, description, children }: SettingRowProps) {
   return (
     <div className="py-4 border-b border-border/30 last:border-0">
       <div className="mb-1">
-        <span className="text-xs font-medium text-foreground/90">{label}</span>
+        <span className="text-sm font-medium text-foreground/90">{label}</span>
       </div>
-      {description && <div className="text-[10px] text-muted-foreground mb-3">{description}</div>}
+      {description && <div className="text-xs text-muted-foreground mb-3">{description}</div>}
       <div>{children}</div>
     </div>
   );
@@ -139,7 +139,7 @@ export function SettingsPage() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">Loading settings...</span>
+        <span className="text-sm text-muted-foreground">Loading settings...</span>
       </div>
     );
   }
@@ -179,7 +179,7 @@ export function SettingsPage() {
               {activeSection === "transfer" && (
                 <section className="animate-fade-in">
                   <h2 className="text-sm font-medium mb-1">Transfer settings</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">
+                  <p className="text-xs text-muted-foreground mb-6">
                     File upload and download settings
                   </p>
 
@@ -196,7 +196,7 @@ export function SettingsPage() {
                                   placeholder="System default"
                                   {...field}
                                   disabled={isUpdating}
-                                  className="flex-1 text-xs h-9"
+                                  className="flex-1 h-9"
                                 />
                                 <Button
                                   type="button"
@@ -210,7 +210,7 @@ export function SettingsPage() {
                                 </Button>
                               </div>
                             </FormControl>
-                            <FormMessage className="text-[10px]" />
+                            <FormMessage className="text-xs" />
                           </FormItem>
                         </SettingRow>
                       )}
@@ -243,7 +243,7 @@ export function SettingsPage() {
                                 </span>
                               </div>
                             </div>
-                            <FormMessage className="text-[10px]" />
+                            <FormMessage className="text-xs" />
                           </FormItem>
                         </SettingRow>
                       )}
@@ -263,10 +263,10 @@ export function SettingsPage() {
                                 {...field}
                                 onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                 disabled={isUpdating}
-                                className="w-20 text-xs h-9"
+                                className="w-20 h-9"
                               />
                             </FormControl>
-                            <FormMessage className="text-[10px]" />
+                            <FormMessage className="text-xs" />
                           </FormItem>
                         </SettingRow>
                       )}
@@ -279,7 +279,7 @@ export function SettingsPage() {
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
                   <h2 className="text-sm font-medium mb-1">Connection settings</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">SSH connection settings</p>
+                  <p className="text-xs text-muted-foreground mb-6">SSH connection settings</p>
 
                   <div>
                     <FormField
@@ -296,12 +296,12 @@ export function SettingsPage() {
                                   {...field}
                                   onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                                   disabled={isUpdating}
-                                  className="w-20 text-xs h-9"
+                                  className="w-20 h-9"
                                 />
                               </FormControl>
                               <span className="text-xs text-muted-foreground">seconds</span>
                             </div>
-                            <FormMessage className="text-[10px]" />
+                            <FormMessage className="text-xs" />
                           </FormItem>
                         </SettingRow>
                       )}
@@ -314,7 +314,7 @@ export function SettingsPage() {
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
                   <h2 className="text-sm font-medium mb-1">Logging settings</h2>
-                  <p className="text-[10px] text-muted-foreground mb-6">Application log output</p>
+                  <p className="text-xs text-muted-foreground mb-6">Application log output</p>
 
                   <div>
                     <FormField
@@ -329,11 +329,11 @@ export function SettingsPage() {
                               disabled={isUpdating}
                             >
                               <FormControl>
-                                <SelectTrigger className="w-36 text-xs h-9">
+                                <SelectTrigger className="w-36 h-9">
                                   <SelectValue placeholder="Select level" />
                                 </SelectTrigger>
                               </FormControl>
-                              <SelectContent className="text-xs">
+                              <SelectContent>
                                 {LOG_LEVELS.map((level) => (
                                   <SelectItem key={level.value} value={level.value}>
                                     {level.label}
@@ -341,7 +341,7 @@ export function SettingsPage() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <FormMessage className="text-[10px]" />
+                            <FormMessage className="text-xs" />
                           </FormItem>
                         </SettingRow>
                       )}
@@ -358,7 +358,7 @@ export function SettingsPage() {
                   size="sm"
                   onClick={handleCancel}
                   disabled={isUpdating}
-                  className="text-xs h-9 px-4"
+                  className="h-9 px-4"
                 >
                   Cancel
                 </Button>
@@ -366,7 +366,7 @@ export function SettingsPage() {
                   type="submit"
                   size="sm"
                   disabled={isUpdating || !isDirty}
-                  className="text-xs h-9 px-5 gap-2"
+                  className="h-9 px-5 gap-2"
                 >
                   {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   <span>Save</span>

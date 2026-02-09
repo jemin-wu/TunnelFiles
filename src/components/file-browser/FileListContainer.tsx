@@ -3,10 +3,8 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
-import { Breadcrumb } from "./Breadcrumb";
 import { FileList } from "./FileList";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
@@ -20,40 +18,48 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { downloadFile, downloadDirectory, getTransfer } from "@/lib/transfer";
 import { showSuccessToast, showErrorToast } from "@/lib/error";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { DEFAULT_SORT, type FileEntry, type SortField, type SortSpec } from "@/types";
 import type { DirectoryStats } from "@/types/file";
 
 interface FileListContainerProps {
   sessionId: string;
-  initialPath?: string;
-  homePath?: string;
-  onPathChange?: (path: string) => void;
+  currentPath: string;
+  onPathChange: (path: string) => void;
+  showHidden: boolean;
+  createFolderOpen?: boolean;
+  onCreateFolderOpenChange?: (open: boolean) => void;
 }
 
 export function FileListContainer({
   sessionId,
-  initialPath = "/",
-  homePath,
+  currentPath,
   onPathChange,
+  showHidden,
+  createFolderOpen: createFolderOpenProp,
+  onCreateFolderOpenChange,
 }: FileListContainerProps) {
-  const [currentPath, setCurrentPath] = useState(initialPath);
   const [sort, setSort] = useState<SortSpec>(DEFAULT_SORT);
-  const [showHidden, setShowHidden] = useState(false);
 
-  const [createFolderOpen, setCreateFolderOpen] = useState(false);
+  // Create folder dialog state - controlled by parent when props provided
+  const [createFolderOpenInternal, setCreateFolderOpenInternal] = useState(false);
+  const createFolderOpen = createFolderOpenProp ?? createFolderOpenInternal;
+  const setCreateFolderOpen = useCallback(
+    (open: boolean) => {
+      if (onCreateFolderOpenChange) {
+        onCreateFolderOpenChange(open);
+      } else {
+        setCreateFolderOpenInternal(open);
+      }
+    },
+    [onCreateFolderOpenChange]
+  );
+
   const [renameOpen, setRenameOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [chmodOpen, setChmodOpen] = useState(false);
   const [targetFile, setTargetFile] = useState<FileEntry | null>(null);
 
-  const {
-    files: rawFiles,
-    isLoading,
-    isFetching,
-    refetch,
-  } = useFileList({
+  const { files: rawFiles, isLoading } = useFileList({
     sessionId,
     path: currentPath,
     sort,
@@ -110,9 +116,8 @@ export function FileListContainer({
 
   const navigateTo = useCallback(
     (path: string) => {
-      setCurrentPath(path);
       clearSelection();
-      onPathChange?.(path);
+      onPathChange(path);
     },
     [clearSelection, onPathChange]
   );
@@ -138,14 +143,6 @@ export function FileListContainer({
       field,
       order: prev.field === field && prev.order === "asc" ? "desc" : "asc",
     }));
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    refetch();
-  }, [refetch]);
-
-  const toggleHidden = useCallback(() => {
-    setShowHidden((prev) => !prev);
   }, []);
 
   const handleRename = useCallback((file: FileEntry) => {
@@ -285,89 +282,11 @@ export function FileListContainer({
         },
       });
     },
-    [createFolder]
+    [createFolder, setCreateFolderOpen]
   );
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar */}
-      <div className="flex items-center gap-1.5 px-2 h-9 border-b border-border bg-card/30 shrink-0">
-        {/* Breadcrumb navigation */}
-        <Breadcrumb
-          path={currentPath}
-          homePath={homePath}
-          onNavigate={navigateTo}
-          className="flex-1 min-w-0"
-        />
-
-        {/* File count & selection count */}
-        <div className="hidden sm:flex items-center text-xs text-muted-foreground tabular-nums shrink-0">
-          <span>{files.length} items</span>
-          {selectionCount > 0 && (
-            <span className="ml-1.5 text-primary animate-in fade-in duration-150">
-              · {selectionCount} selected
-            </span>
-          )}
-        </div>
-
-        <span className="hidden sm:block w-px h-4 bg-border" />
-
-        <TooltipProvider delayDuration={300}>
-          {/* New folder */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                onClick={() => setCreateFolderOpen(true)}
-              >
-                <FolderPlus className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">New folder</TooltipContent>
-          </Tooltip>
-
-          {/* Refresh */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                onClick={handleRefresh}
-                disabled={isFetching}
-              >
-                {isFetching ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-3.5 w-3.5" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">Refresh</TooltipContent>
-          </Tooltip>
-
-          {/* Toggle hidden files */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                onClick={toggleHidden}
-                aria-pressed={showHidden}
-              >
-                {showHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent className="text-xs">
-              {showHidden ? "Hide hidden files" : "Show hidden files"}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-
       {/* File list */}
       <div className="flex-1 min-h-0">
         <FileList

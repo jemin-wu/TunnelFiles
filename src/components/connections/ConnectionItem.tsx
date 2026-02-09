@@ -50,13 +50,13 @@ export function ConnectionItem({
           onDoubleClick={() => onConnect(profile.id)}
         >
           {/* Name */}
-          <span className="text-xs font-medium truncate min-w-0 shrink" title={profile.name}>
+          <span className="text-sm font-medium truncate min-w-0 shrink" title={profile.name}>
             {profile.name}
           </span>
 
           {/* Host info */}
           <span
-            className="text-[11px] font-mono text-muted-foreground truncate min-w-0 shrink"
+            className="text-xs font-mono text-muted-foreground truncate min-w-0 shrink"
             title={`${profile.username}@${profile.host}:${profile.port}`}
           >
             {profile.username}@{profile.host}:{profile.port}

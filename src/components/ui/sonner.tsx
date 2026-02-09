@@ -34,7 +34,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
           toast: `
             group toast
             flex items-start gap-3 w-full p-4
-            border text-[12px]
+            border text-sm
             rounded-md
             transition-all duration-200 ease-in-out
 
@@ -122,10 +122,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
             data-[type=default]:text-foreground
           `,
           description: `
-            text-[11px] text-muted-foreground mt-1 opacity-80
+            text-xs text-muted-foreground mt-1 opacity-80
           `,
           actionButton: `
-            px-3 py-1.5 text-[11px] font-medium rounded-md
+            px-3 py-1.5 text-xs font-medium rounded-md
             transition-all duration-200
 
             /* 深色模式 */
@@ -137,7 +137,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
             hover:bg-primary/90
           `,
           cancelButton: `
-            px-3 py-1.5 text-[11px] font-medium rounded-md
+            px-3 py-1.5 text-xs font-medium rounded-md
             bg-muted text-muted-foreground border border-border
             hover:bg-muted/80
             transition-all duration-200

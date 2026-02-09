@@ -96,7 +96,7 @@ export function PasswordDialog({
             placeholder={isPassword ? "Enter SSH password" : "Enter key passphrase"}
             disabled={isConnecting}
             autoFocus
-            className="h-9 text-[13px]"
+            className="h-9"
           />
 
           <DialogFooter className="mt-4">
@@ -106,7 +106,7 @@ export function PasswordDialog({
               size="sm"
               onClick={() => handleOpenChange(false)}
               disabled={isConnecting}
-              className="text-xs h-8 px-3"
+              className="h-8 px-3"
             >
               Cancel
             </Button>
@@ -114,7 +114,7 @@ export function PasswordDialog({
               type="submit"
               size="sm"
               disabled={isConnecting || !value.trim()}
-              className="text-xs h-8 px-4"
+              className="h-8 px-4"
             >
               {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
             </Button>

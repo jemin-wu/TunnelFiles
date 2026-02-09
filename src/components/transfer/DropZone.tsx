@@ -49,7 +49,7 @@ export function DropZone({
               <p className="text-xs text-muted-foreground">
                 Release files into the current directory
               </p>
-              <div className="flex items-center justify-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-3 py-1 rounded">
+              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded">
                 <span>Target:</span>
                 <span className="font-mono text-foreground truncate max-w-[200px]">
                   {remotePath}

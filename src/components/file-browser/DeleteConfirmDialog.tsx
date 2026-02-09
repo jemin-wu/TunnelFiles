@@ -93,19 +93,19 @@ export function DeleteConfirmDialog({
                     <div className="flex flex-col items-center p-2 bg-background/30 rounded">
                       <File className="h-3.5 w-3.5 text-muted-foreground mb-1" />
                       <span className="text-foreground font-semibold">{stats.fileCount}</span>
-                      <span className="text-muted-foreground text-[10px]">files</span>
+                      <span className="text-muted-foreground text-xs">files</span>
                     </div>
                     <div className="flex flex-col items-center p-2 bg-background/30 rounded">
                       <Folder className="h-3.5 w-3.5 text-muted-foreground mb-1" />
                       <span className="text-foreground font-semibold">{stats.dirCount}</span>
-                      <span className="text-muted-foreground text-[10px]">dirs</span>
+                      <span className="text-muted-foreground text-xs">dirs</span>
                     </div>
                     <div className="flex flex-col items-center p-2 bg-background/30 rounded">
                       <HardDrive className="h-3.5 w-3.5 text-muted-foreground mb-1" />
                       <span className="text-foreground font-semibold">
                         {formatFileSize(stats.totalSize)}
                       </span>
-                      <span className="text-muted-foreground text-[10px]">total size</span>
+                      <span className="text-muted-foreground text-xs">total size</span>
                     </div>
                   </div>
                 </div>
@@ -129,7 +129,7 @@ export function DeleteConfirmDialog({
                     </span>
                   </div>
                   <Progress value={progressPercent} className="h-2" />
-                  <div className="text-[10px] font-mono text-muted-foreground truncate">
+                  <div className="text-xs font-mono text-muted-foreground truncate">
                     <span className="text-destructive/70">→</span> {progress.currentPath}
                   </div>
                 </div>
@@ -147,14 +147,14 @@ export function DeleteConfirmDialog({
         </AlertDialogHeader>
 
         <AlertDialogFooter className="gap-2">
-          <AlertDialogCancel disabled={isPending} className="text-xs">
+          <AlertDialogCancel disabled={isPending}>
             {isDeleting ? "Close" : "Cancel"}
           </AlertDialogCancel>
           {!isDeleting && (
             <AlertDialogAction
               onClick={onConfirm}
               disabled={isPending || isLoadingStats}
-              className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               {isNonEmptyDir ? "Delete all" : "Delete"}
