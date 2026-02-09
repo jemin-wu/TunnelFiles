@@ -149,11 +149,12 @@ pub async fn transfer_upload_dir(
 /// 取消传输
 #[tauri::command]
 pub async fn transfer_cancel(
+    app: AppHandle,
     transfer_manager: State<'_, Arc<TransferManager>>,
     task_id: String,
 ) -> AppResult<()> {
     tracing::info!(task_id = %task_id, "取消传输任务");
-    transfer_manager.cancel_task(&task_id).await
+    transfer_manager.cancel_task(Some(&app), &task_id).await
 }
 
 /// 重试传输

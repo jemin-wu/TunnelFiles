@@ -34,7 +34,12 @@ const createFileEntry = (overrides: Partial<FileEntry> = {}): FileEntry => ({
 const createMockFiles = (): FileEntry[] => [
   createFileEntry({ name: "folder1", path: "/home/user/folder1", isDir: true }),
   createFileEntry({ name: "file1.txt", path: "/home/user/file1.txt", mtime: 1700000100 }),
-  createFileEntry({ name: "file2.txt", path: "/home/user/file2.txt", size: 2048, mtime: 1700000200 }),
+  createFileEntry({
+    name: "file2.txt",
+    path: "/home/user/file2.txt",
+    size: 2048,
+    mtime: 1700000200,
+  }),
 ];
 
 describe("useFileList", () => {
@@ -84,31 +89,6 @@ describe("useFileList", () => {
       expect(invoke).toHaveBeenCalledWith("sftp_list_dir", {
         sessionId: "session-1",
         path: "/home/user",
-        sort: undefined,
-      });
-    });
-
-    it("should pass sort option to backend", async () => {
-      vi.mocked(invoke).mockResolvedValueOnce(createMockFiles());
-
-      const { result } = renderHook(
-        () =>
-          useFileList({
-            sessionId: "session-1",
-            path: "/home/user",
-            sort: { field: "mtime", order: "desc" },
-          }),
-        { wrapper }
-      );
-
-      await waitFor(() => {
-        expect(result.current.isLoading).toBe(false);
-      });
-
-      expect(invoke).toHaveBeenCalledWith("sftp_list_dir", {
-        sessionId: "session-1",
-        path: "/home/user",
-        sort: { field: "mtime", order: "desc" },
       });
     });
 
@@ -159,20 +139,18 @@ describe("useFileList", () => {
     });
 
     it("should not fetch when sessionId is empty", () => {
-      const { result } = renderHook(
-        () => useFileList({ sessionId: "", path: "/home/user" }),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useFileList({ sessionId: "", path: "/home/user" }), {
+        wrapper,
+      });
 
       expect(result.current.isLoading).toBe(false);
       expect(invoke).not.toHaveBeenCalled();
     });
 
     it("should not fetch when path is empty", () => {
-      const { result } = renderHook(
-        () => useFileList({ sessionId: "session-1", path: "" }),
-        { wrapper }
-      );
+      const { result } = renderHook(() => useFileList({ sessionId: "session-1", path: "" }), {
+        wrapper,
+      });
 
       expect(result.current.isLoading).toBe(false);
       expect(invoke).not.toHaveBeenCalled();
@@ -228,7 +206,6 @@ describe("useFileList", () => {
       expect(invoke).toHaveBeenLastCalledWith("sftp_list_dir", {
         sessionId: "session-1",
         path: "/home/user/subfolder",
-        sort: undefined,
       });
     });
   });

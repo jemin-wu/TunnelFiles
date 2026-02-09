@@ -97,6 +97,20 @@ impl ManagedSession {
             Err(_) => f(None, None),
         }
     }
+
+    /// 创建独立的 SFTP 通道
+    ///
+    /// 从同一个 SSH Session 创建新的 SFTP subsystem channel。
+    /// 每个通道是独立的，可以安全地在不同线程中使用。
+    /// 调用方必须在 `spawn_blocking` 中使用返回的 Sftp。
+    pub fn create_sftp_channel(&self) -> AppResult<Sftp> {
+        self.session.sftp().map_err(|e| {
+            AppError::new(
+                ErrorCode::RemoteIoError,
+                format!("无法创建 SFTP 通道: {}", e),
+            )
+        })
+    }
 }
 
 /// 连接结果

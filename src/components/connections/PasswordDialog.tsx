@@ -40,6 +40,7 @@ export function PasswordDialog({
 
   // Reset value when dialog opens to avoid stale credential
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state on prop change (intentional pattern)
     if (open) setValue("");
   }, [open]);
 

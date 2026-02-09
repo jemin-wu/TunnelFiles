@@ -78,7 +78,7 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded"
+                className="h-auto px-1.5 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded"
                 onClick={() => onNavigate(segment.path)}
               >
                 {segment.name}

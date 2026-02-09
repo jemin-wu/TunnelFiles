@@ -31,14 +31,6 @@ export interface SortSpec {
 }
 
 /**
- * 默认排序
- */
-export const DEFAULT_SORT: SortSpec = {
-  field: "name",
-  order: "asc",
-};
-
-/**
  * 格式化文件大小
  */
 export function formatFileSize(bytes?: number): string {

@@ -1,5 +1,5 @@
 /**
- * 传输任务队列组件 - Precision Engineering
+ * Transfer Queue Component - Precision Engineering
  */
 
 import { useCallback, useMemo } from "react";
@@ -80,7 +80,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
 
   return (
     <div className={cn("flex flex-col h-full", className)}>
-      {/* 工具栏 */}
+      {/* Toolbar */}
       {(activeTasks.length > 0 || completedTasks.length > 0) && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30">
           <div className="flex items-center gap-2 text-xs">
@@ -118,8 +118,8 @@ export function TransferQueue({ className }: TransferQueueProps) {
         </div>
       )}
 
-      {/* 任务列表 */}
-      <ScrollArea className="flex-1">
+      {/* Task list */}
+      <ScrollArea className="flex-1 min-h-0">
         <div className="divide-y divide-border/30">
           {tasks.map((task, index) => (
             <div
@@ -142,12 +142,20 @@ interface TransferItemProps {
 
 function TransferItem({ task }: TransferItemProps) {
   const removeTask = useTransferStore((s) => s.removeTask);
+  const updateStatus = useTransferStore((s) => s.updateStatus);
   const { status } = task;
   const isActive = ACTIVE_STATUSES.has(status);
 
   const handleCancel = useCallback(async () => {
-    await cancelTransfer(task.taskId);
-  }, [task.taskId]);
+    const previousStatus = task.status;
+    updateStatus({ taskId: task.taskId, status: "canceled" });
+    try {
+      await cancelTransfer(task.taskId);
+    } catch {
+      // Cancel failed (task may have already completed) - revert optimistic update
+      updateStatus({ taskId: task.taskId, status: previousStatus });
+    }
+  }, [task.taskId, task.status, updateStatus]);
 
   const handleRetry = useCallback(async () => {
     removeTask(task.taskId);

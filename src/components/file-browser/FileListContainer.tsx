@@ -2,14 +2,14 @@
  * File List Container Component - Precision Engineering
  */
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { FileList } from "./FileList";
-import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { RenameDialog } from "./RenameDialog";
 import { ChmodDialog } from "./ChmodDialog";
+import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { useFileList } from "@/hooks/useFileList";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
@@ -18,7 +18,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { downloadFile, downloadDirectory, getTransfer } from "@/lib/transfer";
 import { showSuccessToast, showErrorToast } from "@/lib/error";
-import { DEFAULT_SORT, type FileEntry, type SortField, type SortSpec } from "@/types";
+import { type FileEntry, type SortField, type SortSpec } from "@/types";
 import type { DirectoryStats } from "@/types/file";
 
 interface FileListContainerProps {
@@ -38,7 +38,7 @@ export function FileListContainer({
   createFolderOpen: createFolderOpenProp,
   onCreateFolderOpenChange,
 }: FileListContainerProps) {
-  const [sort, setSort] = useState<SortSpec>(DEFAULT_SORT);
+  const [sort, setSort] = useState<SortSpec | null>(null);
 
   // Create folder dialog state - controlled by parent when props provided
   const [createFolderOpenInternal, setCreateFolderOpenInternal] = useState(false);
@@ -55,14 +55,19 @@ export function FileListContainer({
   );
 
   const [renameOpen, setRenameOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
   const [chmodOpen, setChmodOpen] = useState(false);
   const [targetFile, setTargetFile] = useState<FileEntry | null>(null);
+
+  // Delete confirmation state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteFile, setDeleteFile] = useState<FileEntry | null>(null);
+  const [dirStats, setDirStats] = useState<DirectoryStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [deletingPath, setDeletingPath] = useState<string | null>(null);
 
   const { files: rawFiles, isLoading } = useFileList({
     sessionId,
     path: currentPath,
-    sort,
     enabled: !!sessionId,
   });
 
@@ -72,44 +77,40 @@ export function FileListContainer({
       currentPath,
     });
 
-  // Directory stats state (for delete confirm dialog)
-  const [dirStats, setDirStats] = useState<DirectoryStats | null>(null);
-  const [isLoadingStats, setIsLoadingStats] = useState(false);
-
-  // Listen for recursive delete progress
-  const { progress: deleteProgress, reset: resetDeleteProgress } = useDeleteProgress({
-    path: deleteRecursive.isPending ? (targetFile?.path ?? null) : null,
-  });
-
-  // When delete dialog opens, fetch stats if it's a directory
-  useEffect(() => {
-    if (!deleteOpen || !targetFile?.isDir) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset state when dialog closes or file changes
-      setDirStats(null);
-      return;
-    }
-
-    setIsLoadingStats(true);
-    getDirStats(targetFile.path)
-      .then((stats) => {
-        setDirStats(stats);
-      })
-      .catch((error) => {
-        console.warn("Failed to get directory stats:", error);
-        setDirStats(null);
-      })
-      .finally(() => {
-        setIsLoadingStats(false);
-      });
-  }, [deleteOpen, targetFile?.isDir, targetFile?.path, getDirStats]);
-
   const { settings } = useSettings();
   const addTask = useTransferStore((s) => s.addTask);
 
+  const { progress: deleteProgress } = useDeleteProgress({ path: deletingPath });
+
   const files = useMemo(() => {
-    if (showHidden) return rawFiles;
-    return rawFiles.filter((f) => !f.name.startsWith("."));
-  }, [rawFiles, showHidden]);
+    const filtered = showHidden ? rawFiles : rawFiles.filter((f) => !f.name.startsWith("."));
+
+    if (!sort) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      // Directories first
+      if (a.isDir && !b.isDir) return -1;
+      if (!a.isDir && b.isDir) return 1;
+
+      let cmp: number;
+      switch (sort.field) {
+        case "name":
+          cmp = a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+          break;
+        case "size":
+          cmp = (a.size ?? 0) - (b.size ?? 0);
+          break;
+        case "mtime":
+          cmp = (a.mtime ?? 0) - (b.mtime ?? 0);
+          break;
+        default:
+          cmp = 0;
+          break;
+      }
+
+      return sort.order === "desc" ? -cmp : cmp;
+    });
+  }, [rawFiles, showHidden, sort]);
 
   const { selectedFiles, selectFile, selectAll, clearSelection, isSelected, selectionCount } =
     useFileSelection(files);
@@ -139,10 +140,15 @@ export function FileListContainer({
   );
 
   const handleSortChange = useCallback((field: SortField) => {
-    setSort((prev) => ({
-      field,
-      order: prev.field === field && prev.order === "asc" ? "desc" : "asc",
-    }));
+    setSort((prev) => {
+      if (prev?.field !== field) {
+        return { field, order: "asc" as const };
+      }
+      if (prev.order === "asc") {
+        return { field, order: "desc" as const };
+      }
+      return null;
+    });
   }, []);
 
   const handleRename = useCallback((file: FileEntry) => {
@@ -166,9 +172,57 @@ export function FileListContainer({
     [targetFile, rename]
   );
 
-  const handleDelete = useCallback((file: FileEntry) => {
-    setTargetFile(file);
-    setDeleteOpen(true);
+  const handleDelete = useCallback(
+    (file: FileEntry) => {
+      setDeleteFile(file);
+      setDirStats(null);
+      setDeletingPath(null);
+      setDeleteDialogOpen(true);
+      if (file.isDir) {
+        setIsLoadingStats(true);
+        getDirStats(file.path)
+          .then(setDirStats)
+          .catch(() => setDirStats(null))
+          .finally(() => setIsLoadingStats(false));
+      }
+    },
+    [getDirStats]
+  );
+
+  const handleDeleteConfirm = useCallback(() => {
+    if (!deleteFile) return;
+    if (deleteFile.isDir) {
+      setDeletingPath(deleteFile.path);
+      deleteRecursive.mutate(
+        { path: deleteFile.path },
+        {
+          onSuccess: () => {
+            setDeleteDialogOpen(false);
+            setDeleteFile(null);
+            setDeletingPath(null);
+          },
+        }
+      );
+    } else {
+      deleteItem.mutate(
+        { path: deleteFile.path, isDir: false },
+        {
+          onSuccess: () => {
+            setDeleteDialogOpen(false);
+            setDeleteFile(null);
+          },
+        }
+      );
+    }
+  }, [deleteFile, deleteItem, deleteRecursive]);
+
+  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
+    if (!open) {
+      setDeleteDialogOpen(false);
+      setDeleteFile(null);
+      setDirStats(null);
+      setDeletingPath(null);
+    }
   }, []);
 
   const handleChmod = useCallback((file: FileEntry) => {
@@ -178,8 +232,6 @@ export function FileListContainer({
 
   const handleChmodSubmit = useCallback(
     (mode: number) => {
-      // Get list of files to change permissions for
-      // If multi-selected, use selected files; otherwise use target file
       const filesToChmod =
         selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : [];
       if (filesToChmod.length === 0) return;
@@ -201,7 +253,6 @@ export function FileListContainer({
   const handleDownload = useCallback(
     async (file: FileEntry) => {
       try {
-        // Prefer default download directory, otherwise prompt selection
         let localDir = settings.defaultDownloadDir;
         if (!localDir) {
           const selected = await openDialog({
@@ -209,12 +260,11 @@ export function FileListContainer({
             multiple: false,
             title: "Choose download location",
           });
-          if (!selected) return; // User cancelled
+          if (!selected) return;
           localDir = selected;
         }
 
         if (file.isDir) {
-          // Download directory
           const taskIds = await downloadDirectory(sessionId, file.path, localDir);
           if (taskIds.length === 0) {
             showSuccessToast("Directory is empty, no files to download");
@@ -226,7 +276,6 @@ export function FileListContainer({
           }
           showSuccessToast(`Created ${taskIds.length} download tasks`);
         } else {
-          // Download single file
           const taskId = await downloadFile(sessionId, file.path, localDir);
           const task = await getTransfer(taskId);
           if (task) addTask(task);
@@ -238,41 +287,6 @@ export function FileListContainer({
     },
     [sessionId, settings.defaultDownloadDir, addTask]
   );
-
-  const handleDeleteConfirm = useCallback(() => {
-    if (!targetFile) return;
-
-    // Check if recursive delete is needed: non-empty directory
-    const isNonEmptyDir =
-      targetFile.isDir && dirStats && (dirStats.fileCount > 0 || dirStats.dirCount > 0);
-
-    if (isNonEmptyDir) {
-      // Recursively delete non-empty directory
-      deleteRecursive.mutate(
-        { path: targetFile.path },
-        {
-          onSuccess: () => {
-            setDeleteOpen(false);
-            setTargetFile(null);
-            setDirStats(null);
-            resetDeleteProgress();
-          },
-        }
-      );
-    } else {
-      // Normal delete (file or empty directory)
-      deleteItem.mutate(
-        { path: targetFile.path, isDir: targetFile.isDir },
-        {
-          onSuccess: () => {
-            setDeleteOpen(false);
-            setTargetFile(null);
-            setDirStats(null);
-          },
-        }
-      );
-    }
-  }, [targetFile, dirStats, deleteItem, deleteRecursive, resetDeleteProgress]);
 
   const handleCreateFolderSubmit = useCallback(
     (name: string) => {
@@ -307,12 +321,10 @@ export function FileListContainer({
             } else if (action === "clearSelection") {
               clearSelection();
             } else if (action === "delete" && selectedFiles.length === 1) {
-              setTargetFile(selectedFiles[0]);
-              setDeleteOpen(true);
+              handleDelete(selectedFiles[0]);
             } else if (action === "newFolder") {
               setCreateFolderOpen(true);
             } else if (action === "preview" && selectedFiles.length === 1) {
-              // Space key preview - enter directory or download file
               const file = selectedFiles[0];
               if (file.isDir) {
                 navigateTo(file.path);
@@ -320,13 +332,11 @@ export function FileListContainer({
                 handleDownload(file);
               }
             } else if (action === "parentDir") {
-              // Cmd+Up: go to parent directory
               if (currentPath !== "/") {
                 const parentPath = currentPath.substring(0, currentPath.lastIndexOf("/")) || "/";
                 navigateTo(parentPath);
               }
             } else if (action === "rename" && selectedFiles.length === 1) {
-              // Cmd+R / F2: rename
               handleRename(selectedFiles[0]);
             }
           }}
@@ -354,25 +364,6 @@ export function FileListContainer({
         isPending={rename.isPending}
       />
 
-      {/* Delete confirm dialog */}
-      <DeleteConfirmDialog
-        open={deleteOpen}
-        onOpenChange={(open) => {
-          setDeleteOpen(open);
-          if (!open) {
-            setTargetFile(null);
-            setDirStats(null);
-            resetDeleteProgress();
-          }
-        }}
-        file={targetFile}
-        onConfirm={handleDeleteConfirm}
-        isPending={deleteItem.isPending || deleteRecursive.isPending}
-        stats={dirStats}
-        isLoadingStats={isLoadingStats}
-        progress={deleteProgress}
-      />
-
       {/* Chmod dialog */}
       <ChmodDialog
         open={chmodOpen}
@@ -383,6 +374,18 @@ export function FileListContainer({
         files={selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : []}
         onSubmit={handleChmodSubmit}
         isPending={chmod.isPending}
+      />
+
+      {/* Delete confirm dialog */}
+      <DeleteConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={handleDeleteDialogOpenChange}
+        file={deleteFile}
+        onConfirm={handleDeleteConfirm}
+        isPending={deleteItem.isPending || deleteRecursive.isPending}
+        stats={dirStats}
+        isLoadingStats={isLoadingStats}
+        progress={deleteProgress}
       />
     </div>
   );

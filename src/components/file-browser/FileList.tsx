@@ -21,7 +21,7 @@ interface FileListProps {
   isSelected: (path: string) => boolean;
   /** Selection count */
   selectionCount: number;
-  sort: SortSpec;
+  sort: SortSpec | null;
   onFileClick: (file: FileEntry, modifiers: { metaKey: boolean; shiftKey: boolean }) => void;
   onFileDblClick: (file: FileEntry) => void;
   onSortChange: (field: SortField) => void;
@@ -43,16 +43,16 @@ interface FileListProps {
   isLoading?: boolean;
 }
 
-const ROW_HEIGHT = 32;
+const ROW_HEIGHT = 36;
 const ICON_WIDTH = 24;
-const PERM_WIDTH = 80;
+const PERM_WIDTH = 88;
 const SIZE_WIDTH = 72;
-const MTIME_WIDTH = 112;
+const MTIME_WIDTH = 120;
 
 // Header cell component
 interface HeaderCellProps {
   field: SortField;
-  currentSort: SortSpec;
+  currentSort: SortSpec | null;
   onSort: (field: SortField) => void;
   children: React.ReactNode;
   className?: string;
@@ -60,29 +60,28 @@ interface HeaderCellProps {
 }
 
 function HeaderCell({ field, currentSort, onSort, children, className, style }: HeaderCellProps) {
-  const isActive = currentSort.field === field;
+  const isActive = currentSort?.field === field;
 
   return (
-    <div style={style}>
+    <div className={cn("flex", className)} style={style}>
       <Button
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 gap-1 w-full justify-start text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
-          isActive && "text-primary bg-primary/5",
-          className
+          "h-auto p-0 has-[>svg]:px-0 gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
+          isActive && "text-primary"
         )}
         onClick={() => onSort(field)}
       >
         {children}
         {isActive ? (
-          currentSort.order === "asc" ? (
-            <ChevronUp className="h-3 w-3" />
+          currentSort!.order === "asc" ? (
+            <ChevronUp className="size-3" />
           ) : (
-            <ChevronDown className="h-3 w-3" />
+            <ChevronDown className="size-3" />
           )
         ) : (
-          <ChevronUp className="h-3 w-3 opacity-0" />
+          <ChevronUp className="size-3 opacity-0" />
         )}
       </Button>
     </div>
@@ -103,6 +102,7 @@ const FileRow = memo(function FileRow({
   onClick,
   onDoubleClick,
   className,
+  style,
   ...rest
 }: FileRowProps) {
   return (
@@ -116,7 +116,7 @@ const FileRow = memo(function FileRow({
         isSelected && "bg-primary/10 !border-l-primary",
         className
       )}
-      style={{ height: ROW_HEIGHT }}
+      style={{ ...style, height: ROW_HEIGHT }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={(e) => {
@@ -324,7 +324,9 @@ export function FileList({
           <p className="text-sm">Directory is empty</p>
           <div className="flex flex-col items-center gap-0.5">
             <p className="text-xs text-muted-foreground/50">Drag files here to upload</p>
-            <p className="text-xs text-muted-foreground/40">or press &#8984;N to create a folder</p>
+            <p className="text-xs text-muted-foreground/40">
+              or press {/Mac/.test(navigator.userAgent) ? "\u2318" : "Ctrl+"}N to create a folder
+            </p>
           </div>
         </div>
       </div>
@@ -339,7 +341,7 @@ export function FileList({
         {/* Header */}
         <div
           role="row"
-          className="flex items-center h-7 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
+          className="flex items-center h-8 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
         >
           <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
           <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>

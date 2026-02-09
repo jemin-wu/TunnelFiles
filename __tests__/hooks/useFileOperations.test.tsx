@@ -63,7 +63,7 @@ describe("useFileOperations", () => {
         sessionId: "session-1",
         path: "/home/user/new-folder",
       });
-      expect(toast.success).toHaveBeenCalledWith("文件夹创建成功", expect.anything());
+      expect(toast.success).toHaveBeenCalledWith("Folder created", expect.anything());
     });
 
     it("should handle root path correctly", async () => {
@@ -128,7 +128,7 @@ describe("useFileOperations", () => {
         fromPath: "/home/user/old-name.txt",
         toPath: "/home/user/new-name.txt",
       });
-      expect(toast.success).toHaveBeenCalledWith("重命名成功", expect.anything());
+      expect(toast.success).toHaveBeenCalledWith("Renamed successfully", expect.anything());
     });
 
     it("should handle root level rename", async () => {
@@ -200,7 +200,7 @@ describe("useFileOperations", () => {
         path: "/home/user/file.txt",
         isDir: false,
       });
-      expect(toast.success).toHaveBeenCalledWith("删除成功", expect.anything());
+      expect(toast.success).toHaveBeenCalledWith("Deleted successfully", expect.anything());
     });
 
     it("should call sftp_delete for directory", async () => {

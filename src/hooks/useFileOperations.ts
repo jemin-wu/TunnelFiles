@@ -1,6 +1,6 @@
 /**
- * 文件操作 Hook
- * 封装 mkdir, rename, delete, chmod, getDirStats 操作
+ * File Operations Hook
+ * Wraps mkdir, rename, delete, chmod, getDirStats operations
  */
 
 import { useCallback } from "react";
@@ -17,21 +17,19 @@ interface UseFileOperationsOptions {
 export function useFileOperations({ sessionId, currentPath }: UseFileOperationsOptions) {
   const queryClient = useQueryClient();
 
-  // 刷新当前目录列表
   const invalidateFileList = () => {
     queryClient.invalidateQueries({
       queryKey: ["files", sessionId, currentPath],
     });
   };
 
-  // 创建目录
   const createFolder = useMutation({
     mutationFn: async (name: string) => {
       const path = currentPath === "/" ? `/${name}` : `${currentPath}/${name}`;
       await sftp.mkdir(sessionId, path);
     },
     onSuccess: () => {
-      showSuccessToast("文件夹创建成功");
+      showSuccessToast("Folder created");
       invalidateFileList();
     },
     onError: (error) => {
@@ -39,7 +37,6 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 重命名
   const rename = useMutation({
     mutationFn: async ({ fromPath, newName }: { fromPath: string; newName: string }) => {
       const parentPath = fromPath.substring(0, fromPath.lastIndexOf("/")) || "/";
@@ -47,7 +44,7 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
       await sftp.rename(sessionId, fromPath, toPath);
     },
     onSuccess: () => {
-      showSuccessToast("重命名成功");
+      showSuccessToast("Renamed successfully");
       invalidateFileList();
     },
     onError: (error) => {
@@ -55,13 +52,12 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 删除（空目录/文件）
   const deleteItem = useMutation({
     mutationFn: async ({ path, isDir }: { path: string; isDir: boolean }) => {
       await sftp.deleteItem(sessionId, path, isDir);
     },
     onSuccess: () => {
-      showSuccessToast("删除成功");
+      showSuccessToast("Deleted successfully");
       invalidateFileList();
     },
     onError: (error) => {
@@ -69,7 +65,6 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 递归删除（非空目录）
   const deleteRecursive = useMutation({
     mutationFn: async ({ path }: { path: string }) => {
       return await sftp.deleteRecursive(sessionId, path);
@@ -77,13 +72,11 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     onSuccess: (result) => {
       const total = result.deletedFiles + result.deletedDirs;
       if (result.failures.length === 0) {
-        showSuccessToast(`删除成功 (${result.deletedFiles} 文件, ${result.deletedDirs} 目录)`);
+        showSuccessToast(`Deleted ${result.deletedFiles} files, ${result.deletedDirs} directories`);
       } else if (total > 0) {
-        showSuccessToast(
-          `部分删除: ${total} 成功, ${result.failures.length} 失败`
-        );
+        showSuccessToast(`Partial delete: ${total} succeeded, ${result.failures.length} failed`);
       } else {
-        showErrorToast(new Error(`删除失败: ${result.failures[0]?.error}`));
+        showErrorToast(new Error(`Delete failed: ${result.failures[0]?.error}`));
       }
       invalidateFileList();
     },
@@ -92,20 +85,19 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 修改权限
   const chmod = useMutation({
     mutationFn: async ({ paths, mode }: { paths: string[]; mode: number }) => {
       return await sftp.chmod(sessionId, paths, mode);
     },
     onSuccess: (result) => {
       if (result.failures.length === 0) {
-        showSuccessToast(`权限修改成功 (${result.successCount} 个文件)`);
+        showSuccessToast(`Permissions changed (${result.successCount} files)`);
       } else if (result.successCount > 0) {
         showSuccessToast(
-          `部分成功: ${result.successCount} 成功, ${result.failures.length} 失败`
+          `Partial success: ${result.successCount} succeeded, ${result.failures.length} failed`
         );
       } else {
-        showErrorToast(new Error(`权限修改失败: ${result.failures[0]?.error}`));
+        showErrorToast(new Error(`Permission change failed: ${result.failures[0]?.error}`));
       }
       invalidateFileList();
     },
@@ -114,11 +106,7 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
-  // 获取目录统计信息（用于删除确认对话框）
-  const getDirStats = useCallback(
-    (path: string) => sftp.getDirStats(sessionId, path),
-    [sessionId]
-  );
+  const getDirStats = useCallback((path: string) => sftp.getDirStats(sessionId, path), [sessionId]);
 
   return {
     createFolder,

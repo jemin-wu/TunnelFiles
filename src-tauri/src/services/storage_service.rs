@@ -67,14 +67,18 @@ impl Database {
     /// 初始化数据库
     pub fn init() -> AppResult<Self> {
         let db_path = get_database_path();
+        Self::init_with_path(&db_path)
+    }
 
+    /// 使用指定路径初始化数据库（用于测试）
+    pub fn init_with_path(db_path: &std::path::Path) -> AppResult<Self> {
         // 确保目录存在
         if let Some(parent) = db_path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| AppError::local_io_error(format!("无法创建数据目录: {}", e)))?;
         }
 
-        let conn = Connection::open(&db_path)
+        let conn = Connection::open(db_path)
             .map_err(|e| AppError::local_io_error(format!("无法打开数据库: {}", e)))?;
 
         // 启用 WAL 模式，提升并发性能

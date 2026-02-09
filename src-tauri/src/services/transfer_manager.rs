@@ -630,111 +630,135 @@ impl TransferManager {
     }
 
     /// 执行传输任务
+    ///
+    /// 每次执行会创建独立的 SFTP 通道，避免多个并发传输共享同一通道导致 SSH 协议损坏。
+    /// 重试使用循环而非递归，确保信号量许可在每次尝试后正确释放。
     pub async fn execute_task(
         &self,
         app: AppHandle,
         session_manager: Arc<SessionManager>,
         task_id: String,
     ) -> AppResult<()> {
-        // 获取任务信息
-        let (task_clone, cancel_token, retry_count) = {
-            let tasks = self.tasks.read().await;
-            let internal = tasks
-                .get(&task_id)
-                .ok_or_else(|| AppError::not_found(format!("任务不存在: {}", task_id)))?;
-            (
-                internal.task.clone(),
-                internal.cancel_token.clone(),
-                internal.retry_count,
-            )
-        };
+        loop {
+            // 获取任务信息
+            let (task_clone, cancel_token, retry_count) = {
+                let tasks = self.tasks.read().await;
+                let internal = tasks
+                    .get(&task_id)
+                    .ok_or_else(|| AppError::not_found(format!("任务不存在: {}", task_id)))?;
+                (
+                    internal.task.clone(),
+                    internal.cancel_token.clone(),
+                    internal.retry_count,
+                )
+            };
 
-        // 检查任务状态
-        if task_clone.status != TransferStatus::Waiting {
-            return Err(AppError::new(
-                ErrorCode::InvalidArgument,
-                format!("任务状态无效: {:?}", task_clone.status),
-            ));
-        }
+            // 检查任务状态
+            if task_clone.status != TransferStatus::Waiting {
+                return Err(AppError::new(
+                    ErrorCode::InvalidArgument,
+                    format!("任务状态无效: {:?}", task_clone.status),
+                ));
+            }
 
-        // 获取会话
-        let session = session_manager.get_session(&task_clone.session_id)?;
+            // 在获取信号量前检查取消
+            if cancel_token.is_cancelled() {
+                return Ok(());
+            }
 
-        // 获取信号量许可
-        let semaphore = self.semaphore.clone();
-        let _permit = semaphore
-            .acquire()
+            // 获取会话
+            let session = session_manager.get_session(&task_clone.session_id)?;
+
+            // 获取信号量许可（作用域限定，确保每次循环迭代后释放）
+            let semaphore = self.semaphore.clone();
+            let _permit = semaphore
+                .acquire()
+                .await
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取传输许可"))?;
+
+            // 获取信号量后再次检查取消
+            if cancel_token.is_cancelled() {
+                return Ok(());
+            }
+
+            // 创建独立的 SFTP 通道（每个传输任务独占一个通道，避免并发访问同一通道）
+            let sftp = tokio::task::spawn_blocking({
+                let session = session.clone();
+                move || session.create_sftp_channel()
+            })
             .await
-            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取传输许可"))?;
+            .map_err(|e| AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e)))??;
 
-        // 更新状态为 Running
-        self.update_status(&task_id, TransferStatus::Running).await;
-        self.emit_status(&app, &task_id, TransferStatus::Running, None);
+            // 更新状态为 Running
+            self.update_status(&task_id, TransferStatus::Running).await;
+            self.emit_status(&app, &task_id, TransferStatus::Running, None);
 
-        // 执行传输（在阻塞线程中，传递整个 session）
-        let result = tokio::task::spawn_blocking({
-            let app = app.clone();
-            let task = task_clone.clone();
-            let cancel_token = cancel_token.clone();
-            move || match task.direction {
-                TransferDirection::Upload => {
-                    Self::do_upload_sync(&app, &session.sftp, &task, &cancel_token)
+            // 执行传输（在阻塞线程中，使用独立的 SFTP 通道）
+            let result = tokio::task::spawn_blocking({
+                let app = app.clone();
+                let task = task_clone.clone();
+                let cancel_token = cancel_token.clone();
+                move || match task.direction {
+                    TransferDirection::Upload => {
+                        Self::do_upload_sync(&app, &sftp, &task, &cancel_token)
+                    }
+                    TransferDirection::Download => {
+                        Self::do_download_sync(&app, &sftp, &task, &cancel_token)
+                    }
                 }
-                TransferDirection::Download => {
-                    Self::do_download_sync(&app, &session.sftp, &task, &cancel_token)
+            })
+            .await
+            .map_err(|e| AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e)))?;
+
+            match result {
+                Ok(()) => {
+                    self.update_status(&task_id, TransferStatus::Success).await;
+                    self.emit_status(&app, &task_id, TransferStatus::Success, None);
+                    tracing::info!(task_id = %task_id, "传输成功");
+                    return Ok(());
                 }
-            }
-        })
-        .await
-        .map_err(|e| AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e)))?;
+                Err(e) if e.code == ErrorCode::Canceled => {
+                    self.update_status(&task_id, TransferStatus::Canceled).await;
+                    self.emit_status(&app, &task_id, TransferStatus::Canceled, None);
+                    tracing::info!(task_id = %task_id, "传输已取消");
+                    return Ok(());
+                }
+                Err(e) => {
+                    let retryable = e.retryable.unwrap_or(false);
 
-        match result {
-            Ok(()) => {
-                self.update_status(&task_id, TransferStatus::Success).await;
-                self.emit_status(&app, &task_id, TransferStatus::Success, None);
-                tracing::info!(task_id = %task_id, "传输成功");
-            }
-            Err(e) if e.code == ErrorCode::Canceled => {
-                self.update_status(&task_id, TransferStatus::Canceled).await;
-                self.emit_status(&app, &task_id, TransferStatus::Canceled, None);
-                tracing::info!(task_id = %task_id, "传输已取消");
-            }
-            Err(e) => {
-                let retryable = e.retryable.unwrap_or(false);
+                    // 自动重试（循环方式，_permit 在本次迭代结束时自动释放）
+                    if retryable && retry_count < DEFAULT_RETRY_COUNT {
+                        let delay = Duration::from_secs(1 << retry_count); // 1s, 2s, 4s...
+                        tracing::info!(
+                            task_id = %task_id,
+                            retry_count = retry_count + 1,
+                            delay_secs = delay.as_secs(),
+                            "将自动重试"
+                        );
 
-                // 自动重试
-                if retryable && retry_count < DEFAULT_RETRY_COUNT {
-                    let delay = Duration::from_secs(1 << retry_count); // 1s, 2s, 4s...
-                    tracing::info!(
-                        task_id = %task_id,
-                        retry_count = retry_count + 1,
-                        delay_secs = delay.as_secs(),
-                        "将自动重试"
-                    );
-
-                    {
-                        let mut tasks = self.tasks.write().await;
-                        if let Some(internal) = tasks.get_mut(&task_id) {
-                            internal.retry_count += 1;
-                            internal.task.status = TransferStatus::Waiting;
-                            internal.task.transferred = 0;
+                        {
+                            let mut tasks = self.tasks.write().await;
+                            if let Some(internal) = tasks.get_mut(&task_id) {
+                                internal.retry_count += 1;
+                                internal.task.status = TransferStatus::Waiting;
+                                internal.task.transferred = 0;
+                            }
                         }
+
+                        // 释放信号量许可后再等待重试
+                        drop(_permit);
+                        tokio::time::sleep(delay).await;
+                        continue; // 重新进入循环，重新获取信号量
                     }
 
-                    tokio::time::sleep(delay).await;
-
-                    // 递归重试
-                    return Box::pin(self.execute_task(app, session_manager, task_id)).await;
+                    // 最终失败
+                    self.update_error(&task_id, &e).await;
+                    self.emit_status(&app, &task_id, TransferStatus::Failed, Some(&e));
+                    tracing::error!(task_id = %task_id, error = %e.message, "传输失败");
+                    return Ok(());
                 }
-
-                // 最终失败
-                self.update_error(&task_id, &e).await;
-                self.emit_status(&app, &task_id, TransferStatus::Failed, Some(&e));
-                tracing::error!(task_id = %task_id, error = %e.message, "传输失败");
             }
         }
-
-        Ok(())
     }
 
     /// 同步执行上传
@@ -867,21 +891,35 @@ impl TransferManager {
     }
 
     /// 取消任务
-    pub async fn cancel_task(&self, task_id: &str) -> AppResult<()> {
-        let tasks = self.tasks.read().await;
-        let internal = tasks
-            .get(task_id)
-            .ok_or_else(|| AppError::not_found(format!("任务不存在: {}", task_id)))?;
+    pub async fn cancel_task(&self, app: Option<&AppHandle>, task_id: &str) -> AppResult<()> {
+        // 先读取当前状态
+        let current_status = {
+            let tasks = self.tasks.read().await;
+            let internal = tasks
+                .get(task_id)
+                .ok_or_else(|| AppError::not_found(format!("任务不存在: {}", task_id)))?;
+            internal.cancel_token.cancel();
+            internal.task.status.clone()
+        };
 
-        match internal.task.status {
-            TransferStatus::Waiting | TransferStatus::Running => {
-                internal.cancel_token.cancel();
+        match current_status {
+            TransferStatus::Waiting => {
+                // Waiting 任务还没进入 spawn_blocking，直接更新状态并通知前端
+                self.update_status(task_id, TransferStatus::Canceled).await;
+                if let Some(app) = app {
+                    self.emit_status(app, task_id, TransferStatus::Canceled, None);
+                }
+                tracing::info!(task_id = %task_id, "等待中的任务已取消");
+            }
+            TransferStatus::Running => {
+                // Running 任务由 cancel_token 在 spawn_blocking 中触发取消
                 tracing::info!(task_id = %task_id, "取消信号已发送");
-                Ok(())
             }
             // 已完成的任务取消静默成功（幂等）
-            _ => Ok(()),
+            _ => {}
         }
+
+        Ok(())
     }
 
     /// 重试失败的任务
@@ -991,9 +1029,8 @@ impl Default for TransferManager {
     }
 }
 
-// 安全性：TransferManager 可以跨线程共享
-unsafe impl Send for TransferManager {}
-unsafe impl Sync for TransferManager {}
+// TransferManager 的所有字段（RwLock<HashMap> 和 Arc<Semaphore>）
+// 天然满足 Send + Sync，无需 unsafe impl。
 
 #[cfg(test)]
 mod tests {
@@ -1347,13 +1384,13 @@ mod tests {
     #[tokio::test]
     async fn test_cancel_nonexistent_task() {
         let manager = TransferManager::new(3);
-        let result = manager.cancel_task("nonexistent").await;
+        let result = manager.cancel_task(None, "nonexistent").await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code, ErrorCode::NotFound);
     }
 
     #[tokio::test]
-    async fn test_cancel_waiting_task_sets_token() {
+    async fn test_cancel_waiting_task_sets_token_and_status() {
         let manager = TransferManager::new(3);
         let temp_file = create_temp_file(b"data");
 
@@ -1374,9 +1411,14 @@ mod tests {
 
         assert!(!cancel_token.is_cancelled());
 
-        manager.cancel_task(&task_id).await.unwrap();
+        manager.cancel_task(None, &task_id).await.unwrap();
 
         assert!(cancel_token.is_cancelled());
+
+        // Waiting 任务取消后状态应直接变为 Canceled
+        let task = manager.get_task(&task_id).await.unwrap();
+        assert_eq!(task.status, TransferStatus::Canceled);
+        assert!(task.completed_at.is_some());
     }
 
     #[tokio::test]
@@ -1399,7 +1441,7 @@ mod tests {
             .await;
 
         // 取消应该静默成功
-        let result = manager.cancel_task(&task_id).await;
+        let result = manager.cancel_task(None, &task_id).await;
         assert!(result.is_ok());
 
         // 状态不变

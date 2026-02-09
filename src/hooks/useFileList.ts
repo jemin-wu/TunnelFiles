@@ -6,12 +6,11 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { invokeWithErrorHandling } from "@/lib/error";
 import * as sftp from "@/lib/sftp";
-import type { FileEntry, SortSpec } from "@/types";
+import type { FileEntry } from "@/types";
 
 interface UseFileListOptions {
   sessionId: string;
   path: string;
-  sort?: SortSpec;
   enabled?: boolean;
 }
 
@@ -24,13 +23,13 @@ interface UseFileListReturn {
 }
 
 export function useFileList(options: UseFileListOptions): UseFileListReturn {
-  const { sessionId, path, sort, enabled = true } = options;
+  const { sessionId, path, enabled = true } = options;
 
   const query = useQuery({
-    queryKey: ["files", sessionId, path, sort],
+    queryKey: ["files", sessionId, path],
     queryFn: async () => {
       const files = await invokeWithErrorHandling<FileEntry[]>(
-        () => sftp.listDir(sessionId, path, sort),
+        () => sftp.listDir(sessionId, path),
         { showToast: true }
       );
       return files ?? [];

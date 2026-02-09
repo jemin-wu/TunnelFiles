@@ -3,7 +3,7 @@
  * Supports Files/Terminal tab switching with unified toolbar
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Loader2,
@@ -33,7 +33,6 @@ import { useFileList } from "@/hooks/useFileList";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cn } from "@/lib/utils";
 import type { TerminalStatusPayload } from "@/types/terminal";
-import { DEFAULT_SORT } from "@/types";
 
 type TabMode = "files" | "terminal";
 
@@ -189,7 +188,7 @@ function PageToolbar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
               onClick={() => onTabChange("files")}
             >
               <FolderOpen
@@ -208,7 +207,7 @@ function PageToolbar({
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
               onClick={() => onTabChange("terminal")}
             >
               <TerminalSquare
@@ -367,7 +366,7 @@ export function FileManagerPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(getInitialSidebarCollapsed);
-  const [currentPath, setCurrentPath] = useState("/");
+  const [navigatedPath, setNavigatedPath] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
 
@@ -390,14 +389,8 @@ export function FileManagerPage() {
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
 
-  // Initialize currentPath to homePath when session loads (once only)
-  const initializedRef = useRef(false);
-  useEffect(() => {
-    if (!initializedRef.current && sessionInfo?.homePath && currentPath === "/") {
-      initializedRef.current = true;
-      setCurrentPath(sessionInfo.homePath);
-    }
-  }, [sessionInfo?.homePath, currentPath]);
+  // Derive currentPath: user-navigated path > session homePath > "/"
+  const currentPath = navigatedPath ?? sessionInfo?.homePath ?? "/";
 
   // Active transfer count for collapsed sidebar badge
   const activeTransferCount = useTransferStore((s) => s.getActiveTasks().length);
@@ -410,7 +403,6 @@ export function FileManagerPage() {
   } = useFileList({
     sessionId: sessionId ?? "",
     path: currentPath,
-    sort: DEFAULT_SORT,
     enabled: !!sessionId,
   });
 
@@ -494,7 +486,7 @@ export function FileManagerPage() {
   }, []);
 
   const handlePathChange = useCallback((path: string) => {
-    setCurrentPath(path);
+    setNavigatedPath(path);
   }, []);
 
   if (!sessionId || isLoading) {
@@ -570,7 +562,7 @@ export function FileManagerPage() {
         >
           <div className="flex flex-col h-full border-l border-border bg-sidebar">
             {/* Sidebar header */}
-            <div className="flex items-center justify-between px-3 h-10 border-b border-sidebar-border bg-sidebar">
+            <div className="flex items-center justify-between px-3 h-9 border-b border-sidebar-border bg-sidebar">
               <div className="flex items-center gap-2">
                 <Activity className="h-3.5 w-3.5 text-accent" />
                 <span className="text-sm font-medium">Transfer queue</span>
@@ -581,7 +573,7 @@ export function FileManagerPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 hover:bg-primary/10 hover:text-primary"
+                      className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
                       onClick={toggleSidebar}
                     >
                       <PanelRightClose className="h-3.5 w-3.5" />
@@ -613,33 +605,36 @@ export function FileManagerPage() {
 
       {/* Collapsed sidebar - fixed width */}
       <div
-        className="flex flex-col items-center gap-2 py-3 px-1 h-full border-l border-border/60 bg-sidebar shrink-0"
+        className="flex flex-col items-center h-full border-l border-border/60 bg-sidebar shrink-0"
         style={{ width: COLLAPSED_SIDEBAR_WIDTH }}
       >
-        <TooltipProvider delayDuration={300}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                onClick={toggleSidebar}
-              >
-                <PanelRightOpen className="h-3.5 w-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left" className="text-xs">
-              Expand transfer queue
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        {/* Top bar aligned with toolbar h-9 */}
+        <div className="flex items-center justify-center h-9 w-full shrink-0 border-b border-border">
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  onClick={toggleSidebar}
+                >
+                  <PanelRightOpen className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="left" className="text-xs">
+                Expand transfer queue
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
 
         {/* Collapsed state: Activity icon with active transfer badge */}
-        <div className="flex flex-col items-center gap-1 mt-2">
+        <div className="flex flex-col items-center gap-1 mt-3">
           <div className="relative">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
             {activeTransferCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[14px] h-[14px] rounded-full bg-primary text-primary-foreground text-[9px] font-medium flex items-center justify-center px-0.5">
+              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-0.5 leading-none">
                 {activeTransferCount}
               </span>
             )}

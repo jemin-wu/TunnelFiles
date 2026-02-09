@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 TunnelFiles - Cross-platform desktop SSH/SFTP visual file manager
 
 **Tech Stack:**
+
 - Frontend: React 19 + TypeScript + TailwindCSS 4 + shadcn/ui
 - Backend: Rust + Tauri 2 + ssh2 + tokio
 - State: TanStack Query (server) + Zustand (real-time)
@@ -16,24 +17,25 @@ TunnelFiles - Cross-platform desktop SSH/SFTP visual file manager
 
 Use skills to drive development:
 
-| Task | Skill | Description |
-|------|-------|-------------|
-| New feature | `/feature-dev` | Six-phase TDD workflow with acceptance |
-| Bug fix | `/debug` | Four-phase: Reproduce -> Investigate -> Fix -> Validate |
-| Quality check | `/acceptance` | Multi-mode: Code review + UX review + Tests |
-| Product planning | `/product-planning` | Competitive analysis -> Feature roadmap |
-| Auto-repair | `/self-heal` | Run tests -> Diagnose -> Fix -> Verify |
+| Task             | Skill               | Description                                             |
+| ---------------- | ------------------- | ------------------------------------------------------- |
+| New feature      | `/feature-dev`      | Six-phase TDD workflow with acceptance                  |
+| Bug fix          | `/bug-fix`          | Four-phase: Reproduce -> Investigate -> Fix -> Validate |
+| Quality check    | `/acceptance`       | Multi-mode: Code review + UX review + Tests + Contract  |
+| Product planning | `/product-planning` | Competitive analysis -> Feature roadmap                 |
+| Auto-repair      | `/self-heal`        | Run tests -> Diagnose -> Fix -> Verify                  |
 
 ## Agents
 
-| Agent | Purpose |
-|-------|---------|
-| `code-explorer` | Deep codebase analysis, execution path tracing |
-| `code-architect` | Architecture design, implementation blueprints |
-| `code-reviewer` | Code review, security audit, convention compliance |
-| `competitor-analyst` | Market research, competitive feature analysis |
-| `ux-reviewer` | UI/UX consistency, accessibility, design system audit |
-| `test-runner` | Test execution, failure collection, result reporting |
+| Agent                | Purpose                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| `code-explorer`      | Deep codebase analysis, execution path tracing                |
+| `code-architect`     | Architecture design, implementation blueprints                |
+| `code-reviewer`      | Code review, security audit, convention compliance            |
+| `contract-verifier`  | IPC contract alignment between Rust commands and TS types/Zod |
+| `competitor-analyst` | Market research, competitive feature analysis                 |
+| `ux-reviewer`        | UI/UX consistency, accessibility, design system audit         |
+| `test-runner`        | Test execution, failure collection, result reporting          |
 
 ## Quick Commands
 
@@ -65,7 +67,7 @@ cd src-tauri && cargo test  # Backend tests
 
 ```
 .claude/
-├── agents/          # 6 specialized agents
+├── agents/          # 7 specialized agents
 ├── hooks/           # Formatting scripts (prettier, rustfmt)
 ├── rules/           # Coding rules by domain
 │   ├── rust/        # Rust backend rules
@@ -75,7 +77,7 @@ cd src-tauri && cargo test  # Backend tests
 ├── settings.json    # Project-level hook configuration
 └── skills/          # 5 development workflow skills
     ├── feature-dev/ # TDD feature development
-    ├── debug/       # Bug diagnosis and fix
+    ├── bug-fix/     # Bug diagnosis and fix
     ├── acceptance/  # Quality verification
     ├── product-planning/  # Competitive analysis
     └── self-heal/   # Auto test and repair
