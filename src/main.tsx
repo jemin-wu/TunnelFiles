@@ -9,10 +9,7 @@ import { queryClient } from "./lib/query";
 import { Toaster } from "./components/ui/sonner";
 import "./index.css";
 
-/**
- * 全局键盘事件处理
- * - Escape: 关闭所有 Toast（桌面应用可访问性标准）
- */
+/** Global keyboard handler - Escape dismisses all toasts */
 function useGlobalKeyboardHandler() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -32,13 +29,7 @@ function App() {
   return (
     <>
       <RouterProvider router={router} />
-      <Toaster
-        position="top-right"
-        expand={false}
-        visibleToasts={3}
-        gap={8}
-        offset={16}
-      />
+      <Toaster position="bottom-right" expand={false} visibleToasts={3} gap={8} offset={16} />
     </>
   );
 }

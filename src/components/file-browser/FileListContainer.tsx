@@ -3,7 +3,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect } from "react";
-import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus, TerminalSquare } from "lucide-react";
+import { RefreshCw, Eye, EyeOff, Loader2, FolderPlus } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Breadcrumb } from "./Breadcrumb";
@@ -30,8 +30,6 @@ interface FileListContainerProps {
   initialPath?: string;
   homePath?: string;
   onPathChange?: (path: string) => void;
-  /** Switch to Terminal mode */
-  onSwitchToTerminal?: () => void;
 }
 
 export function FileListContainer({
@@ -39,7 +37,6 @@ export function FileListContainer({
   initialPath = "/",
   homePath,
   onPathChange,
-  onSwitchToTerminal,
 }: FileListContainerProps) {
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [sort, setSort] = useState<SortSpec>(DEFAULT_SORT);
@@ -294,28 +291,7 @@ export function FileListContainer({
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/50">
-        {/* Switch to Terminal */}
-        {onSwitchToTerminal && (
-          <>
-            <TooltipProvider delayDuration={300}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 hover:bg-accent/10 hover:text-accent"
-                    onClick={onSwitchToTerminal}
-                  >
-                    <TerminalSquare className="h-3.5 w-3.5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="text-xs">Switch to terminal (⌘2)</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </>
-        )}
-
+      <div className="flex items-center gap-1.5 px-2 h-9 border-b border-border bg-card/30 shrink-0">
         {/* Breadcrumb navigation */}
         <Breadcrumb
           path={currentPath}
@@ -325,15 +301,11 @@ export function FileListContainer({
         />
 
         {/* File count & selection count */}
-        <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground shrink-0">
-          <span>
-            <span className="text-primary font-mono">{files.length}</span>
-            <span className="ml-1">items</span>
-          </span>
+        <div className="hidden sm:flex items-center text-xs text-muted-foreground tabular-nums shrink-0">
+          <span>{files.length} items</span>
           {selectionCount > 0 && (
-            <span className="animate-in fade-in duration-150">
-              <span className="text-primary font-mono">{selectionCount}</span>
-              <span className="ml-1">selected</span>
+            <span className="ml-1.5 text-primary animate-in fade-in duration-150">
+              · {selectionCount} selected
             </span>
           )}
         </div>

@@ -5,16 +5,22 @@
 
 import { useRef, useCallback, useEffect, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, FolderOpen } from "lucide-react";
+import { ChevronUp, ChevronDown, FolderOpen, Loader2 } from "lucide-react";
 
 import { FileIcon } from "./FileIcon";
 import { FileContextMenu } from "./FileContextMenu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { formatFileTime } from "@/lib/file";
-import { formatFileSize } from "@/types/file";
+import { formatFileSize, formatFileMode } from "@/types/file";
 import { cn } from "@/lib/utils";
-import { useColumnWidths, type ColumnKey, type ColumnWidths } from "@/hooks/useColumnWidths";
+import {
+  useColumnWidths,
+  ICON_WIDTH,
+  PERM_WIDTH,
+  type ColumnKey,
+  type ColumnWidths,
+} from "@/hooks/useColumnWidths";
 import type { FileEntry, SortField, SortSpec } from "@/types";
 
 interface FileListProps {
@@ -45,8 +51,7 @@ interface FileListProps {
   isLoading?: boolean;
 }
 
-const ROW_HEIGHT = 40;
-const ICON_WIDTH = 32;
+const ROW_HEIGHT = 32;
 
 // Column resize handle component
 interface ResizeHandleProps {
@@ -98,8 +103,8 @@ function HeaderCell({
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 gap-1 w-full justify-start text-[10px] font-medium text-muted-foreground hover:text-primary hover:bg-transparent transition-colors tracking-wide",
-          isActive && "text-primary",
+          "h-auto p-0 px-2 gap-1 w-full justify-start text-[10px] font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
+          isActive && "text-primary bg-primary/5",
           className
         )}
         onClick={() => onSort(field)}
@@ -146,12 +151,13 @@ const FileRow = memo(function FileRow({
       role="row"
       tabIndex={0}
       className={cn(
-        "flex items-center h-10 px-3 cursor-pointer select-none border-b border-border/30",
-        "hover:bg-primary/5 transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-inset",
-        isSelected && "bg-primary/15 border-l-2 border-l-primary",
+        "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent",
+        "hover:bg-accent/5 transition-colors",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20 focus-visible:ring-inset",
+        isSelected && "bg-primary/10 !border-l-primary",
         className
       )}
+      style={{ height: ROW_HEIGHT }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onKeyDown={(e) => {
@@ -160,42 +166,51 @@ const FileRow = memo(function FileRow({
       {...rest}
     >
       {/* Icon */}
-      <div style={{ width: ICON_WIDTH }} className="flex-shrink-0">
-        <FileIcon file={file} />
+      <div style={{ width: ICON_WIDTH }} className="flex-shrink-0 flex items-center">
+        <FileIcon file={file} className="h-3.5 w-3.5" />
       </div>
 
       {/* Name */}
-      <TooltipProvider delayDuration={500}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <div
-              className="min-w-0 truncate text-sm font-mono"
-              style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
-            >
-              {file.name}
-            </div>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="start" className="font-mono text-xs">
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className={cn(
+              "min-w-0 truncate text-xs px-2",
+              file.isDir ? "text-foreground font-medium" : "text-foreground/80"
+            )}
+            style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
+          >
             {file.name}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" align="start" className="font-mono text-xs">
+          {file.name}
+        </TooltipContent>
+      </Tooltip>
 
       {/* Size */}
       <div
-        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground px-2"
         style={{ width: sizeWidth }}
       >
         {file.isDir ? (
-          <span className="text-muted-foreground/50">&mdash;</span>
+          <span className="text-muted-foreground/40">&mdash;</span>
         ) : (
           formatFileSize(file.size)
         )}
       </div>
 
+      {/* Permissions */}
+      <div
+        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground px-2"
+        style={{ width: PERM_WIDTH }}
+      >
+        {formatFileMode(file.mode)}
+      </div>
+
       {/* Modified time */}
       <div
-        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        className="flex-shrink-0 text-right text-[11px] font-mono text-muted-foreground pr-2"
         style={{ width: mtimeWidth }}
       >
         {formatFileTime(file.mtime)}
@@ -329,7 +344,6 @@ export function FileList({
     [
       files,
       getFirstSelectedIndex,
-      isSelected,
       selectionCount,
       onFileClick,
       onFileDblClick,
@@ -343,15 +357,31 @@ export function FileList({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
 
+  // Loading state
+  if (isLoading && files.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   // Empty state
   if (!isLoading && files.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground animate-fade-in">
-        <div className="w-14 h-14 flex items-center justify-center rounded-lg bg-muted/50 border border-border">
-          <FolderOpen className="h-7 w-7 text-muted-foreground/60" />
+        <div className="flex flex-col items-center gap-3 px-8 py-6 border border-dashed border-border/50 rounded-lg">
+          <div className="w-12 h-12 flex items-center justify-center rounded-lg bg-muted/30 border border-border/50">
+            <FolderOpen className="h-8 w-8 text-muted-foreground/50" />
+          </div>
+          <p className="text-xs">Directory is empty</p>
+          <div className="flex flex-col items-center gap-0.5">
+            <p className="text-[11px] text-muted-foreground/50">Drag files here to upload</p>
+            <p className="text-[11px] text-muted-foreground/40">
+              or press &#8984;N to create a folder
+            </p>
+          </div>
         </div>
-        <p className="text-sm mt-4">Directory is empty</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Drag files here to upload</p>
       </div>
     );
   }
@@ -362,112 +392,117 @@ export function FileList({
   const mtimeWidth = widths.mtime;
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div
-        ref={headerRef}
-        className="flex items-center h-8 px-3 border-b border-border bg-card/50 flex-shrink-0"
-      >
-        <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
-        <HeaderCell
-          field="name"
-          currentSort={sort}
-          onSort={onSortChange}
-          style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
-          resizable
-          onResizeStart={handleResizeStart}
-        >
-          Name
-        </HeaderCell>
-        <HeaderCell
-          field="size"
-          currentSort={sort}
-          onSort={onSortChange}
-          className="justify-end"
-          style={{ width: sizeWidth, flexShrink: 0 }}
-          resizable
-          onResizeStart={handleResizeStart}
-        >
-          Size
-        </HeaderCell>
-        <HeaderCell
-          field="mtime"
-          currentSort={sort}
-          onSort={onSortChange}
-          className="justify-end"
-          style={{ width: mtimeWidth, flexShrink: 0 }}
-          resizable
-          onResizeStart={handleResizeStart}
-        >
-          Modified
-        </HeaderCell>
-      </div>
-
-      {/* Virtual list */}
-      <div
-        ref={parentRef}
-        className="flex-1 overflow-auto"
-        tabIndex={0}
-        onClick={(e) => {
-          // Click empty area to clear selection
-          if (e.target === e.currentTarget) {
-            onKeyAction?.("clearSelection");
-          }
-        }}
-      >
+    <TooltipProvider delayDuration={500}>
+      <div className="flex flex-col h-full" role="grid" aria-label="File list">
+        {/* Header */}
         <div
-          style={{
-            height: `${virtualizer.getTotalSize()}px`,
-            width: "100%",
-            position: "relative",
-          }}
+          ref={headerRef}
+          role="row"
+          className="flex items-center h-7 px-3 border-b border-border bg-card/30 flex-shrink-0"
+        >
+          <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
+          <HeaderCell
+            field="name"
+            currentSort={sort}
+            onSort={onSortChange}
+            style={nameWidth > 0 ? { width: nameWidth, flexShrink: 0 } : { flex: 1 }}
+            resizable
+            onResizeStart={handleResizeStart}
+          >
+            Name
+          </HeaderCell>
+          <HeaderCell
+            field="size"
+            currentSort={sort}
+            onSort={onSortChange}
+            className="justify-end"
+            style={{ width: sizeWidth, flexShrink: 0 }}
+            resizable
+            onResizeStart={handleResizeStart}
+          >
+            Size
+          </HeaderCell>
+          <div
+            className="flex-shrink-0 flex items-center justify-end px-2 text-[10px] font-medium text-muted-foreground uppercase tracking-wider"
+            style={{ width: PERM_WIDTH }}
+          >
+            Perms
+          </div>
+          <HeaderCell
+            field="mtime"
+            currentSort={sort}
+            onSort={onSortChange}
+            className="justify-end"
+            style={{ width: mtimeWidth, flexShrink: 0 }}
+            resizable
+            onResizeStart={handleResizeStart}
+          >
+            Modified
+          </HeaderCell>
+        </div>
+
+        {/* Virtual list */}
+        <div
+          ref={parentRef}
+          className="flex-1 overflow-auto"
+          tabIndex={0}
           onClick={(e) => {
-            // Click virtual container empty area to clear selection
+            // Click empty area to clear selection
             if (e.target === e.currentTarget) {
               onKeyAction?.("clearSelection");
             }
           }}
         >
-          {items.map((virtualItem) => {
-            const file = files[virtualItem.index];
-            if (!file) return null;
-            return (
-              <div
-                key={virtualItem.key}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  height: `${virtualItem.size}px`,
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                <FileContextMenu
-                  file={file}
-                  selectionCount={selectionCount}
-                  onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
-                  onDownload={onDownload ? () => onDownload(file) : undefined}
-                  onRename={onRename ? () => onRename(file) : undefined}
-                  onDelete={onDelete ? () => onDelete(file) : undefined}
-                  onChmod={onChmod ? () => onChmod(file) : undefined}
-                  onNewFolder={() => onKeyAction?.("newFolder")}
+          <div
+            style={{
+              height: `${virtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {items.map((virtualItem) => {
+              const file = files[virtualItem.index];
+              if (!file) return null;
+              const isEven = virtualItem.index % 2 === 0;
+              return (
+                <div
+                  key={virtualItem.key}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualItem.size}px`,
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
                 >
-                  <FileRow
+                  <FileContextMenu
                     file={file}
-                    isSelected={isSelected(file.path)}
-                    onClick={(e: React.MouseEvent) =>
-                      onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
-                    }
-                    onDoubleClick={() => onFileDblClick(file)}
-                    columnWidths={widths}
-                  />
-                </FileContextMenu>
-              </div>
-            );
-          })}
+                    selectionCount={selectionCount}
+                    onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
+                    onDownload={onDownload ? () => onDownload(file) : undefined}
+                    onRename={onRename ? () => onRename(file) : undefined}
+                    onDelete={onDelete ? () => onDelete(file) : undefined}
+                    onChmod={onChmod ? () => onChmod(file) : undefined}
+                    onNewFolder={() => onKeyAction?.("newFolder")}
+                  >
+                    <FileRow
+                      file={file}
+                      isSelected={isSelected(file.path)}
+                      onClick={(e: React.MouseEvent) =>
+                        onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
+                      }
+                      onDoubleClick={() => onFileDblClick(file)}
+                      columnWidths={widths}
+                      className={isEven ? "bg-muted/[0.07]" : undefined}
+                    />
+                  </FileContextMenu>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }

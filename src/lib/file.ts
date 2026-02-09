@@ -1,13 +1,9 @@
-/**
- * 文件相关工具函数
- */
+/** File utility functions */
 
 import { z } from "zod";
 import type { FileEntry, PermissionBits } from "@/types";
 
-/**
- * 文件类型
- */
+/** File type classification */
 export type FileType =
   | "folder"
   | "code"
@@ -18,24 +14,20 @@ export type FileType =
   | "video"
   | "other";
 
-/**
- * 获取文件扩展名（小写）
- */
+/** Get file extension (lowercase) */
 export function getFileExtension(name: string): string {
   const lastDot = name.lastIndexOf(".");
   if (lastDot === -1 || lastDot === 0) return "";
   return name.slice(lastDot + 1).toLowerCase();
 }
 
-/**
- * 根据文件条目判断文件类型
- */
+/** Determine file type from file entry */
 export function getFileType(file: FileEntry): FileType {
   if (file.isDir) return "folder";
 
   const ext = getFileExtension(file.name);
 
-  // 代码文件
+  // Code files
   if (
     [
       "ts",
@@ -77,7 +69,7 @@ export function getFileType(file: FileEntry): FileType {
     return "code";
   }
 
-  // 文档文件
+  // Document files
   if (
     ["md", "txt", "doc", "docx", "pdf", "rtf", "odt", "xls", "xlsx", "ppt", "pptx", "csv"].includes(
       ext
@@ -86,7 +78,7 @@ export function getFileType(file: FileEntry): FileType {
     return "document";
   }
 
-  // 图片文件
+  // Image files
   if (
     [
       "png",
@@ -106,17 +98,17 @@ export function getFileType(file: FileEntry): FileType {
     return "image";
   }
 
-  // 压缩文件
+  // Archive files
   if (["zip", "tar", "gz", "bz2", "xz", "7z", "rar", "tgz", "tbz2"].includes(ext)) {
     return "archive";
   }
 
-  // 音频文件
+  // Audio files
   if (["mp3", "wav", "ogg", "flac", "aac", "m4a", "wma"].includes(ext)) {
     return "audio";
   }
 
-  // 视频文件
+  // Video files
   if (["mp4", "webm", "mkv", "avi", "mov", "wmv", "flv", "m4v"].includes(ext)) {
     return "video";
   }
@@ -124,41 +116,39 @@ export function getFileType(file: FileEntry): FileType {
   return "other";
 }
 
-/**
- * 格式化文件时间
- */
+/** Format file modification time as relative or absolute */
 export function formatFileTime(mtime?: number): string {
   if (mtime === undefined || mtime === null) return "-";
 
-  const date = new Date(mtime * 1000); // Unix 时间戳转毫秒
+  const date = new Date(mtime * 1000);
   const now = new Date();
   const diff = now.getTime() - date.getTime();
 
-  // 1 分钟内
+  // Under 1 minute
   if (diff < 60 * 1000) {
-    return "刚刚";
+    return "Just now";
   }
 
-  // 1 小时内
+  // Under 1 hour
   if (diff < 60 * 60 * 1000) {
     const minutes = Math.floor(diff / (60 * 1000));
-    return `${minutes} 分钟前`;
+    return `${minutes}m ago`;
   }
 
-  // 24 小时内
+  // Under 24 hours
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000));
-    return `${hours} 小时前`;
+    return `${hours}h ago`;
   }
 
-  // 超过 24 小时，显示完整日期时间
+  // Over 24 hours: show full date
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
-  // 同一年则省略年份
+  // Omit year if same as current
   if (year === now.getFullYear()) {
     return `${month}-${day} ${hours}:${minutes}`;
   }
@@ -166,22 +156,12 @@ export function formatFileTime(mtime?: number): string {
   return `${year}-${month}-${day} ${hours}:${minutes}`;
 }
 
-/**
- * 拼接路径
- */
+/** Join path segments */
 export function joinPath(...segments: string[]): string {
-  return (
-    segments
-      .filter(Boolean)
-      .join("/")
-      .replace(/\/+/g, "/") // 合并多个 /
-      .replace(/\/$/, "") || "/" // 移除末尾 /，除非是根目录
-  );
+  return segments.filter(Boolean).join("/").replace(/\/+/g, "/").replace(/\/$/, "") || "/";
 }
 
-/**
- * 规范化路径
- */
+/** Normalize path (resolve . and ..) */
 export function normalizePath(path: string): string {
   const trimmed = path.trim();
   if (!trimmed || trimmed === "/") return "/";
@@ -208,9 +188,7 @@ export function normalizePath(path: string): string {
   return components.join("/") || ".";
 }
 
-/**
- * 获取父目录路径
- */
+/** Get parent directory path */
 export function getParentPath(path: string): string {
   const normalized = normalizePath(path);
   if (normalized === "/" || normalized === ".") return normalized;
@@ -221,46 +199,42 @@ export function getParentPath(path: string): string {
   return normalized.slice(0, lastSlash);
 }
 
-/**
- * 格式化相对时间（用于展示"最近连接"等场景）
- */
+/** Format relative time (e.g. "5m ago", "3d ago") */
 export function formatRelativeTime(timestamp: number): string {
   const now = Date.now();
   const diff = now - timestamp;
 
-  // 1 分钟内
+  // Under 1 minute
   if (diff < 60 * 1000) {
-    return "刚刚";
+    return "Just now";
   }
 
-  // 1 小时内
+  // Under 1 hour
   if (diff < 60 * 60 * 1000) {
     const minutes = Math.floor(diff / (60 * 1000));
-    return `${minutes} 分钟前`;
+    return `${minutes}m ago`;
   }
 
-  // 24 小时内
+  // Under 24 hours
   if (diff < 24 * 60 * 60 * 1000) {
     const hours = Math.floor(diff / (60 * 60 * 1000));
-    return `${hours} 小时前`;
+    return `${hours}h ago`;
   }
 
-  // 7 天内
+  // Under 7 days
   if (diff < 7 * 24 * 60 * 60 * 1000) {
     const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-    return `${days} 天前`;
+    return `${days}d ago`;
   }
 
-  // 超过 7 天，显示日期
+  // Over 7 days: show date
   const date = new Date(timestamp);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${month}月${day}日`;
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${month}-${day}`;
 }
 
-/**
- * 解析路径为层级数组
- */
+/** Parse path into hierarchical segments */
 export interface PathSegment {
   name: string;
   path: string;
@@ -284,38 +258,36 @@ export function parsePath(path: string, homePath?: string): PathSegment[] {
     });
   }
 
-  // 如果路径等于 homePath，将根目录名称改为 ~
-  if (homePath && normalized === normalizePath(homePath)) {
-    segments[0].name = "~";
+  // If path starts with homePath, collapse home segments into ~
+  if (homePath) {
+    const normalizedHome = normalizePath(homePath);
+    if (normalized === normalizedHome || normalized.startsWith(normalizedHome + "/")) {
+      const homeParts = normalizedHome.split("/").filter(Boolean);
+      // Replace root + home path segments with a single "~" segment
+      const homeSegment: PathSegment = { name: "~", path: normalizedHome };
+      const remaining = segments.slice(homeParts.length + 1);
+      return [homeSegment, ...remaining];
+    }
   }
 
   return segments;
 }
 
-// ========== chmod 权限相关函数 ==========
+// ========== chmod permission functions ==========
 
-/**
- * chmod 失败项 Zod Schema
- */
+/** Chmod failure item schema */
 export const ChmodFailureSchema = z.object({
   path: z.string(),
   error: z.string(),
 });
 
-/**
- * chmod 结果 Zod Schema
- */
+/** Chmod result schema */
 export const ChmodResultSchema = z.object({
   successCount: z.number(),
   failures: z.array(ChmodFailureSchema),
 });
 
-/**
- * Unix mode 转换为权限位对象
- *
- * @param mode - Unix 权限值 (0-511, 即 0o000-0o777)
- * @returns 权限位对象
- */
+/** Convert Unix mode to permission bits object */
 export function modeToPermissions(mode: number): PermissionBits {
   return {
     owner: {
@@ -336,12 +308,7 @@ export function modeToPermissions(mode: number): PermissionBits {
   };
 }
 
-/**
- * 权限位对象转换为 Unix mode
- *
- * @param perms - 权限位对象
- * @returns Unix 权限值 (0-511)
- */
+/** Convert permission bits object to Unix mode */
 export function permissionsToMode(perms: PermissionBits): number {
   let mode = 0;
   if (perms.owner.read) mode |= 0o400;
@@ -356,12 +323,7 @@ export function permissionsToMode(perms: PermissionBits): number {
   return mode;
 }
 
-/**
- * 格式化八进制权限显示
- *
- * @param mode - Unix 权限值
- * @returns 三位八进制字符串 (如 "755")
- */
+/** Format mode as 3-digit octal string (e.g. "755") */
 export function formatOctalMode(mode: number): string {
   return mode.toString(8).padStart(3, "0");
 }

@@ -1,6 +1,6 @@
 /**
- * 主布局组件 - Precision Engineering
- * 提供顶部导航栏和内容区域
+ * Main Layout - Precision Engineering
+ * Top navigation bar and content area
  */
 
 import { Outlet, useLocation, useNavigate, useSearchParams } from "react-router-dom";
@@ -20,9 +20,6 @@ export function MainLayout() {
 
   const isFilesPage = location.pathname.startsWith("/files/");
   const isSettingsPage = location.pathname === "/settings";
-  const isFormPage =
-    location.pathname === "/connections/new" ||
-    !!location.pathname.match(/^\/connections\/[^/]+\/edit$/);
 
   const toggleTheme = useCallback(() => {
     setTheme(theme === "dark" ? "light" : "dark");
@@ -40,10 +37,8 @@ export function MainLayout() {
     navigate("/settings");
   }, [navigate]);
 
-  // 页面标题映射
   const getPageInfo = () => {
     if (isFilesPage) {
-      // 从 URL 读取当前模式
       const mode = searchParams.get("mode");
       if (mode === "terminal") {
         return { title: "Terminal" };
@@ -51,16 +46,15 @@ export function MainLayout() {
       return { title: "File browser" };
     }
     if (isSettingsPage) return { title: "Settings" };
-    if (isFormPage) return { title: "Edit connection" };
     return { title: "Connections" };
   };
   const pageInfo = getPageInfo();
 
-  const showBackButton = isFilesPage || isSettingsPage || isFormPage;
+  const showBackButton = isFilesPage || isSettingsPage;
 
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden">
-      {/* 顶部导航栏 */}
+      {/* Top navigation bar */}
       <header
         className={cn(
           "flex items-center h-11 px-3 border-b border-border",
@@ -68,7 +62,7 @@ export function MainLayout() {
         )}
         data-tauri-drag-region
       >
-        {/* 左侧区域 */}
+        {/* Left area */}
         <div className="flex items-center gap-2 min-w-[140px]">
           {showBackButton ? (
             <TooltipProvider delayDuration={300}>
@@ -94,15 +88,15 @@ export function MainLayout() {
           )}
         </div>
 
-        {/* 中间标题 */}
+        {/* Center title */}
         <div className="flex-1 flex items-center justify-center" data-tauri-drag-region>
           <span className="text-xs font-medium">{pageInfo.title}</span>
         </div>
 
-        {/* 右侧工具栏 */}
+        {/* Right toolbar */}
         <div className="flex items-center gap-1 min-w-[140px] justify-end">
           <TooltipProvider delayDuration={300}>
-            {/* 主题切换 */}
+            {/* Theme toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -123,7 +117,7 @@ export function MainLayout() {
               </TooltipContent>
             </Tooltip>
 
-            {/* 设置 */}
+            {/* Settings */}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -142,17 +136,17 @@ export function MainLayout() {
           </TooltipProvider>
 
           <div className="ml-2 flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-success" />
+            <div className="w-2 h-2 rounded-full bg-success" role="status" aria-label="Connected" />
           </div>
         </div>
       </header>
 
-      {/* 主内容区域 */}
+      {/* Main content area */}
       <main className="flex-1 min-h-0 overflow-hidden">
         <Outlet />
       </main>
 
-      {/* 底部状态栏 */}
+      {/* Footer status bar */}
       <footer
         className={cn(
           "flex items-center justify-between h-6 px-3 border-t border-border",

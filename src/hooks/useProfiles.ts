@@ -1,6 +1,6 @@
 /**
- * Profile 管理 Hooks
- * 使用 TanStack Query 进行缓存管理
+ * Profile management hooks
+ * Uses TanStack Query for cache management
  */
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,9 +9,7 @@ import { listProfiles, upsertProfile, deleteProfile } from "@/lib/profile";
 
 const PROFILES_QUERY_KEY = ["profiles"] as const;
 
-/**
- * 获取所有连接配置
- */
+/** Fetch all connection profiles */
 export function useProfiles() {
   return useQuery({
     queryKey: PROFILES_QUERY_KEY,
@@ -19,18 +17,14 @@ export function useProfiles() {
   });
 }
 
-/**
- * 获取单个连接配置
- */
+/** Fetch a single connection profile */
 export function useProfile(id: string | undefined) {
   const { data: profiles, ...rest } = useProfiles();
   const profile = id ? profiles?.find((p) => p.id === id) : undefined;
   return { data: profile, ...rest };
 }
 
-/**
- * 创建或更新连接配置
- */
+/** Create or update a connection profile */
 export function useUpsertProfile() {
   const queryClient = useQueryClient();
 
@@ -38,7 +32,7 @@ export function useUpsertProfile() {
     mutationFn: upsertProfile,
     onSuccess: (_profileId, variables) => {
       queryClient.invalidateQueries({ queryKey: PROFILES_QUERY_KEY });
-      showSuccessToast(variables.id ? "连接已更新" : "连接已添加");
+      showSuccessToast(variables.id ? "Connection updated" : "Connection added");
     },
     onError: (error) => {
       showErrorToast(error);
@@ -46,9 +40,7 @@ export function useUpsertProfile() {
   });
 }
 
-/**
- * 删除连接配置
- */
+/** Delete a connection profile */
 export function useDeleteProfile() {
   const queryClient = useQueryClient();
 
@@ -56,26 +48,10 @@ export function useDeleteProfile() {
     mutationFn: deleteProfile,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PROFILES_QUERY_KEY });
-      showSuccessToast("连接已删除");
+      showSuccessToast("Connection deleted");
     },
     onError: (error) => {
       showErrorToast(error);
     },
   });
-}
-
-/**
- * 获取最近连接记录（基于 updatedAt 排序）
- */
-export function useRecentConnections(limit: number = 10) {
-  const { data: profiles, ...rest } = useProfiles();
-
-  const recentProfiles = profiles
-    ? [...profiles].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit)
-    : [];
-
-  return {
-    ...rest,
-    data: recentProfiles,
-  };
 }

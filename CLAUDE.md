@@ -12,12 +12,28 @@ TunnelFiles - Cross-platform desktop SSH/SFTP visual file manager
 - State: TanStack Query (server) + Zustand (real-time)
 - Testing: Vitest (frontend) + cargo test (backend)
 
-## Documentation
+## Development Workflow
 
-- Detailed guidelines: `.claude/CLAUDE.md`
-- Coding rules: `.claude/rules/`
-- Expert agents: `.claude/agents/`
-- Workflow skills: `.claude/skills/`
+Use skills to drive development:
+
+| Task | Skill | Description |
+|------|-------|-------------|
+| New feature | `/feature-dev` | Six-phase TDD workflow with acceptance |
+| Bug fix | `/debug` | Four-phase: Reproduce -> Investigate -> Fix -> Validate |
+| Quality check | `/acceptance` | Multi-mode: Code review + UX review + Tests |
+| Product planning | `/product-planning` | Competitive analysis -> Feature roadmap |
+| Auto-repair | `/self-heal` | Run tests -> Diagnose -> Fix -> Verify |
+
+## Agents
+
+| Agent | Purpose |
+|-------|---------|
+| `code-explorer` | Deep codebase analysis, execution path tracing |
+| `code-architect` | Architecture design, implementation blueprints |
+| `code-reviewer` | Code review, security audit, convention compliance |
+| `competitor-analyst` | Market research, competitive feature analysis |
+| `ux-reviewer` | UI/UX consistency, accessibility, design system audit |
+| `test-runner` | Test execution, failure collection, result reporting |
 
 ## Quick Commands
 
@@ -36,6 +52,7 @@ cd src-tauri && cargo test  # Backend tests
 2. **IPC**: Always use lib/ wrappers, never direct invoke() in components
 3. **State**: Query for server data, Zustand for real-time events
 4. **Rust**: Never use unwrap() in production, use spawn_blocking for CPU work
+5. **TDD**: Write tests BEFORE implementation when using feature-dev skill
 
 ## Key Gotchas
 
@@ -44,4 +61,22 @@ cd src-tauri && cargo test  # Backend tests
 - Event listeners need StrictMode-safe cleanup pattern
 - Tauri State type must exactly match .manage() registration
 
-See `.claude/CLAUDE.md` for comprehensive documentation.
+## Configuration Structure
+
+```
+.claude/
+├── agents/          # 6 specialized agents
+├── hooks/           # Formatting scripts (prettier, rustfmt)
+├── rules/           # Coding rules by domain
+│   ├── rust/        # Rust backend rules
+│   ├── react/       # React frontend rules
+│   ├── shared/      # Cross-cutting rules
+│   └── workflow/    # Development process rules
+├── settings.json    # Project-level hook configuration
+└── skills/          # 5 development workflow skills
+    ├── feature-dev/ # TDD feature development
+    ├── debug/       # Bug diagnosis and fix
+    ├── acceptance/  # Quality verification
+    ├── product-planning/  # Competitive analysis
+    └── self-heal/   # Auto test and repair
+```

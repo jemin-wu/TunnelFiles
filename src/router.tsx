@@ -1,12 +1,9 @@
-/**
- * 应用路由配置
- */
+/** Application router configuration */
 
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { MainLayout } from "@/layouts/MainLayout";
 import { ConnectionsPage } from "@/pages/ConnectionsPage";
-import { ConnectionFormPage } from "@/pages/ConnectionFormPage";
 import { FileManagerPage } from "@/pages/FileManagerPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { NotFoundPage } from "@/pages/NotFoundPage";
@@ -25,14 +22,6 @@ export const router = createBrowserRouter([
       {
         path: "connections",
         element: <ConnectionsPage />,
-      },
-      {
-        path: "connections/new",
-        element: <ConnectionFormPage />,
-      },
-      {
-        path: "connections/:id/edit",
-        element: <ConnectionFormPage />,
       },
       {
         path: "files/:sessionId",

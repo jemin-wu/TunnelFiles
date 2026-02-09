@@ -3,7 +3,14 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { LoadingSpinner, FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { ErrorState, InlineError } from "@/components/ui/ErrorState";
-import { EmptyState } from "@/components/EmptyState";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  EmptyDescription,
+  EmptyContent,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { ErrorCode, type AppError } from "@/types/error";
 
 describe("LoadingSpinner", () => {
@@ -184,51 +191,73 @@ describe("InlineError", () => {
   });
 });
 
-describe("EmptyState", () => {
+describe("Empty (shadcn/ui)", () => {
   it("should render with title", () => {
-    render(<EmptyState title="没有数据" />);
+    render(
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>没有数据</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
 
     expect(screen.getByText("没有数据")).toBeInTheDocument();
   });
 
   it("should render with description", () => {
-    render(<EmptyState title="空目录" description="拖拽文件到此上传" />);
+    render(
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>空目录</EmptyTitle>
+          <EmptyDescription>拖拽文件到此上传</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
 
     expect(screen.getByText("空目录")).toBeInTheDocument();
     expect(screen.getByText("拖拽文件到此上传")).toBeInTheDocument();
   });
 
   it("should render with action button", () => {
-    const mockAction = <button>上传文件</button>;
-
-    render(<EmptyState title="空目录" description="没有文件" action={mockAction} />);
+    render(
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>空目录</EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <button>上传文件</button>
+        </EmptyContent>
+      </Empty>
+    );
 
     expect(screen.getByRole("button", { name: "上传文件" })).toBeInTheDocument();
   });
 
-  it("should apply different sizes", () => {
-    const { rerender } = render(<EmptyState title="Empty" size="sm" />);
-    expect(screen.getByText("Empty")).toBeInTheDocument();
-
-    rerender(<EmptyState title="Empty" size="lg" />);
-    expect(screen.getByText("Empty")).toBeInTheDocument();
-  });
-
   it("should apply custom className", () => {
-    const { container } = render(<EmptyState title="Empty" className="custom-empty" />);
+    const { container } = render(
+      <Empty className="custom-empty">
+        <EmptyHeader>
+          <EmptyTitle>Empty</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
 
-    // The className is applied to the outermost container div
     expect(container.querySelector(".custom-empty")).toBeInTheDocument();
   });
 
-  it("should render with different icon types", () => {
-    const { rerender } = render(<EmptyState title="Empty" icon="folder" />);
-    expect(screen.getByText("Empty")).toBeInTheDocument();
+  it("should render with media icon variant", () => {
+    const { container } = render(
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <svg data-testid="test-icon" />
+          </EmptyMedia>
+          <EmptyTitle>Empty</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
 
-    rerender(<EmptyState title="Empty" icon="server" />);
-    expect(screen.getByText("Empty")).toBeInTheDocument();
-
-    rerender(<EmptyState title="Empty" icon="upload" />);
-    expect(screen.getByText("Empty")).toBeInTheDocument();
+    expect(screen.getByTestId("test-icon")).toBeInTheDocument();
+    expect(container.querySelector("[data-variant='icon']")).toBeInTheDocument();
   });
 });

@@ -1,7 +1,6 @@
 /**
- * 列宽配置 Hook
- *
- * 支持拖拽调整列宽并持久化到 localStorage
+ * Column width configuration hook
+ * Supports drag-to-resize with localStorage persistence
  */
 
 import { useState, useCallback, useRef, useEffect } from "react";
@@ -11,6 +10,11 @@ export interface ColumnWidths {
   size: number;
   mtime: number;
 }
+
+/** Shared layout constants for file list columns */
+export const ICON_WIDTH = 28;
+export const PERM_WIDTH = 96;
+const CONTAINER_PADDING = 24;
 
 const STORAGE_KEY = "tunnelfiles:column-widths";
 
@@ -65,15 +69,14 @@ export function useColumnWidths() {
   const [widths, setWidths] = useState<ColumnWidths>(loadWidths);
   const dragStateRef = useRef<DragState | null>(null);
 
-  // 开始拖拽
+  // Start resize drag
   const startResize = useCallback(
     (column: ColumnKey, startX: number, containerWidth: number) => {
       let startWidth = widths[column];
-      // 如果 name 列宽度为 0（自动），计算实际宽度
+      // If name column is 0 (auto-fill), calculate actual width
       if (column === "name" && startWidth === 0) {
-        // 图标宽度 32px + 大小列 + 时间列 + padding
         startWidth = Math.max(
-          containerWidth - 32 - widths.size - widths.mtime - 24,
+          containerWidth - ICON_WIDTH - widths.size - PERM_WIDTH - widths.mtime - CONTAINER_PADDING,
           MIN_WIDTHS.name
         );
       }
@@ -82,7 +85,7 @@ export function useColumnWidths() {
     [widths]
   );
 
-  // 拖拽中
+  // During resize drag
   const onResize = useCallback((clientX: number) => {
     if (!dragStateRef.current) return;
 
@@ -96,7 +99,7 @@ export function useColumnWidths() {
     }));
   }, []);
 
-  // 结束拖拽
+  // End resize drag
   const endResize = useCallback(() => {
     if (dragStateRef.current) {
       dragStateRef.current = null;
@@ -107,13 +110,13 @@ export function useColumnWidths() {
     }
   }, []);
 
-  // 重置列宽
+  // Reset column widths
   const resetWidths = useCallback(() => {
     setWidths(DEFAULT_WIDTHS);
     saveWidths(DEFAULT_WIDTHS);
   }, []);
 
-  // 全局鼠标事件处理
+  // Global mouse event handlers
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (dragStateRef.current) {

@@ -1,10 +1,10 @@
 /**
- * 密码输入弹窗 - Precision Engineering
- * 用于连接时输入密码或 passphrase
+ * Password dialog - Precision Engineering
+ * Compact credential prompt for SSH connection flow
  */
 
-import { useState, useCallback } from "react";
-import { Loader2, Eye, EyeOff, Key, Lock, Terminal, Shield } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 import {
   Dialog,
@@ -15,21 +15,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/connections/PasswordInput";
 
 interface PasswordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** 密码类型 */
   type: "password" | "passphrase";
-  /** 主机信息（用于展示） */
   hostInfo?: string;
-  /** 是否正在连接 */
   isConnecting?: boolean;
-  /** 提交密码 */
   onSubmit: (value: string) => void;
-  /** 取消 */
   onCancel: () => void;
 }
 
@@ -43,7 +37,13 @@ export function PasswordDialog({
   onCancel,
 }: PasswordDialogProps) {
   const [value, setValue] = useState("");
-  const [showValue, setShowValue] = useState(false);
+
+  // Reset value when dialog opens to avoid stale credential
+  useEffect(() => {
+    if (open) setValue("");
+  }, [open]);
+
+  const isPassword = type === "password";
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -59,7 +59,6 @@ export function PasswordDialog({
     (newOpen: boolean) => {
       if (!newOpen) {
         setValue("");
-        setShowValue(false);
         onCancel();
       }
       onOpenChange(newOpen);
@@ -67,84 +66,57 @@ export function PasswordDialog({
     [onOpenChange, onCancel]
   );
 
-  const isPassword = type === "password";
-  const Icon = isPassword ? Lock : Key;
-
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isConnecting}>
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon className="h-4 w-4 text-primary" />
-            <span>{isPassword ? "Password required" : "Passphrase required"}</span>
+      <DialogContent
+        className="sm:max-w-sm border-border bg-card p-5 gap-0"
+        showCloseButton={!isConnecting}
+      >
+        <DialogHeader className="gap-1.5">
+          <DialogTitle className="text-sm font-medium">
+            {isPassword ? "Password required" : "Passphrase required"}
           </DialogTitle>
-          <DialogDescription asChild>
-            <div className="pt-2 space-y-2">
-              {hostInfo && (
-                <div className="flex items-center gap-2 text-xs bg-background/30 px-3 py-2 rounded">
-                  <Terminal className="h-3 w-3 text-primary" />
-                  <span className="text-primary font-mono">{hostInfo}</span>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                {isPassword
-                  ? "Enter your SSH password"
-                  : "Enter the passphrase for your private key"}
-              </p>
-            </div>
+          <DialogDescription className="text-xs">
+            {hostInfo ? (
+              <>
+                Enter {isPassword ? "password" : "passphrase"} for{" "}
+                <span className="font-mono text-foreground">{hostInfo}</span>
+              </>
+            ) : (
+              <>Enter your {isPassword ? "SSH password" : "private key passphrase"} to connect</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label
-              htmlFor="credential"
-              className="text-xs text-muted-foreground flex items-center gap-1"
-            >
-              <Shield className="h-3 w-3" />
-              {isPassword ? "Password" : "Passphrase"}
-            </Label>
-            <div className="relative">
-              <Input
-                id="credential"
-                type={showValue ? "text" : "password"}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={isPassword ? "••••••••" : "••••••••"}
-                disabled={isConnecting}
-                autoFocus
-                className="pr-10 bg-background/50 border-border focus-visible:ring-primary"
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3 hover:bg-transparent hover:text-primary"
-                onClick={() => setShowValue(!showValue)}
-                tabIndex={-1}
-              >
-                {showValue ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </Button>
-            </div>
-          </div>
+        <form onSubmit={handleSubmit} className="mt-4">
+          <PasswordInput
+            id="credential"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={isPassword ? "Enter SSH password" : "Enter key passphrase"}
+            disabled={isConnecting}
+            autoFocus
+            className="h-9 text-[13px]"
+          />
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="mt-4">
             <Button
               type="button"
-              variant="outline"
+              variant="ghost"
+              size="sm"
               onClick={() => handleOpenChange(false)}
               disabled={isConnecting}
-              className="text-xs"
+              className="text-xs h-8 px-3"
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isConnecting || !value.trim()} className="text-xs">
-              {isConnecting && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
-              Connect
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isConnecting || !value.trim()}
+              className="text-xs h-8 px-4"
+            >
+              {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
             </Button>
           </DialogFooter>
         </form>

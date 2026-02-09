@@ -1,11 +1,7 @@
-/**
- * 认证方式
- */
+/** Authentication method */
 export type AuthType = "password" | "key";
 
-/**
- * 连接配置
- */
+/** Connection profile */
 export interface Profile {
   id: string;
   name: string;
@@ -13,23 +9,21 @@ export interface Profile {
   port: number;
   username: string;
   authType: AuthType;
-  /** 密码引用 (指向系统安全存储的 key) */
+  /** Password reference (keychain key) */
   passwordRef?: string;
-  /** 私钥路径 */
+  /** Private key path */
   privateKeyPath?: string;
-  /** passphrase 引用 */
+  /** Passphrase reference (keychain key) */
   passphraseRef?: string;
-  /** 初始远程路径 */
+  /** Initial remote path */
   initialPath?: string;
-  /** 创建时间 */
+  /** Created timestamp */
   createdAt: number;
-  /** 更新时间 */
+  /** Updated timestamp */
   updatedAt: number;
 }
 
-/**
- * 创建/更新连接配置的输入
- */
+/** Input for creating/updating a connection profile */
 export interface ProfileInput {
   id?: string;
   name: string;
@@ -37,28 +31,16 @@ export interface ProfileInput {
   port: number;
   username: string;
   authType: AuthType;
-  /** 密码 (仅用于输入，不会存储在 Profile 中) */
+  /** Password (input only, not stored in Profile) */
   password?: string;
-  /** 是否记住密码 */
+  /** Whether to save password to keychain */
   rememberPassword?: boolean;
-  /** 私钥路径 */
+  /** Private key path */
   privateKeyPath?: string;
-  /** passphrase (仅用于输入) */
+  /** Passphrase (input only) */
   passphrase?: string;
-  /** 是否记住 passphrase */
+  /** Whether to save passphrase to keychain */
   rememberPassphrase?: boolean;
-  /** 初始远程路径 */
+  /** Initial remote path */
   initialPath?: string;
-}
-
-/**
- * 最近连接记录
- */
-export interface RecentConnection {
-  id: string;
-  profileId: string;
-  profileName: string;
-  host: string;
-  username: string;
-  connectedAt: number;
 }
