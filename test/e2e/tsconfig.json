@@ -5,8 +5,14 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "strict": true,
-    "types": ["@wdio/mocha-framework", "@wdio/globals/types"],
+    "types": ["@wdio/mocha-framework", "@wdio/globals/types", "@wdio/visual-service"],
     "outDir": "./dist"
   },
-  "include": ["./specs/**/*.ts", "./wdio.conf.ts"]
+  "include": [
+    "./specs/**/*.ts",
+    "./visual/**/*.ts",
+    "./helpers/**/*.ts",
+    "./wdio.conf.ts",
+    "./wdio.visual.conf.ts"
+  ]
 }

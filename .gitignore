@@ -30,5 +30,8 @@ docker/ssh-keys/authorized_keys
 # Coverage reports
 coverage/
 
+# Visual regression test temp files
+test/e2e/.tmp/
+
 # Claude Code
 .claude/
