@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "types": ["@wdio/mocha-framework", "@wdio/globals/types"],
+    "outDir": "./dist"
+  },
+  "include": ["./specs/**/*.ts", "./wdio.conf.ts"]
+}

@@ -12,6 +12,18 @@ beforeAll(() => {
     emit: vi.fn(),
   }));
 
+  vi.mock("@tauri-apps/api/webview", () => ({
+    getCurrentWebview: vi.fn(() => ({
+      onDragDropEvent: vi.fn(() => Promise.resolve(() => {})),
+    })),
+  }));
+
+  vi.mock("@tauri-apps/api/window", () => ({
+    getCurrentWindow: vi.fn(() => ({
+      listen: vi.fn(() => Promise.resolve(() => {})),
+    })),
+  }));
+
   vi.mock("@tauri-apps/plugin-dialog", () => ({
     open: vi.fn(),
     save: vi.fn(),
@@ -19,6 +31,13 @@ beforeAll(() => {
 
   vi.mock("@tauri-apps/plugin-opener", () => ({
     openPath: vi.fn(),
+  }));
+
+  vi.mock("@tauri-apps/plugin-fs", () => ({
+    stat: vi.fn(),
+    readDir: vi.fn(),
+    readFile: vi.fn(),
+    writeFile: vi.fn(),
   }));
 });
 
