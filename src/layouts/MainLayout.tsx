@@ -124,10 +124,6 @@ export function MainLayout() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          <div className="ml-2 flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-success" role="status" aria-label="Connected" />
-          </div>
         </div>
       </header>
 
