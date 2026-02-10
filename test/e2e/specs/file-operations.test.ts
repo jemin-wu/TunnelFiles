@@ -122,8 +122,10 @@ describe("File Operations", () => {
       await input.waitForExist({ timeout: 10_000 });
 
       // Leave the name empty and try to submit
-      const dialog = await input.$("ancestor::*[@role='dialog'][1]");
-      const createBtn = await dialog.$(".//button[normalize-space(.)='Create']");
+      const createBtn = await $(
+        "//input[@id='folder-name']/ancestor::*[@role='dialog'][1]//button[normalize-space(.)='Create']"
+      );
+      await createBtn.waitForExist({ timeout: 10_000 });
 
       // Create button should be disabled when input is empty
       expect(await createBtn.isEnabled()).toBe(false);
