@@ -74,6 +74,24 @@ async function safeClick(element: WebdriverIO.Element, timeout = WAIT_TIMEOUT): 
   }
 }
 
+async function isVisible(element: WebdriverIO.Element): Promise<boolean> {
+  try {
+    return (await element.isExisting()) && (await element.isDisplayed());
+  } catch {
+    return false;
+  }
+}
+
+async function getVisibleErrorToastText(): Promise<string | null> {
+  const candidates = await $$("[data-sonner-toast][data-type='error'], .toast[data-type='error']");
+  for (const toast of candidates) {
+    if (!(await isVisible(toast))) continue;
+    const text = (await toast.getText()).replace(/\s+/g, " ").trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
 /**
  * Disable all CSS animations and transitions.
  * WebKitWebDriver considers elements mid-animation (opacity < 1) as not interactable,
@@ -135,13 +153,13 @@ export async function navigateToConnections(): Promise<void> {
 /** Wait until the connections page is visible */
 export async function waitForConnectionsPage(): Promise<void> {
   const heading = await $("//span[text()='Connections']");
-  await heading.waitForExist({ timeout: WAIT_TIMEOUT });
+  await heading.waitForDisplayed({ timeout: WAIT_TIMEOUT });
 }
 
 /** Wait until the file browser is visible (breadcrumb nav present) */
 export async function waitForFileBrowser(): Promise<void> {
   const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-  await nav.waitForExist({ timeout: CONNECT_TIMEOUT });
+  await nav.waitForDisplayed({ timeout: CONNECT_TIMEOUT });
 }
 
 // ---------------------------------------------------------------------------
@@ -150,23 +168,20 @@ export async function waitForFileBrowser(): Promise<void> {
 
 /** Click the "+" button in the toolbar (or the empty-state "New connection" button) */
 export async function openAddConnectionSheet(): Promise<void> {
-  // Try the empty-state button first
-  const emptyBtn = await $(btnByText("New connection"));
-  if ((await emptyBtn.isExisting()) && (await emptyBtn.isDisplayed())) {
-    await safeClick(emptyBtn);
-  } else {
-    // Toolbar "+" button: it's NOT inside a [role="listitem"] (unlike row action buttons).
-    // The action buttons inside ConnectionItem rows have "rounded-full" class.
-    // The toolbar plus button does not. Find the small icon button without rounded-full.
-    const allBtns = await $$("button");
-    for (const btn of allBtns) {
-      const classes = (await btn.getAttribute("class")) ?? "";
-      if (classes.includes("h-6") && classes.includes("w-6") && !classes.includes("rounded-full")) {
-        await safeClick(btn);
-        break;
-      }
-    }
+  const addButtons = await $$('[data-testid="add-connection-button"]');
+  let opened = false;
+  for (const addBtn of addButtons) {
+    if (!(await isVisible(addBtn))) continue;
+    await safeClick(addBtn);
+    opened = true;
+    break;
   }
+
+  if (!opened) {
+    const fallbackBtn = await $(btnByText("New connection"));
+    await safeClick(fallbackBtn);
+  }
+
   // Wait for the sheet to appear and its animation to complete
   const sheet = await $('[role="dialog"]');
   await sheet.waitForExist({ timeout: WAIT_TIMEOUT });
@@ -282,6 +297,19 @@ async function isOnFileManagerRoute(): Promise<boolean> {
   return /\/files\//.test(url);
 }
 
+async function isProfileConnecting(name: string): Promise<boolean> {
+  try {
+    const row = await $(profileRowSelector(name));
+    if (!(await row.isExisting())) return false;
+    const dataConnecting = await row.getAttribute("data-connecting");
+    if (dataConnecting === "true") return true;
+    const className = (await row.getAttribute("class")) ?? "";
+    return className.includes("pointer-events-none") || className.includes("opacity-50");
+  } catch {
+    return false;
+  }
+}
+
 async function waitForConnectSignal(name: string, timeoutMs = 6000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
 
@@ -289,16 +317,18 @@ async function waitForConnectSignal(name: string, timeoutMs = 6000): Promise<boo
     if (await isOnFileManagerRoute()) return true;
 
     const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
-    if (await fileBrowser.isExisting()) return true;
+    if (await isVisible(fileBrowser)) return true;
 
     const trustBtn = await $(btnByText("Trust"));
-    if (await trustBtn.isExisting()) return true;
+    if (await isVisible(trustBtn)) return true;
 
     const trustAnywayBtn = await $(btnByText("Trust anyway"));
-    if (await trustAnywayBtn.isExisting()) return true;
+    if (await isVisible(trustAnywayBtn)) return true;
 
     const credInput = await $("#credential");
-    if (await credInput.isExisting()) return true;
+    if (await isVisible(credInput)) return true;
+
+    if (await isProfileConnecting(name)) return true;
 
     await browser.pause(150);
   }
@@ -356,26 +386,34 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
     }
 
     const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
-    if (await fileBrowser.isExisting()) {
+    if (await isVisible(fileBrowser)) {
       return;
     }
 
+    const errorToast = await getVisibleErrorToastText();
+    if (errorToast) {
+      const currentUrl = await browser.getUrl();
+      throw new Error(
+        `Connection failed before file browser became visible. Error toast: ${errorToast}. URL: ${currentUrl}`
+      );
+    }
+
     const trustBtn = await $(btnByText("Trust"));
-    if (await trustBtn.isExisting() && (await trustBtn.isDisplayed())) {
+    if (await isVisible(trustBtn)) {
       await trustBtn.click();
       await waitForStable(600);
       continue;
     }
 
     const trustAnywayBtn = await $(btnByText("Trust anyway"));
-    if (await trustAnywayBtn.isExisting() && (await trustAnywayBtn.isDisplayed())) {
+    if (await isVisible(trustAnywayBtn)) {
       await trustAnywayBtn.click();
       await waitForStable(600);
       continue;
     }
 
     const credInput = await $("#credential");
-    if (await credInput.isExisting() && (await credInput.isDisplayed())) {
+    if (await isVisible(credInput)) {
       await handlePasswordDialog(password);
       submittedCredentials = true;
       continue;
@@ -395,10 +433,27 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
     (await dialog.isExisting()) && (await dialog.isDisplayed())
       ? (await dialog.getText()).replace(/\s+/g, " ").trim()
       : "none";
+  const errorToast = await getVisibleErrorToastText();
   const currentUrl = await browser.getUrl();
   throw new Error(
-    `Connection flow timed out after ${CONNECT_TIMEOUT}ms. File browser not visible. Active dialog: ${dialogText}. URL: ${currentUrl}`
+    `Connection flow timed out after ${CONNECT_TIMEOUT}ms. File browser not visible. Active dialog: ${dialogText}. Error toast: ${errorToast ?? "none"}. URL: ${currentUrl}`
   );
+}
+
+async function tryClickModernConnectAction(name: string): Promise<boolean> {
+  try {
+    const row = await getProfileRow(name);
+    await revealRowActions(row);
+    let connectBtn = await row.$('[data-testid="connection-action-connect"]');
+    if (!(await connectBtn.isExisting())) {
+      connectBtn = await row.$(`button[aria-label="Connect to ${name}"]`);
+    }
+    if (!(await connectBtn.isExisting())) return false;
+    await safeClick(connectBtn);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Click the connect button on a profile row */
@@ -409,35 +464,44 @@ export async function connectToProfile(name: string): Promise<void> {
 
   let lastError = "";
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (await tryClickModernConnectAction(name)) {
+      if (await waitForConnectSignal(name, 8000)) return;
+    }
+
     const row = await getProfileRow(name);
+    try {
+      await browser.execute((el) => {
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      }, row);
+      if (await waitForConnectSignal(name, 8000)) return;
+    } catch (error) {
+      lastError = String(error);
+    }
+
     await browser.execute((el) => {
       (el as HTMLElement).focus();
     }, row);
-
-    // Keyboard path is the most stable with the current ConnectionItem handlers.
-    await browser.keys("Enter");
-    if (await waitForConnectSignal(name, 8000)) return;
-
     try {
-      await row.waitForClickable({ timeout: 1500 });
-      await row.click();
+      await browser.keys("Enter");
+      if (await waitForConnectSignal(name, 8000)) return;
     } catch (error) {
-      lastError = String(error);
-      try {
-        await browser.execute((el) => {
-          (el as HTMLElement).click();
-        }, row);
-      } catch (jsError) {
-        lastError = `${lastError}; jsClick=${String(jsError)}`;
-      }
+      lastError = `${lastError}; keyEnter=${String(error)}`;
     }
 
-    if (await waitForConnectSignal(name, 8000)) return;
+    try {
+      await safeClick(row, 1500);
+      if (await waitForConnectSignal(name, 8000)) return;
+    } catch (error) {
+      lastError = String(error);
+    }
+
     await waitForStable(200);
   }
 
+  const currentUrl = await browser.getUrl();
+  const toast = await getVisibleErrorToastText();
   throw new Error(
-    `Could not trigger connect for profile "${name}". Last error: ${lastError || "none"}`
+    `Could not trigger connect for profile "${name}". Last error: ${lastError || "none"}. Error toast: ${toast ?? "none"}. URL: ${currentUrl}`
   );
 }
 
@@ -528,7 +592,7 @@ async function waitForEditSheetOpen(timeoutMs = 3000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const title = await $("//span[text()='Edit connection']");
-    if (await title.isExisting()) return true;
+    if (await isVisible(title)) return true;
     await browser.pause(120);
   }
   return false;
@@ -538,7 +602,7 @@ async function waitForDeleteDialogOpen(timeoutMs = 3000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const dialog = await $('[role="alertdialog"]');
-    if (await dialog.isExisting()) return true;
+    if (await isVisible(dialog)) return true;
     await browser.pause(120);
   }
   return false;
@@ -554,7 +618,11 @@ export async function clickProfileAction(name: string, action: ProfileAction): P
     return;
   }
 
-  if (await tryClickLegacyActionButton(action, name)) return;
+  if (await tryClickLegacyActionButton(action, name)) {
+    if (action === "edit" ? await waitForEditSheetOpen(2500) : await waitForDeleteDialogOpen(2500)) {
+      return;
+    }
+  }
 
   const row = await focusProfileRow(name);
   if (action === "edit") {
@@ -575,9 +643,13 @@ export async function clickProfileAction(name: string, action: ProfileAction): P
   if (action === "edit") {
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
     await browser.keys([modifier, "e"]);
+    if (await waitForEditSheetOpen(2000)) return;
+    throw new Error(`Could not open edit sheet for profile "${name}"`);
   } else {
     await row.click();
     await browser.keys("Delete");
+    if (await waitForDeleteDialogOpen(2000)) return;
+    throw new Error(`Could not open delete dialog for profile "${name}"`);
   }
 }
 

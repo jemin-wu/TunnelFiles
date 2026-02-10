@@ -124,7 +124,7 @@ export function ConnectionsPage() {
               <EmptyDescription>Add a remote server to get started</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button onClick={handleAdd} size="sm" className="gap-2">
+              <Button onClick={handleAdd} size="sm" className="gap-2" data-testid="add-connection-button">
                 <Plus className="h-3.5 w-3.5" />
                 <span>New connection</span>
               </Button>
@@ -149,6 +149,7 @@ export function ConnectionsPage() {
               <Button
                 variant="ghost"
                 onClick={handleAdd}
+                data-testid="add-connection-button"
                 className="w-full h-10 gap-2 border border-dashed border-border/60 text-xs text-muted-foreground hover:border-primary/40"
               >
                 <Plus className="h-3.5 w-3.5" />

@@ -40,6 +40,7 @@ export function ConnectionItem({
       data-profile-id={profile.id}
       data-profile-name={profile.name}
       data-testid="connection-row"
+      data-connecting={isConnecting ? "true" : "false"}
       className={cn(
         "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer",
         "transition-colors duration-100",
@@ -97,11 +98,22 @@ export function ConnectionItem({
         </span>
       </div>
 
-      {/* Connect hint (hover) */}
-      <ArrowRight
-        aria-hidden="true"
-        className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity"
-      />
+      {/* Connect action (hover) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={`Connect to ${profile.name}`}
+        data-profile-id={profile.id}
+        data-profile-name={profile.name}
+        data-testid="connection-action-connect"
+        className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        onClick={(e) => {
+          e.stopPropagation();
+          onConnect(profile.id);
+        }}
+      >
+        <ArrowRight className="h-3.5 w-3.5" />
+      </Button>
 
       {/* Actions menu */}
       <DropdownMenu>
