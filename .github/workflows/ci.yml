@@ -83,7 +83,7 @@ jobs:
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             gstreamer1.0-plugins-good libunwind-dev \
-            dbus-x11 xvfb
+            webkit2gtk-driver dbus-x11 xvfb
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -134,9 +134,18 @@ jobs:
       - name: Start tauri-driver
         run: |
           ~/.cargo/bin/tauri-driver &
-          sleep 2
-          # Verify tauri-driver is listening
-          curl -s http://127.0.0.1:4444/status || echo "Warning: tauri-driver status check failed"
+          # Wait for tauri-driver to start listening
+          for i in $(seq 1 10); do
+            if curl -s http://127.0.0.1:4444/status > /dev/null 2>&1; then
+              echo "tauri-driver is ready"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "Error: tauri-driver failed to start"
+              exit 1
+            fi
+            sleep 1
+          done
 
       - name: Run E2E tests
         env:
