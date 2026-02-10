@@ -48,9 +48,12 @@ export async function waitForStable(ms = 500): Promise<void> {
 
 /** Navigate to the Connections page and wait for it to render */
 export async function navigateToConnections(): Promise<void> {
-  // Use "/" instead of "/connections" because vite preview lacks SPA fallback routing.
-  // The root URL serves index.html and React Router redirects to /connections.
-  await browser.url("/");
+  // Resolve the root URL from the current origin (works in both local tauri://
+  // and CI http:// environments). We navigate to "/" instead of "/connections"
+  // because vite preview lacks SPA fallback routing.
+  const currentUrl = await browser.getUrl();
+  const origin = new URL(currentUrl).origin;
+  await browser.url(`${origin}/`);
   await waitForStable();
   const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });

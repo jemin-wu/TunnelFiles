@@ -48,9 +48,12 @@ export async function setTheme(theme: "dark" | "light"): Promise<void> {
  * Navigate to the Connections page.
  */
 export async function navigateToConnections(): Promise<void> {
-  // Use "/" instead of "/connections" because vite preview lacks SPA fallback routing.
-  // The root URL serves index.html and React Router redirects to /connections.
-  await browser.url("/");
+  // Resolve the root URL from the current origin (works in both local tauri://
+  // and CI http:// environments). We navigate to "/" instead of "/connections"
+  // because vite preview lacks SPA fallback routing.
+  const currentUrl = await browser.getUrl();
+  const origin = new URL(currentUrl).origin;
+  await browser.url(`${origin}/`);
   await waitForStable();
   const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: 10000 });
@@ -60,9 +63,11 @@ export async function navigateToConnections(): Promise<void> {
  * Navigate to the Settings page.
  */
 export async function navigateToSettings(): Promise<void> {
-  // Load app at "/" first (vite preview lacks SPA fallback for /settings),
+  // Load app at root first (vite preview lacks SPA fallback for /settings),
   // then use History API + popstate to trigger React Router navigation.
-  await browser.url("/");
+  const currentUrl = await browser.getUrl();
+  const origin = new URL(currentUrl).origin;
+  await browser.url(`${origin}/`);
   await waitForStable();
   await browser.execute(() => {
     window.history.pushState({}, "", "/settings");
