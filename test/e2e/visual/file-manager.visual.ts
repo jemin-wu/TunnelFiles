@@ -3,6 +3,7 @@ import {
   connectToTestServer,
   checkBothThemes,
   checkElementBothThemes,
+  clickWithFallback,
 } from "../helpers/visual-helpers";
 
 describe("File Manager Visual Regression", () => {
@@ -28,7 +29,7 @@ describe("File Manager Visual Regression", () => {
       '[data-testid="collapse-sidebar"], [aria-label="Collapse sidebar"]'
     );
     if (await collapseBtn.isExisting()) {
-      await collapseBtn.click();
+      await clickWithFallback(collapseBtn);
       await waitForStable();
     }
 
@@ -37,7 +38,7 @@ describe("File Manager Visual Regression", () => {
     // Restore sidebar
     const expandBtn = await $('[data-testid="expand-sidebar"], [aria-label="Expand sidebar"]');
     if (await expandBtn.isExisting()) {
-      await expandBtn.click();
+      await clickWithFallback(expandBtn);
       await waitForStable();
     }
   });

@@ -61,6 +61,27 @@ export async function waitForStable(ms = 500): Promise<void> {
 }
 
 /**
+ * Click helper for WebKitWebDriver flakiness.
+ * Falls back to DOM click when native click is not interactable.
+ */
+export async function clickWithFallback(
+  element: WebdriverIO.Element,
+  timeoutMs = 5_000
+): Promise<void> {
+  await element.waitForExist({ timeout: timeoutMs });
+  try {
+    await element.waitForDisplayed({ timeout: timeoutMs });
+    await element.waitForClickable({ timeout: Math.min(timeoutMs, 2_000) });
+    await element.click();
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).click();
+    }, element);
+  }
+  await waitForStable(150);
+}
+
+/**
  * Get current theme from <html> class attribute.
  */
 async function getCurrentTheme(): Promise<"dark" | "light"> {

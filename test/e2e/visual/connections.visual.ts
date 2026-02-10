@@ -1,4 +1,9 @@
-import { waitForStable, navigateToConnections, checkBothThemes } from "../helpers/visual-helpers";
+import {
+  waitForStable,
+  navigateToConnections,
+  checkBothThemes,
+  clickWithFallback,
+} from "../helpers/visual-helpers";
 
 describe("Connections Page Visual Regression", () => {
   before(async () => {
@@ -16,7 +21,7 @@ describe("Connections Page Visual Regression", () => {
       : await $("//button[contains(., 'Add')]");
 
     if (await addBtn.isExisting()) {
-      await addBtn.click();
+      await clickWithFallback(addBtn);
       await waitForStable();
 
       const dialog = await $('[role="dialog"]');
@@ -27,7 +32,7 @@ describe("Connections Page Visual Regression", () => {
       // Close the dialog
       const closeBtn = await dialog.$('button[aria-label="Close"]');
       if (await closeBtn.isExisting()) {
-        await closeBtn.click();
+        await clickWithFallback(closeBtn);
       } else {
         await browser.keys("Escape");
       }
@@ -41,13 +46,13 @@ describe("Connections Page Visual Regression", () => {
       : await $("//button[contains(., 'Add')]");
 
     if (await addBtn.isExisting()) {
-      await addBtn.click();
+      await clickWithFallback(addBtn);
       await waitForStable();
 
       // Switch auth type to SSH key
       const keyAuthBtn = await $("//button[normalize-space(.)='SSH key']");
       if (await keyAuthBtn.isExisting()) {
-        await keyAuthBtn.click();
+        await clickWithFallback(keyAuthBtn);
         await waitForStable();
       }
 
