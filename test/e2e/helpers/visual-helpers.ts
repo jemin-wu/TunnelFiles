@@ -48,7 +48,9 @@ export async function setTheme(theme: "dark" | "light"): Promise<void> {
  * Navigate to the Connections page.
  */
 export async function navigateToConnections(): Promise<void> {
-  await browser.url("/connections");
+  // Use "/" instead of "/connections" because vite preview lacks SPA fallback routing.
+  // The root URL serves index.html and React Router redirects to /connections.
+  await browser.url("/");
   await waitForStable();
   const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: 10000 });
@@ -58,7 +60,14 @@ export async function navigateToConnections(): Promise<void> {
  * Navigate to the Settings page.
  */
 export async function navigateToSettings(): Promise<void> {
-  await browser.url("/settings");
+  // Load app at "/" first (vite preview lacks SPA fallback for /settings),
+  // then use History API + popstate to trigger React Router navigation.
+  await browser.url("/");
+  await waitForStable();
+  await browser.execute(() => {
+    window.history.pushState({}, "", "/settings");
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
   await waitForStable();
   const heading = await $("//span[text()='Settings']");
   await heading.waitForExist({ timeout: 10000 });
