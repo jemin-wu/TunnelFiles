@@ -120,19 +120,20 @@ describe("File Operations", () => {
 
       const input = await $("#folder-name");
       await input.waitForExist({ timeout: 10_000 });
-      await browser.execute((el) => {
-        const field = el as HTMLInputElement;
-        field.focus();
-        field.value = "";
-        field.dispatchEvent(new Event("input", { bubbles: true }));
-        field.dispatchEvent(new Event("change", { bubbles: true }));
-      }, input);
-      await browser.waitUntil(async () => (await input.getValue()).trim() === "", {
-        timeout: 3_000,
-        timeoutMsg: "Expected folder name input to be empty",
+      await browser.waitUntil(async () => await input.isEnabled(), {
+        timeout: 10_000,
+        timeoutMsg: "Folder name input did not become enabled",
       });
 
-      // Leave the name empty and try to submit
+      // Use user-like typing to ensure React state is updated.
+      await input.click();
+      await input.setValue(" ");
+      await browser.waitUntil(async () => (await input.getValue()) === " ", {
+        timeout: 3_000,
+        timeoutMsg: "Expected folder name input to contain a single space",
+      });
+
+      // Name with only spaces should still be treated as empty (trim).
       const createBtn = await $(
         "//input[@id='folder-name']/ancestor::*[@role='dialog'][1]//button[normalize-space(.)='Create']"
       );
@@ -142,13 +143,15 @@ describe("File Operations", () => {
         timeoutMsg: "Create button should become disabled for empty folder name",
       });
 
-      // Create button should be disabled when input is empty
+      // Create button should be disabled when input is blank/whitespace
       expect(await createBtn.isEnabled()).toBe(false);
 
       // Close the dialog
-      const cancelBtn = await $(btnByText("Cancel"));
-      await cancelBtn.click();
-      await waitForStable(300);
+      await browser.keys("Escape");
+      await browser.waitUntil(async () => !(await input.isExisting()), {
+        timeout: 3_000,
+        timeoutMsg: "Create folder dialog did not close after Escape",
+      });
     });
 
     // Clean up the test folder

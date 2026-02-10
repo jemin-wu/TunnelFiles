@@ -845,7 +845,19 @@ export async function createFolder(folderName: string): Promise<void> {
 
   const createBtn = await $(btnByText("Create"));
   await createBtn.click();
-  await waitForStable(800);
+
+  // Wait until the dialog is actually closed; fixed sleeps are flaky on CI.
+  await browser.waitUntil(
+    async () => {
+      const dialogInput = await $("#folder-name");
+      return !(await dialogInput.isExisting());
+    },
+    {
+      timeout: 15_000,
+      timeoutMsg: "Create folder dialog did not close after submit",
+    }
+  );
+  await waitForStable(300);
 }
 
 /** Rename a file via context menu */
