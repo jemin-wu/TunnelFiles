@@ -15,6 +15,7 @@ export const DEFAULT_MISMATCH_TOLERANCE = 0.5;
 export const STRICT_MISMATCH_TOLERANCE = 0.1;
 
 const FALLBACK_SHOT_DIR = path.resolve(process.cwd(), "test/e2e/.tmp/fallback");
+const VISUAL_COMMAND_TIMEOUT_MS = 20_000;
 let visualFallbackWarned = false;
 
 function ensureFallbackDir(): void {
@@ -27,6 +28,28 @@ function warnVisualFallback(reason: string): void {
   if (visualFallbackWarned) return;
   visualFallbackWarned = true;
   console.warn(`[visual] Fallback to raw screenshots: ${reason}`);
+}
+
+async function withCommandTimeout<T>(
+  command: Promise<T>,
+  label: string,
+  timeoutMs = VISUAL_COMMAND_TIMEOUT_MS
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      command,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
 }
 
 /**
@@ -104,15 +127,29 @@ async function checkFullPageOrFallback(tag: string, tolerance: number): Promise<
   };
 
   if (typeof browserAny.checkFullPageScreen === "function") {
-    await browserAny.checkFullPageScreen(tag, { misMatchPercentage: tolerance });
-    return;
+    try {
+      await withCommandTimeout(
+        browserAny.checkFullPageScreen(tag, { misMatchPercentage: tolerance }),
+        "checkFullPageScreen"
+      );
+      return;
+    } catch (error) {
+      warnVisualFallback(`checkFullPageScreen failed: ${String(error)}`);
+    }
   }
   if (typeof browserAny.checkScreen === "function") {
-    await browserAny.checkScreen(tag, { misMatchPercentage: tolerance });
-    return;
+    try {
+      await withCommandTimeout(
+        browserAny.checkScreen(tag, { misMatchPercentage: tolerance }),
+        "checkScreen"
+      );
+      return;
+    } catch (error) {
+      warnVisualFallback(`checkScreen failed: ${String(error)}`);
+    }
   }
 
-  warnVisualFallback("visual-service commands are unavailable");
+  warnVisualFallback("visual-service commands are unavailable or timed out");
   ensureFallbackDir();
   await browser.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
 }
@@ -131,11 +168,18 @@ async function checkElementOrFallback(
   };
 
   if (typeof browserAny.checkElement === "function") {
-    await browserAny.checkElement(element, tag, { misMatchPercentage: tolerance });
-    return;
+    try {
+      await withCommandTimeout(
+        browserAny.checkElement(element, tag, { misMatchPercentage: tolerance }),
+        "checkElement"
+      );
+      return;
+    } catch (error) {
+      warnVisualFallback(`checkElement failed: ${String(error)}`);
+    }
   }
 
-  warnVisualFallback("element visual command is unavailable");
+  warnVisualFallback("element visual command is unavailable or timed out");
   ensureFallbackDir();
   await element.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
 }

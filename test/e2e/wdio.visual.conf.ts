@@ -23,11 +23,11 @@ export const config: Options.Testrunner = {
       },
     ],
   ],
-  waitforTimeout: 20_000,
-  connectionRetryTimeout: 120_000,
-  connectionRetryCount: 5,
+  waitforTimeout: 10_000,
+  connectionRetryTimeout: 30_000,
+  connectionRetryCount: 3,
   mochaOpts: {
     ui: "bdd",
-    timeout: 120_000,
+    timeout: 90_000,
   },
 };
