@@ -8,6 +8,7 @@ import { Upload, Download, X, Check, RotateCcw, CheckCircle, XCircle, Trash2 } f
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransferStore } from "@/stores/useTransferStore";
@@ -57,15 +58,15 @@ export function TransferQueue({ className }: TransferQueueProps) {
   }
 
   return (
-    <div className={cn("flex flex-col h-full overflow-hidden", className)}>
+    <div className={cn("flex h-full flex-col overflow-hidden", className)}>
       {/* Toolbar */}
       {(activeTasks.length > 0 || completedTasks.length > 0) && (
-        <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30">
+        <div className="border-border/50 bg-muted/30 flex items-center justify-between border-b px-3 py-2">
           <div className="flex items-center gap-2 text-xs">
             {activeTasks.length > 0 && (
               <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                <span className="text-accent">{activeTasks.length}</span>
+                <span className="bg-primary h-1.5 w-1.5 rounded-full" />
+                <span className="text-primary">{activeTasks.length}</span>
                 <span className="text-muted-foreground">active</span>
               </span>
             )}
@@ -82,10 +83,11 @@ export function TransferQueue({ className }: TransferQueueProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Clear completed"
+                  className="hover:bg-destructive/10 hover:text-destructive h-6 w-6"
                   onClick={handleClearCompleted}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="size-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent className="text-xs">Clear completed</TooltipContent>
@@ -95,8 +97,8 @@ export function TransferQueue({ className }: TransferQueueProps) {
       )}
 
       {/* Task list */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        <div className="divide-y divide-border/30">
+      <ScrollArea className="min-h-0 flex-1">
+        <div className="divide-border/30 divide-y">
           {tasks.map((task, index) => (
             <div
               key={task.taskId}
@@ -107,7 +109,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
             </div>
           ))}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -134,9 +136,15 @@ function TransferItem({ task }: TransferItemProps) {
   }, [task.taskId, task.status, updateStatus]);
 
   const handleRetry = useCallback(async () => {
-    removeTask(task.taskId);
-    await retryTransfer(task.taskId);
-  }, [task.taskId, removeTask]);
+    // Optimistic update: set "waiting" before backend call (matches handleCancel pattern)
+    updateStatus({ taskId: task.taskId, status: "waiting" });
+    try {
+      await retryTransfer(task.taskId);
+    } catch {
+      // Retry failed - revert to failed status
+      updateStatus({ taskId: task.taskId, status: "failed" });
+    }
+  }, [task.taskId, updateStatus]);
 
   const handleRemove = useCallback(() => {
     removeTask(task.taskId);
@@ -145,14 +153,14 @@ function TransferItem({ task }: TransferItemProps) {
   return (
     <div
       className={cn(
-        "px-3 py-2.5 space-y-2 transition-colors",
+        "space-y-2 px-3 py-2.5 transition-colors duration-100",
         "hover:bg-accent/50",
         status === "running" && "bg-primary/5"
       )}
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 items-center gap-2">
         <TaskIcon direction={task.direction} status={status} />
-        <span className="flex-1 min-w-0 text-sm font-medium truncate" title={task.fileName}>
+        <span className="min-w-0 flex-1 truncate text-sm font-medium" title={task.fileName}>
           {task.fileName}
         </span>
         <TaskActions
@@ -182,8 +190,8 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
   switch (task.status) {
     case "running":
       return (
-        <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground">
-          <span className="text-accent">{formatSpeed(task.speed)}</span>
+        <div className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
+          <span className="text-primary">{formatSpeed(task.speed)}</span>
           <span className="text-muted-foreground/50">·</span>
           <span>
             <span className="text-primary">{task.percent ?? 0}%</span>
@@ -196,15 +204,15 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       );
     case "waiting":
       return (
-        <div className="text-xs text-muted-foreground flex items-center gap-1">
-          <span className="w-1 h-1 rounded-full bg-warning" />
+        <div className="text-muted-foreground flex items-center gap-1 text-xs">
+          <span className="bg-warning h-1 w-1 rounded-full" />
           <span>Queued</span>
         </div>
       );
     case "success":
       return (
-        <div className="text-xs text-success flex items-center gap-1">
-          <Check className="h-3 w-3" />
+        <div className="text-success flex items-center gap-1 text-xs">
+          <Check className="size-3" />
           <span>Transfer complete</span>
         </div>
       );
@@ -212,20 +220,20 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       return (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="text-xs text-destructive flex items-center gap-1 min-w-0">
-              <X className="h-3 w-3 shrink-0" />
+            <div className="text-destructive flex min-w-0 items-center gap-1 text-xs">
+              <X className="size-3 shrink-0" />
               <span className="truncate">{task.errorMessage || "Transfer failed"}</span>
             </div>
           </TooltipTrigger>
           {task.errorMessage && (
-            <TooltipContent side="bottom" className="text-xs max-w-xs">
+            <TooltipContent side="bottom" className="max-w-xs text-xs">
               {task.errorMessage}
             </TooltipContent>
           )}
         </Tooltip>
       );
     case "canceled":
-      return <div className="text-xs text-muted-foreground">Canceled</div>;
+      return <div className="text-muted-foreground text-xs">Canceled</div>;
   }
 }
 
@@ -236,7 +244,7 @@ function TaskIcon({
   direction: "upload" | "download";
   status: TransferStatus;
 }) {
-  const baseClasses = "h-4 w-4 flex-shrink-0";
+  const baseClasses = "size-4 flex-shrink-0";
 
   switch (status) {
     case "success":
@@ -268,7 +276,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
   const isActive = ACTIVE_STATUSES.has(status);
 
   return (
-    <div className="flex items-center gap-0.5 shrink-0">
+    <div className="flex shrink-0 items-center gap-0.5">
       {isActive && (
         <ActionButton
           icon={X}
@@ -311,8 +319,14 @@ function ActionButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("h-6 w-6", className)} onClick={onClick}>
-          <Icon className="h-3.5 w-3.5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={tooltip}
+          className={cn("h-6 w-6", className)}
+          onClick={onClick}
+        >
+          <Icon className="size-3.5" />
         </Button>
       </TooltipTrigger>
       <TooltipContent className="text-xs">{tooltip}</TooltipContent>

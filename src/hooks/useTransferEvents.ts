@@ -11,13 +11,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { EVENTS, type TransferProgressPayload, type TransferStatusPayload } from "@/types/events";
 import { useTransferStore } from "@/stores/useTransferStore";
 
-/** 从文件路径提取目录路径 */
-function getDirectoryPath(filePath: string): string {
-  const lastSlash = filePath.lastIndexOf("/");
-  if (lastSlash <= 0) return "/";
-  return filePath.substring(0, lastSlash);
-}
-
 export function useTransferEvents(): void {
   const queryClient = useQueryClient();
   const updateProgress = useTransferStore((s) => s.updateProgress);
@@ -30,7 +23,11 @@ export function useTransferEvents(): void {
     depsRef.current = { queryClient, updateProgress, updateStatus, getTask };
   }, [queryClient, updateProgress, updateStatus, getTask]);
 
+  // Debounce timer for batch upload invalidation
+  const invalidateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
+    let cancelled = false;
     const unlisteners: UnlistenFn[] = [];
 
     const setup = async () => {
@@ -40,6 +37,10 @@ export function useTransferEvents(): void {
           depsRef.current.updateProgress(event.payload);
         }
       );
+      if (cancelled) {
+        unlistenProgress();
+        return;
+      }
       unlisteners.push(unlistenProgress);
 
       const unlistenStatus = await listen<TransferStatusPayload>(
@@ -51,25 +52,42 @@ export function useTransferEvents(): void {
           // 先更新状态
           update(payload);
 
-          // 上传成功时刷新对应目录的文件列表
+          // 上传成功时刷新该 session 的所有文件列表（去抖动 300ms）
+          // 使用 session 级别失效（而非精确路径匹配），因为：
+          // 1. 文件夹上传时，每个文件的父目录可能不是用户正在浏览的目录
+          // 2. 去抖动避免批量上传时每个文件完成都触发 refetch
           if (payload.status === "success") {
             const task = get(payload.taskId);
             if (task && task.direction === "upload") {
-              const dirPath = getDirectoryPath(task.remotePath);
-              qc.invalidateQueries({
-                queryKey: ["files", task.sessionId, dirPath],
-              });
+              if (invalidateTimerRef.current) {
+                clearTimeout(invalidateTimerRef.current);
+              }
+              const sessionId = task.sessionId;
+              invalidateTimerRef.current = setTimeout(() => {
+                qc.invalidateQueries({
+                  queryKey: ["files", sessionId],
+                });
+                invalidateTimerRef.current = null;
+              }, 300);
             }
           }
         }
       );
+      if (cancelled) {
+        unlistenStatus();
+        return;
+      }
       unlisteners.push(unlistenStatus);
     };
 
     setup();
 
     return () => {
+      cancelled = true;
       unlisteners.forEach((unlisten) => unlisten());
+      if (invalidateTimerRef.current) {
+        clearTimeout(invalidateTimerRef.current);
+      }
     };
   }, []);
 }

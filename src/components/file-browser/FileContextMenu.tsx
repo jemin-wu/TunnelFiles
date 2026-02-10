@@ -76,13 +76,13 @@ export function FileContextMenu({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-52 border-border bg-card">
+      <ContextMenuContent className="border-border bg-card w-52">
         {/* Directory only: enter */}
         {file.isDir && onEnterDir && !isMultiSelect && (
           <>
-            <ContextMenuItem onClick={onEnterDir} className="gap-2 justify-between">
+            <ContextMenuItem onClick={onEnterDir} className="justify-between gap-2">
               <span className="flex items-center gap-2">
-                <FolderOpen className="h-3.5 w-3.5 text-primary" />
+                <FolderOpen className="size-3.5" />
                 <span>Open</span>
               </span>
               <span className="text-muted-foreground text-xs">↵</span>
@@ -94,7 +94,7 @@ export function FileContextMenu({
         {/* Download - supports batch */}
         {onDownload && (
           <ContextMenuItem onClick={onDownload} className="gap-2">
-            <Download className="h-3.5 w-3.5 text-primary" />
+            <Download className="size-3.5" />
             <span>{isMultiSelect ? `Download ${selectionCount} items` : "Download"}</span>
           </ContextMenuItem>
         )}
@@ -103,13 +103,13 @@ export function FileContextMenu({
         <ContextMenuSeparator className="bg-border" />
 
         <ContextMenuItem onClick={handleCopyPath} className="gap-2">
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="size-3.5" />
           <span>Copy path</span>
         </ContextMenuItem>
 
         {!isMultiSelect && (
           <ContextMenuItem onClick={handleCopyName} className="gap-2">
-            <Files className="h-3.5 w-3.5" />
+            <Files className="size-3.5" />
             <span>Copy name</span>
           </ContextMenuItem>
         )}
@@ -119,9 +119,9 @@ export function FileContextMenu({
 
         {/* New folder */}
         {onNewFolder && (
-          <ContextMenuItem onClick={onNewFolder} className="gap-2 justify-between">
+          <ContextMenuItem onClick={onNewFolder} className="justify-between gap-2">
             <span className="flex items-center gap-2">
-              <FolderPlus className="h-3.5 w-3.5 text-primary" />
+              <FolderPlus className="size-3.5" />
               <span>New folder</span>
             </span>
             <span className="text-muted-foreground text-xs">{formatShortcut("Mod+N")}</span>
@@ -130,9 +130,9 @@ export function FileContextMenu({
 
         {/* Rename - single selection only */}
         {!isMultiSelect && onRename && (
-          <ContextMenuItem onClick={onRename} className="gap-2 justify-between">
+          <ContextMenuItem onClick={onRename} className="justify-between gap-2">
             <span className="flex items-center gap-2">
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="size-3.5" />
               <span>Rename</span>
             </span>
             <span className="text-muted-foreground text-xs">{formatShortcut("Mod+R")}</span>
@@ -142,7 +142,7 @@ export function FileContextMenu({
         {/* Change permissions - supports batch */}
         {onChmod && (
           <ContextMenuItem onClick={onChmod} className="gap-2">
-            <Shield className="h-3.5 w-3.5" />
+            <Shield className="size-3.5" />
             <span>{isMultiSelect ? `Chmod ${selectionCount} items` : "Chmod"}</span>
           </ContextMenuItem>
         )}
@@ -150,9 +150,9 @@ export function FileContextMenu({
         <ContextMenuSeparator className="bg-border" />
 
         {/* Delete current file (no batch, always operates on right-clicked file) */}
-        <ContextMenuItem variant="destructive" onClick={onDelete} className="gap-2 justify-between">
+        <ContextMenuItem variant="destructive" onClick={onDelete} className="justify-between gap-2">
           <span className="flex items-center gap-2">
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-3.5" />
             <span>Delete</span>
           </span>
           <span className="text-xs opacity-70">{formatShortcut("Mod+Backspace")}</span>

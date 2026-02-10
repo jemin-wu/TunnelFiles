@@ -42,11 +42,11 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
         if (segment === null) {
           return (
             <div key="collapsed" className="flex items-center gap-0.5">
-              <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+              <ChevronRight className="text-muted-foreground/40 size-3 shrink-0" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="h-5 px-1.5">
-                    <MoreHorizontal className="h-3.5 w-3.5" />
+                    <MoreHorizontal className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="text-xs">
@@ -66,11 +66,12 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
 
         return (
           <div key={segment.path} className="flex items-center gap-0.5">
-            {!isFirst && <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />}
+            {!isFirst && <ChevronRight className="text-muted-foreground/40 size-3 shrink-0" />}
             {isLast ? (
               <span
-                className="text-foreground font-medium px-1.5 py-0.5 rounded truncate max-w-40"
+                className="text-foreground max-w-40 truncate rounded px-1.5 py-0.5 font-medium"
                 aria-current="location"
+                title={segment.name}
               >
                 {segment.name}
               </span>
@@ -78,8 +79,9 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto px-1.5 py-0.5 text-sm text-muted-foreground hover:text-foreground rounded"
+                className="text-muted-foreground h-auto max-w-40 truncate rounded px-1.5 py-0.5 text-sm"
                 onClick={() => onNavigate(segment.path)}
+                title={segment.name}
               >
                 {segment.name}
               </Button>

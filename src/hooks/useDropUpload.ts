@@ -8,6 +8,7 @@ import { useState, useEffect, useRef } from "react";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import { stat } from "@tauri-apps/plugin-fs";
+import { useQueryClient } from "@tanstack/react-query";
 import { uploadFile, uploadDirectory, getTransfer } from "@/lib/transfer";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { useToast } from "@/hooks/useToast";
@@ -29,13 +30,14 @@ export function useDropUpload(options: UseDropUploadOptions): UseDropUploadRetur
   const addTask = useTransferStore((s) => s.addTask);
   // useToast returns a stable singleton object
   const toast = useToast();
+  const queryClient = useQueryClient();
 
-  // Ref to track latest options, avoiding stale closures in event handler
-  const optionsRef = useRef({ sessionId, remotePath, enabled });
+  // Ref to track latest values, avoiding stale closures in event handler
+  const optionsRef = useRef({ sessionId, remotePath, enabled, queryClient });
 
   useEffect(() => {
-    optionsRef.current = { sessionId, remotePath, enabled };
-  }, [sessionId, remotePath, enabled]);
+    optionsRef.current = { sessionId, remotePath, enabled, queryClient };
+  }, [sessionId, remotePath, enabled, queryClient]);
 
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
@@ -59,7 +61,7 @@ export function useDropUpload(options: UseDropUploadOptions): UseDropUploadRetur
           case "drop": {
             setIsDragging(false);
             const paths = event.payload.paths;
-            const { sessionId: sid, remotePath: rpath } = optionsRef.current;
+            const { sessionId: sid, remotePath: rpath, queryClient: qc } = optionsRef.current;
 
             if (paths.length === 0) return;
 
@@ -71,18 +73,22 @@ export function useDropUpload(options: UseDropUploadOptions): UseDropUploadRetur
                   const metadata = await stat(localPath);
 
                   if (metadata.isDirectory) {
-                    // 上传目录
+                    // 上传目录（后端会先创建远程目录再返回）
                     const taskIds = await uploadDirectory(sid, localPath, rpath);
-                    for (const taskId of taskIds) {
-                      const task = await getTransfer(taskId);
+                    // 后端已创建远程目录，立即刷新文件列表以显示新文件夹
+                    qc.invalidateQueries({
+                      queryKey: ["files", sid, rpath],
+                    });
+                    const tasks = await Promise.all(taskIds.map((id) => getTransfer(id)));
+                    for (const task of tasks) {
                       if (task) {
                         addTask(task);
                       }
                     }
                     if (taskIds.length > 0) {
-                      toast.success(`已创建 ${taskIds.length} 个上传任务`);
+                      toast.success(`Created ${taskIds.length} upload tasks`);
                     } else {
-                      toast.info("目录为空，无文件可上传");
+                      toast.info("Directory is empty, no files to upload");
                     }
                   } else {
                     // 上传文件

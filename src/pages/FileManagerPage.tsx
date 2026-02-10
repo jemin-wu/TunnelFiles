@@ -3,7 +3,7 @@
  * Supports Files/Terminal tab switching with unified toolbar
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Loader2,
@@ -18,16 +18,16 @@ import {
   FolderPlus,
 } from "lucide-react";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 
 import { FileListContainer } from "@/components/file-browser/FileListContainer";
 import { Breadcrumb } from "@/components/file-browser/Breadcrumb";
 import { DropZone } from "@/components/transfer/DropZone";
 import { TransferQueue } from "@/components/transfer/TransferQueue";
-import { Terminal } from "@/components/terminal";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSessionStatus } from "@/hooks/useSessionStatus";
 import { useTransferEvents } from "@/hooks/useTransferEvents";
 import { useTerminal } from "@/hooks/useTerminal";
@@ -35,6 +35,8 @@ import { useFileList } from "@/hooks/useFileList";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cn } from "@/lib/utils";
 import type { TerminalStatusPayload } from "@/types/terminal";
+
+const Terminal = lazy(() => import("@/components/terminal").then((m) => ({ default: m.Terminal })));
 
 type TabMode = "files" | "terminal";
 
@@ -83,7 +85,7 @@ function PageToolbar({
   terminalInfo: { terminalId: string } | null;
 }) {
   return (
-    <div className="flex items-center gap-1.5 px-2 h-9 border-b border-border bg-card/30 shrink-0">
+    <div className="border-border bg-card/30 flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
       {activeTab === "files" ? (
         <>
           {/* Breadcrumb navigation */}
@@ -91,84 +93,80 @@ function PageToolbar({
             path={currentPath}
             homePath={homePath}
             onNavigate={onNavigate}
-            className="flex-1 min-w-0"
+            className="min-w-0 flex-1"
           />
 
           {/* File count */}
-          <div className="hidden sm:flex items-center text-xs text-muted-foreground tabular-nums shrink-0">
+          <div className="text-muted-foreground hidden shrink-0 items-center text-xs tabular-nums sm:flex">
             <span>{fileCount} items</span>
           </div>
 
-          <span className="hidden sm:block w-px h-4 bg-border" />
+          <span className="bg-border hidden h-4 w-px sm:block" />
 
-          <TooltipProvider delayDuration={300}>
-            {/* New folder */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  aria-label="New folder"
-                  data-testid="new-folder-button"
-                  className="h-7 w-7"
-                  onClick={onCreateFolder}
-                >
-                  <FolderPlus className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="text-xs">New folder</TooltipContent>
-            </Tooltip>
+          {/* New folder */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="New folder"
+                data-testid="new-folder-button"
+                className="h-7 w-7"
+                onClick={onCreateFolder}
+              >
+                <FolderPlus className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">New folder</TooltipContent>
+          </Tooltip>
 
-            {/* Refresh */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onRefresh}
-                  disabled={isFetching}
-                >
-                  {isFetching ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="text-xs">Refresh</TooltipContent>
-            </Tooltip>
+          {/* Refresh */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Refresh"
+                className="h-7 w-7"
+                onClick={onRefresh}
+                disabled={isFetching}
+              >
+                {isFetching ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">Refresh</TooltipContent>
+          </Tooltip>
 
-            {/* Toggle hidden files */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={onToggleHidden}
-                  aria-pressed={showHidden}
-                >
-                  {showHidden ? (
-                    <Eye className="h-3.5 w-3.5" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent className="text-xs">
-                {showHidden ? "Hide hidden files" : "Show hidden files"}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {/* Toggle hidden files */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={showHidden ? "Hide hidden files" : "Show hidden files"}
+                className="h-7 w-7"
+                onClick={onToggleHidden}
+                aria-pressed={showHidden}
+              >
+                {showHidden ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">
+              {showHidden ? "Hide hidden files" : "Show hidden files"}
+            </TooltipContent>
+          </Tooltip>
         </>
       ) : (
         <>
           {/* Terminal mode: connection status info */}
-          <div className="flex-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex flex-1 items-center gap-2 text-xs">
             {isTerminalOpening && (
               <>
-                <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                <Loader2 className="text-primary size-3 animate-spin" />
                 <span>Connecting...</span>
               </>
             )}
@@ -183,46 +181,46 @@ function PageToolbar({
       )}
 
       {/* Separator before mode toggle */}
-      <span className="w-px h-4 bg-border" />
+      <span className="bg-border h-4 w-px" />
 
       {/* Mode toggle icons */}
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-7 w-7",
-                activeTab === "files" && "bg-accent dark:bg-accent/50 text-accent-foreground"
-              )}
-              onClick={() => onTabChange("files")}
-              aria-pressed={activeTab === "files"}
-            >
-              <FolderOpen className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="text-xs">Files</TooltipContent>
-        </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Files"
+            className={cn(
+              "h-7 w-7",
+              activeTab === "files" && "bg-accent dark:bg-accent/50 text-accent-foreground"
+            )}
+            onClick={() => onTabChange("files")}
+            aria-pressed={activeTab === "files"}
+          >
+            <FolderOpen className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">Files</TooltipContent>
+      </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-7 w-7",
-                activeTab === "terminal" && "bg-accent dark:bg-accent/50 text-accent-foreground"
-              )}
-              onClick={() => onTabChange("terminal")}
-              aria-pressed={activeTab === "terminal"}
-            >
-              <TerminalSquare className="h-3.5 w-3.5" />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent className="text-xs">Terminal</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Terminal"
+            className={cn(
+              "h-7 w-7",
+              activeTab === "terminal" && "bg-accent dark:bg-accent/50 text-accent-foreground"
+            )}
+            onClick={() => onTabChange("terminal")}
+            aria-pressed={activeTab === "terminal"}
+          >
+            <TerminalSquare className="size-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="text-xs">Terminal</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
@@ -274,7 +272,7 @@ function MainContent({
   onTerminalStatusChange: (payload: TerminalStatusPayload) => void;
 }) {
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* Unified toolbar */}
       <PageToolbar
         activeTab={activeTab}
@@ -294,61 +292,73 @@ function MainContent({
       />
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 relative">
-        {/* FILES Content */}
+      <div className="relative min-h-0 flex-1">
+        {/* FILES Content - opacity toggle preserves scroll position and component state */}
         <div
           className={cn(
             "absolute inset-0 transition-opacity duration-200",
-            activeTab === "files" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            activeTab === "files" ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0"
           )}
         >
-          <DropZone sessionId={sessionId} remotePath={currentPath} className="h-full">
-            <FileListContainer
-              sessionId={sessionId}
-              currentPath={currentPath}
-              onPathChange={onPathChange}
-              showHidden={showHidden}
-              createFolderOpen={createFolderOpen}
-              onCreateFolderOpenChange={onCreateFolderOpenChange}
-            />
-          </DropZone>
+          <ErrorBoundary>
+            <DropZone sessionId={sessionId} remotePath={currentPath} className="h-full">
+              <FileListContainer
+                sessionId={sessionId}
+                currentPath={currentPath}
+                onPathChange={onPathChange}
+                showHidden={showHidden}
+                createFolderOpen={createFolderOpen}
+                onCreateFolderOpenChange={onCreateFolderOpenChange}
+              />
+            </DropZone>
+          </ErrorBoundary>
         </div>
 
-        {/* TERMINAL Content */}
+        {/* TERMINAL Content - opacity toggle preserves xterm instance state */}
         <div
           className={cn(
-            "absolute inset-0 transition-opacity duration-200 flex flex-col",
-            activeTab === "terminal" ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            "absolute inset-0 flex flex-col transition-opacity duration-200",
+            activeTab === "terminal" ? "z-10 opacity-100" : "pointer-events-none z-0 opacity-0"
           )}
         >
           {/* Terminal content */}
-          <div className="flex-1 min-h-0">
+          <div className="min-h-0 flex-1">
             {terminalInfo ? (
-              <Terminal
-                terminalId={terminalInfo.terminalId}
-                onInput={writeInput}
-                onResize={resize}
-                onStatusChange={onTerminalStatusChange}
-              />
+              <ErrorBoundary>
+                <Suspense
+                  fallback={
+                    <div className="flex h-full items-center justify-center">
+                      <Loader2 className="text-primary size-6 animate-spin" />
+                    </div>
+                  }
+                >
+                  <Terminal
+                    terminalId={terminalInfo.terminalId}
+                    onInput={writeInput}
+                    onResize={resize}
+                    onStatusChange={onTerminalStatusChange}
+                  />
+                </Suspense>
+              </ErrorBoundary>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full gap-4 bg-background">
+              <div className="bg-background flex h-full flex-col items-center justify-center gap-4">
                 {isTerminalOpening ? (
                   <>
-                    <TerminalSquare className="h-10 w-10 text-accent" />
+                    <TerminalSquare className="text-primary size-10" />
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-sm text-muted-foreground">Opening terminal...</span>
-                      <span className="text-xs text-muted-foreground/60">
+                      <span className="text-muted-foreground text-sm">Opening terminal...</span>
+                      <span className="text-muted-foreground/60 text-xs">
                         Initializing terminal session
                       </span>
                     </div>
                   </>
                 ) : (
                   <>
-                    <TerminalSquare className="h-10 w-10 text-muted-foreground/50" />
+                    <TerminalSquare className="text-muted-foreground/50 size-10" />
                     <div className="flex flex-col items-center gap-1">
-                      <span className="text-sm text-muted-foreground">Terminal not connected</span>
+                      <span className="text-muted-foreground text-sm">Terminal not connected</span>
                       <Button variant="outline" size="sm" onClick={openTerminal} className="mt-2">
-                        <TerminalSquare className="h-3.5 w-3.5 mr-1.5" />
+                        <TerminalSquare className="size-3.5" />
                         Connect
                       </Button>
                     </div>
@@ -398,6 +408,7 @@ export function FileManagerPage() {
   const activeTransferCount = useTransferStore((s) => s.getActiveTasks().length);
 
   // File list for toolbar info (count, refresh, fetching state)
+  // Only fetch when Files tab is active; TanStack Query cache serves stale data on re-mount
   const {
     files: rawFiles,
     isFetching,
@@ -545,7 +556,7 @@ export function FileManagerPage() {
 
         <ResizableHandle
           withHandle
-          className="bg-border/50 hover:bg-primary/30 transition-colors"
+          className="bg-border/50 hover:bg-primary/30 transition-colors duration-100"
         />
 
         <ResizablePanel
@@ -554,30 +565,36 @@ export function FileManagerPage() {
           minSize={MIN_SIDEBAR_SIZE}
           maxSize={MAX_SIDEBAR_SIZE}
         >
-          <div className="flex flex-col h-full border-l border-border bg-sidebar">
+          <div className="border-border bg-sidebar flex h-full flex-col border-l">
             {/* Sidebar header */}
-            <div className="flex items-center justify-between px-3 h-9 border-b border-sidebar-border bg-sidebar">
+            <div className="border-sidebar-border bg-sidebar flex h-9 items-center justify-between border-b px-3">
               <div className="flex items-center gap-2">
-                <Activity className="h-3.5 w-3.5 text-accent" />
+                <Activity className="text-primary size-3.5" />
                 <span className="text-sm font-medium">Transfer queue</span>
               </div>
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleSidebar}>
-                      <PanelRightClose className="h-3.5 w-3.5" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="left" className="text-xs">
-                    Collapse panel
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Collapse panel"
+                    className="h-7 w-7"
+                    onClick={toggleSidebar}
+                  >
+                    <PanelRightClose className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="left" className="text-xs">
+                  Collapse panel
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             {/* Transfer queue content */}
-            <div className="flex-1 min-h-0">
-              <TransferQueue className="h-full" />
+            <div className="min-h-0 flex-1">
+              <ErrorBoundary>
+                <TransferQueue className="h-full" />
+              </ErrorBoundary>
             </div>
           </div>
         </ResizablePanel>
@@ -588,42 +605,46 @@ export function FileManagerPage() {
   // Files mode with collapsed sidebar: fixed width sidebar
   return (
     <div className="flex h-full">
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <MainContent {...mainContentProps} />
       </div>
 
       {/* Collapsed sidebar - fixed width */}
       <div
-        className="flex flex-col items-center h-full border-l border-border/60 bg-sidebar shrink-0"
+        className="border-border/60 bg-sidebar flex h-full shrink-0 flex-col items-center border-l"
         style={{ width: COLLAPSED_SIDEBAR_WIDTH }}
       >
         {/* Top bar aligned with toolbar h-9 */}
-        <div className="flex items-center justify-center h-9 w-full shrink-0 border-b border-border">
-          <TooltipProvider delayDuration={300}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleSidebar}>
-                  <PanelRightOpen className="h-3.5 w-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left" className="text-xs">
-                Expand transfer queue
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+        <div className="border-border flex h-9 w-full shrink-0 items-center justify-center border-b">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Expand transfer queue"
+                className="h-7 w-7"
+                onClick={toggleSidebar}
+              >
+                <PanelRightOpen className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="left" className="text-xs">
+              Expand transfer queue
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         {/* Collapsed state: Activity icon with active transfer badge */}
-        <div className="flex flex-col items-center gap-1 mt-3">
+        <div className="mt-3 flex flex-col items-center gap-1">
           <div className="relative">
-            <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+            <Activity className="text-muted-foreground size-3.5" />
             {activeTransferCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-0.5 leading-none">
+              <span className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-xs leading-none font-medium">
                 {activeTransferCount}
               </span>
             )}
           </div>
-          <span className="text-xs text-muted-foreground [writing-mode:vertical-rl]">Queue</span>
+          <span className="text-muted-foreground text-xs [writing-mode:vertical-rl]">Queue</span>
         </div>
       </div>
     </div>

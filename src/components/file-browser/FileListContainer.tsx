@@ -215,8 +215,8 @@ export function FileListContainer({
             showSuccessToast("Directory is empty, no files to download");
             return;
           }
-          for (const taskId of taskIds) {
-            const task = await getTransfer(taskId);
+          const tasks = await Promise.all(taskIds.map((id) => getTransfer(id)));
+          for (const task of tasks) {
             if (task) addTask(task);
           }
           showSuccessToast(`Created ${taskIds.length} download tasks`);
@@ -245,9 +245,9 @@ export function FileListContainer({
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
       {/* File list */}
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1">
         <FileList
           files={files}
           isSelected={isSelected}

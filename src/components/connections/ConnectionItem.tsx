@@ -42,12 +42,12 @@ export function ConnectionItem({
       data-testid="connection-row"
       data-connecting={isConnecting ? "true" : "false"}
       className={cn(
-        "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer",
+        "group relative flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5",
         "transition-colors duration-100",
         "hover:bg-accent/50",
-        "focus-visible:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "focus-visible:bg-accent/50 focus-visible:ring-ring/50 focus-visible:ring-1 focus-visible:outline-none",
         "animate-fade-in",
-        isConnecting && "opacity-50 pointer-events-none"
+        isConnecting && "pointer-events-none opacity-50"
       )}
       style={{ animationDelay: `${animationDelay}ms` }}
       onClick={() => onConnect(profile.id)}
@@ -65,32 +65,32 @@ export function ConnectionItem({
       }}
     >
       {/* Connection indicator */}
-      <div className="flex items-center justify-center w-8 h-8 rounded-md bg-primary/10 text-primary shrink-0">
+      <div className="bg-primary/10 text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
         {isConnecting ? (
-          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          <Loader2 className="size-3.5 animate-spin" />
         ) : (
-          <Plug className="h-3.5 w-3.5" />
+          <Plug className="size-3.5" />
         )}
       </div>
 
       {/* Info */}
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium truncate" title={profile.name}>
+          <span className="truncate text-sm font-medium" title={profile.name}>
             {profile.name}
           </span>
           {profile.authType === "key" && (
             <span
-              className="flex items-center gap-0.5 text-xs text-primary/70 shrink-0"
+              className="text-primary/70 flex shrink-0 items-center gap-0.5 text-xs"
               aria-label="SSH key authentication"
             >
-              <Key className="h-2.5 w-2.5" />
+              <Key className="size-3" />
               <span className="sr-only">SSH key</span>
             </span>
           )}
         </div>
         <span
-          className="text-xs font-mono text-muted-foreground truncate block"
+          className="text-muted-foreground block truncate font-mono text-xs"
           title={`${profile.username}@${profile.host}:${profile.port}`}
         >
           {profile.username}@{profile.host}
@@ -106,13 +106,13 @@ export function ConnectionItem({
         data-profile-id={profile.id}
         data-profile-name={profile.name}
         data-testid="connection-action-connect"
-        className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 opacity-0 transition-opacity duration-100 group-focus-within:opacity-100 group-hover:opacity-100"
         onClick={(e) => {
           e.stopPropagation();
           onConnect(profile.id);
         }}
       >
-        <ArrowRight className="h-3.5 w-3.5" />
+        <ArrowRight className="size-3.5" />
       </Button>
 
       {/* Actions menu */}
@@ -125,10 +125,10 @@ export function ConnectionItem({
             data-profile-id={profile.id}
             data-profile-name={profile.name}
             data-testid="connection-actions-trigger"
-            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-6 w-6 shrink-0 opacity-0 transition-opacity duration-100 group-focus-within:opacity-100 group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <MoreHorizontal className="h-3.5 w-3.5" />
+            <MoreHorizontal className="size-3.5" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-36">
@@ -139,7 +139,7 @@ export function ConnectionItem({
               onEdit(profile);
             }}
           >
-            <Pencil className="h-3.5 w-3.5" />
+            <Pencil className="size-3.5" />
             Edit
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -151,7 +151,7 @@ export function ConnectionItem({
               onDelete(profile);
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="size-3.5" />
             Delete
           </DropdownMenuItem>
         </DropdownMenuContent>

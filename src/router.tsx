@@ -1,13 +1,28 @@
 /** Application router configuration */
 
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 
 import { MainLayout } from "@/layouts/MainLayout";
-import { ConnectionsPage } from "@/pages/ConnectionsPage";
-import { FileManagerPage } from "@/pages/FileManagerPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { NotFoundPage } from "@/pages/NotFoundPage";
 import { RouteErrorBoundary } from "@/components/ErrorBoundary";
+import { FullPageLoader } from "@/components/ui/LoadingSpinner";
+
+const ConnectionsPage = lazy(() =>
+  import("@/pages/ConnectionsPage").then((m) => ({ default: m.ConnectionsPage }))
+);
+const FileManagerPage = lazy(() =>
+  import("@/pages/FileManagerPage").then((m) => ({ default: m.FileManagerPage }))
+);
+const SettingsPage = lazy(() =>
+  import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
+const NotFoundPage = lazy(() =>
+  import("@/pages/NotFoundPage").then((m) => ({ default: m.NotFoundPage }))
+);
+
+function SuspensePage({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<FullPageLoader />}>{children}</Suspense>;
+}
 
 export const router = createBrowserRouter([
   {
@@ -21,20 +36,36 @@ export const router = createBrowserRouter([
       },
       {
         path: "connections",
-        element: <ConnectionsPage />,
+        element: (
+          <SuspensePage>
+            <ConnectionsPage />
+          </SuspensePage>
+        ),
       },
       {
         path: "files/:sessionId",
-        element: <FileManagerPage />,
+        element: (
+          <SuspensePage>
+            <FileManagerPage />
+          </SuspensePage>
+        ),
         errorElement: <RouteErrorBoundary />,
       },
       {
         path: "settings",
-        element: <SettingsPage />,
+        element: (
+          <SuspensePage>
+            <SettingsPage />
+          </SuspensePage>
+        ),
       },
       {
         path: "*",
-        element: <NotFoundPage />,
+        element: (
+          <SuspensePage>
+            <NotFoundPage />
+          </SuspensePage>
+        ),
       },
     ],
   },

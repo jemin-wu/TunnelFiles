@@ -23,23 +23,25 @@ brew install --cask tunnelfiles --no-quarantine
 
 从 [Releases](https://github.com/jemin-wu/TunnelFiles/releases) 下载对应系统的安装包：
 
-| 系统 | 文件 |
-|------|------|
-| macOS (Apple Silicon) | `TunnelFiles_x.x.x_aarch64.dmg` |
-| macOS (Intel) | `TunnelFiles_x.x.x_x64.dmg` |
-| Windows | `TunnelFiles_x.x.x_x64-setup.exe` |
-| Linux (Debian/Ubuntu) | `tunnelfiles_x.x.x_amd64.deb` |
-| Linux (AppImage) | `TunnelFiles_x.x.x_amd64.AppImage` |
+| 系统                  | 文件                               |
+| --------------------- | ---------------------------------- |
+| macOS (Apple Silicon) | `TunnelFiles_x.x.x_aarch64.dmg`    |
+| macOS (Intel)         | `TunnelFiles_x.x.x_x64.dmg`        |
+| Windows               | `TunnelFiles_x.x.x_x64-setup.exe`  |
+| Linux (Debian/Ubuntu) | `tunnelfiles_x.x.x_amd64.deb`      |
+| Linux (AppImage)      | `TunnelFiles_x.x.x_amd64.AppImage` |
 
 ### macOS 安装说明
 
 由于应用未经 Apple 签名，首次打开需要以下步骤之一：
 
 **方法 A：右键打开**
+
 1. 右键点击应用 → 打开
 2. 在弹窗中点击「打开」
 
 **方法 B：移除隔离属性（推荐）**
+
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/TunnelFiles.app
 ```
@@ -67,6 +69,39 @@ pnpm tauri dev      # 启动开发环境
 pnpm tauri build    # 生产构建
 pnpm lint           # ESLint 检查
 pnpm format         # Prettier 格式化
+```
+
+## 测试策略
+
+### 本地默认（不依赖 E2E）
+
+```bash
+pnpm run test:local   # 前端 Vitest + 后端单元测试（不含依赖 SSH 环境的集成测试）
+```
+
+如果只想跑前端测试：
+
+```bash
+pnpm run test:run
+```
+
+如果要跑后端 SSH 集成测试（需要 Docker SSH 环境）：
+
+```bash
+pnpm run test:backend:integration
+pnpm run e2e:env:down
+```
+
+### E2E / 视觉回归（CI 强制）
+
+- CI 会强制执行 `test:e2e` 和 `test:visual`。
+- 本地执行 `pnpm run test:e2e` 时，如果当前平台不支持 `tauri-driver`，会自动跳过并返回成功（便于本地开发）。
+- 若本地环境完整并想强制执行 E2E：
+
+```bash
+pnpm run e2e:env:up
+E2E_FORCE=1 pnpm run test:e2e -- --spec test/e2e/specs/smoke.test.ts
+pnpm run e2e:env:down
 ```
 
 ## IDE 配置

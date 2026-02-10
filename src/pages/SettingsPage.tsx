@@ -59,15 +59,17 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       variant="ghost"
       onClick={onClick}
       className={cn(
-        "justify-start gap-2.5 w-full h-auto px-3 py-2.5 text-sm transition-all duration-200",
+        "group h-auto w-full justify-start gap-2.5 px-3 py-2.5 text-sm transition-colors duration-100",
         "hover:bg-accent/50",
         active ? "bg-accent dark:bg-accent/50 text-accent-foreground" : "text-muted-foreground"
       )}
     >
       <span
         className={cn(
-          "transition-colors",
-          active ? "text-accent-foreground" : "text-muted-foreground/70"
+          "transition-colors duration-100",
+          active
+            ? "text-accent-foreground"
+            : "text-muted-foreground/70 group-hover:text-accent-foreground"
         )}
       >
         {icon}
@@ -85,11 +87,11 @@ interface SettingRowProps {
 
 function SettingRow({ label, description, children }: SettingRowProps) {
   return (
-    <div className="py-4 border-b border-border/30 last:border-0">
+    <div className="border-border/30 border-b py-4 last:border-0">
       <div className="mb-1">
-        <span className="text-sm font-medium text-foreground/90">{label}</span>
+        <span className="text-foreground/90 text-sm font-medium">{label}</span>
       </div>
-      {description && <div className="text-xs text-muted-foreground mb-3">{description}</div>}
+      {description && <div className="text-muted-foreground mb-3 text-xs">{description}</div>}
       <div>{children}</div>
     </div>
   );
@@ -144,24 +146,24 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="h-full flex">
+    <div className="flex h-full">
       {/* Left navigation */}
-      <aside className="w-44 border-r border-border bg-sidebar/50 p-3 shrink-0 flex flex-col">
-        <nav className="space-y-1 flex-1 pt-2">
+      <aside className="border-border bg-sidebar/50 flex w-44 shrink-0 flex-col border-r p-3">
+        <nav aria-label="Settings navigation" className="flex-1 space-y-1 pt-2">
           <NavItem
-            icon={<Download className="h-3.5 w-3.5" />}
+            icon={<Download className="size-3.5" />}
             label="Transfer"
             active={activeSection === "transfer"}
             onClick={() => setActiveSection("transfer")}
           />
           <NavItem
-            icon={<Zap className="h-3.5 w-3.5" />}
+            icon={<Zap className="size-3.5" />}
             label="Connection"
             active={activeSection === "connection"}
             onClick={() => setActiveSection("connection")}
           />
           <NavItem
-            icon={<FileText className="h-3.5 w-3.5" />}
+            icon={<FileText className="size-3.5" />}
             label="Logging"
             active={activeSection === "logs"}
             onClick={() => setActiveSection("logs")}
@@ -170,15 +172,15 @@ export function SettingsPage() {
       </aside>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto flex justify-center min-h-0">
+      <div className="flex min-h-0 flex-1 justify-center overflow-auto">
         <div className="w-full max-w-lg p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)}>
               {/* TRANSFER_CONFIG */}
               {activeSection === "transfer" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-base font-medium mb-1">Transfer settings</h2>
-                  <p className="text-xs text-muted-foreground mb-6">
+                  <h2 className="mb-1 text-base font-medium">Transfer settings</h2>
+                  <p className="text-muted-foreground mb-6 text-xs">
                     File upload and download settings
                   </p>
 
@@ -195,7 +197,7 @@ export function SettingsPage() {
                                   placeholder="System default"
                                   {...field}
                                   disabled={isUpdating}
-                                  className="flex-1 h-9"
+                                  className="h-9 flex-1"
                                 />
                                 <Button
                                   type="button"
@@ -205,7 +207,7 @@ export function SettingsPage() {
                                   onClick={handleSelectDirectory}
                                   className="h-9 w-9 shrink-0"
                                 >
-                                  <FolderOpen className="h-4 w-4" />
+                                  <FolderOpen className="size-4" />
                                 </Button>
                               </div>
                             </FormControl>
@@ -236,8 +238,8 @@ export function SettingsPage() {
                                   className="flex-1"
                                 />
                               </FormControl>
-                              <div className="w-9 h-9 rounded bg-muted/50 border border-border/50 flex items-center justify-center">
-                                <span className="text-sm font-medium text-foreground">
+                              <div className="bg-muted/50 border-border/50 flex h-9 w-9 items-center justify-center rounded border">
+                                <span className="text-foreground text-sm font-medium">
                                   {field.value}
                                 </span>
                               </div>
@@ -262,7 +264,7 @@ export function SettingsPage() {
                                 {...field}
                                 onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                                 disabled={isUpdating}
-                                className="w-20 h-9"
+                                className="h-9 w-20"
                               />
                             </FormControl>
                             <FormMessage className="text-xs" />
@@ -277,8 +279,8 @@ export function SettingsPage() {
               {/* CONNECTION_CONFIG */}
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-base font-medium mb-1">Connection settings</h2>
-                  <p className="text-xs text-muted-foreground mb-6">SSH connection settings</p>
+                  <h2 className="mb-1 text-base font-medium">Connection settings</h2>
+                  <p className="text-muted-foreground mb-6 text-xs">SSH connection settings</p>
 
                   <div>
                     <FormField
@@ -295,10 +297,10 @@ export function SettingsPage() {
                                   {...field}
                                   onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
                                   disabled={isUpdating}
-                                  className="w-20 h-9"
+                                  className="h-9 w-20"
                                 />
                               </FormControl>
-                              <span className="text-xs text-muted-foreground">seconds</span>
+                              <span className="text-muted-foreground text-xs">seconds</span>
                             </div>
                             <FormMessage className="text-xs" />
                           </FormItem>
@@ -312,8 +314,8 @@ export function SettingsPage() {
               {/* LOGGING_CONFIG */}
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-base font-medium mb-1">Logging settings</h2>
-                  <p className="text-xs text-muted-foreground mb-6">Application log output</p>
+                  <h2 className="mb-1 text-base font-medium">Logging settings</h2>
+                  <p className="text-muted-foreground mb-6 text-xs">Application log output</p>
 
                   <div>
                     <FormField
@@ -328,7 +330,7 @@ export function SettingsPage() {
                               disabled={isUpdating}
                             >
                               <FormControl>
-                                <SelectTrigger className="w-36 h-9">
+                                <SelectTrigger className="h-9 w-36">
                                   <SelectValue placeholder="Select level" />
                                 </SelectTrigger>
                               </FormControl>
@@ -350,7 +352,7 @@ export function SettingsPage() {
               )}
 
               {/* ACTIONS */}
-              <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-border/50">
+              <div className="border-border/50 mt-8 flex justify-end gap-3 border-t pt-4">
                 <Button
                   type="button"
                   variant="ghost"
@@ -365,9 +367,9 @@ export function SettingsPage() {
                   type="submit"
                   size="sm"
                   disabled={isUpdating || !isDirty}
-                  className="h-9 px-5 gap-2"
+                  className="h-9 gap-2 px-5"
                 >
-                  {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isUpdating && <Loader2 className="size-3.5 animate-spin" />}
                   <span>Save</span>
                 </Button>
               </div>

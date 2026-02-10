@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDropUpload } from "@/hooks/useDropUpload";
 import * as transferLib from "@/lib/transfer";
 import { useTransferStore } from "@/stores/useTransferStore";
 
 // Mock Tauri webview API
 const mockUnlisten = vi.fn();
-let mockDragDropHandler: ((event: { payload: { type: string; paths?: string[] } }) => void) | null = null;
+let mockDragDropHandler: ((event: { payload: { type: string; paths?: string[] } }) => void) | null =
+  null;
 
 vi.mock("@tauri-apps/api/webview", () => ({
   getCurrentWebview: () => ({
@@ -46,10 +48,18 @@ vi.mock("@/hooks/useToast", () => ({
 }));
 
 describe("useDropUpload", () => {
+  let queryClient: QueryClient;
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockDragDropHandler = null;
     useTransferStore.setState({ tasks: new Map() });
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
   });
 
   afterEach(() => {
@@ -58,16 +68,18 @@ describe("useDropUpload", () => {
 
   describe("initial state", () => {
     it("should have isDragging false initially", () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       expect(result.current.isDragging).toBe(false);
     });
 
     it("should only return isDragging", () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       expect(Object.keys(result.current)).toEqual(["isDragging"]);
@@ -76,8 +88,9 @@ describe("useDropUpload", () => {
 
   describe("drag events", () => {
     it("should set isDragging true on enter event", async () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -92,8 +105,9 @@ describe("useDropUpload", () => {
     });
 
     it("should set isDragging true on over event", async () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -108,8 +122,9 @@ describe("useDropUpload", () => {
     });
 
     it("should set isDragging false on leave event", async () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -128,8 +143,9 @@ describe("useDropUpload", () => {
     });
 
     it("should not respond when disabled", async () => {
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user", enabled: false })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user", enabled: false }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -160,8 +176,9 @@ describe("useDropUpload", () => {
         createdAt: Date.now(),
       });
 
-      const { result } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { result } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -220,9 +237,9 @@ describe("useDropUpload", () => {
           createdAt: Date.now(),
         });
 
-      renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
-      );
+      renderHook(() => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(mockDragDropHandler).not.toBeNull();
@@ -250,8 +267,9 @@ describe("useDropUpload", () => {
     });
 
     it("should not upload when disabled", async () => {
-      renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user", enabled: false })
+      renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user", enabled: false }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -268,9 +286,9 @@ describe("useDropUpload", () => {
     });
 
     it("should not upload when paths is empty", async () => {
-      renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
-      );
+      renderHook(() => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }), {
+        wrapper,
+      });
 
       await waitFor(() => {
         expect(mockDragDropHandler).not.toBeNull();
@@ -288,8 +306,9 @@ describe("useDropUpload", () => {
 
   describe("cleanup", () => {
     it("should call unlisten on unmount", async () => {
-      const { unmount } = renderHook(() =>
-        useDropUpload({ sessionId: "session-1", remotePath: "/home/user" })
+      const { unmount } = renderHook(
+        () => useDropUpload({ sessionId: "session-1", remotePath: "/home/user" }),
+        { wrapper }
       );
 
       await waitFor(() => {
@@ -319,9 +338,8 @@ describe("useDropUpload", () => {
       });
 
       const { rerender } = renderHook(
-        ({ sessionId, remotePath }) =>
-          useDropUpload({ sessionId, remotePath }),
-        { initialProps: { sessionId: "session-1", remotePath: "/home/user" } }
+        ({ sessionId, remotePath }) => useDropUpload({ sessionId, remotePath }),
+        { initialProps: { sessionId: "session-1", remotePath: "/home/user" }, wrapper }
       );
 
       await waitFor(() => {

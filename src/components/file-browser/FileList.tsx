@@ -69,7 +69,7 @@ function HeaderCell({ field, currentSort, onSort, children, className, style }: 
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 has-[>svg]:px-0 gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent! transition-colors",
+          "text-muted-foreground hover:text-primary h-auto gap-1 p-0 text-xs font-medium tracking-wider uppercase transition-colors duration-100 hover:bg-transparent! has-[>svg]:px-0",
           isActive && "text-primary"
         )}
         onClick={() => onSort(field)}
@@ -114,9 +114,9 @@ const FileRow = memo(function FileRow({
       data-file-path={file.path}
       data-file-type={file.isDir ? "dir" : "file"}
       className={cn(
-        "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent overflow-hidden",
-        "hover:bg-accent/50 transition-colors",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
+        "flex cursor-pointer items-center overflow-hidden border-l-[3px] border-l-transparent px-3 select-none",
+        "hover:bg-accent/50 transition-colors duration-100",
+        "focus-visible:ring-ring/50 focus-visible:ring-1 focus-visible:outline-none focus-visible:ring-inset",
         isSelected && "bg-primary/10 !border-l-primary",
         className
       )}
@@ -129,15 +129,15 @@ const FileRow = memo(function FileRow({
       {...rest}
     >
       {/* Icon */}
-      <div style={{ width: ICON_WIDTH }} className="flex-shrink-0 flex items-center">
-        <FileIcon file={file} className="h-3.5 w-3.5" />
+      <div style={{ width: ICON_WIDTH }} className="flex flex-shrink-0 items-center">
+        <FileIcon file={file} className="size-3.5" />
       </div>
 
       {/* Name */}
       <div
         title={file.name}
         className={cn(
-          "flex-1 min-w-0 truncate text-sm",
+          "min-w-0 flex-1 truncate text-sm",
           file.isDir ? "text-foreground font-medium" : "text-foreground/80"
         )}
       >
@@ -146,7 +146,7 @@ const FileRow = memo(function FileRow({
 
       {/* Size */}
       <div
-        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
         style={{ width: SIZE_WIDTH }}
       >
         {file.isDir ? (
@@ -158,7 +158,7 @@ const FileRow = memo(function FileRow({
 
       {/* Permissions */}
       <div
-        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
         style={{ width: PERM_WIDTH }}
       >
         {formatFileMode(file.mode)}
@@ -166,7 +166,7 @@ const FileRow = memo(function FileRow({
 
       {/* Modified time */}
       <div
-        className="flex-shrink-0 text-right text-xs font-mono text-muted-foreground"
+        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
         style={{ width: MTIME_WIDTH }}
       >
         {formatFileTime(file.mtime)}
@@ -305,7 +305,7 @@ export function FileList({
   // Loading state
   if (isLoading && files.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <LoadingSpinner size="sm" />
       </div>
     );
@@ -314,15 +314,15 @@ export function FileList({
   // Empty state
   if (!isLoading && files.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground animate-fade-in">
-        <div className="flex flex-col items-center gap-3 px-8 py-6 border border-dashed border-border/50 rounded-lg">
-          <div className="w-12 h-12 flex items-center justify-center rounded-lg bg-muted/30 border border-border/50">
-            <FolderOpen className="h-8 w-8 text-muted-foreground/50" />
+      <div className="text-muted-foreground animate-fade-in flex h-full flex-col items-center justify-center">
+        <div className="border-border/50 flex flex-col items-center gap-3 rounded-lg border border-dashed px-8 py-6">
+          <div className="bg-muted/30 border-border/50 flex h-12 w-12 items-center justify-center rounded-lg border">
+            <FolderOpen className="text-muted-foreground/50 size-8" />
           </div>
           <p className="text-sm">Directory is empty</p>
           <div className="flex flex-col items-center gap-0.5">
-            <p className="text-xs text-muted-foreground/50">Drag files here to upload</p>
-            <p className="text-xs text-muted-foreground/40">
+            <p className="text-muted-foreground/50 text-xs">Drag files here to upload</p>
+            <p className="text-muted-foreground/40 text-xs">
               or press {formatShortcut("Mod+N")} to create a folder
             </p>
           </div>
@@ -334,11 +334,11 @@ export function FileList({
   const items = virtualizer.getVirtualItems();
 
   return (
-    <div className="flex flex-col h-full" role="grid" aria-label="File list">
+    <div className="flex h-full flex-col" role="grid" aria-label="File list">
       {/* Header */}
       <div
         role="row"
-        className="flex items-center h-8 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
+        className="border-border bg-card/30 flex h-8 flex-shrink-0 items-center overflow-hidden border-b px-3"
       >
         <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
         <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>
@@ -354,7 +354,7 @@ export function FileList({
           Size
         </HeaderCell>
         <div
-          className="flex-shrink-0 flex items-center justify-end text-xs font-medium text-muted-foreground uppercase tracking-wider"
+          className="text-muted-foreground flex flex-shrink-0 items-center justify-end text-xs font-medium tracking-wider uppercase"
           style={{ width: PERM_WIDTH }}
         >
           Perms
@@ -373,11 +373,17 @@ export function FileList({
       {/* Virtual list */}
       <div
         ref={parentRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden"
+        role="rowgroup"
+        className="flex-1 overflow-x-hidden overflow-y-auto"
         tabIndex={0}
         onClick={(e) => {
           // Click empty area to clear selection
           if (e.target === e.currentTarget) {
+            onKeyAction?.("clearSelection");
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
             onKeyAction?.("clearSelection");
           }
         }}
