@@ -102,7 +102,12 @@ pub async fn sftp_list_dir(
 
     let entries = spawn_blocking(move || SftpService::list_dir(&session.sftp, &path, sort))
         .await
-        .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))??;
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
 
     tracing::debug!(
         session_id = %session_id,
@@ -134,7 +139,12 @@ pub async fn sftp_stat(
 
     let entry = spawn_blocking(move || SftpService::stat(&session.sftp, &path))
         .await
-        .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))??;
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
 
     Ok(entry)
 }
@@ -161,7 +171,12 @@ pub async fn sftp_mkdir(
 
     spawn_blocking(move || SftpService::mkdir(&session.sftp, &path_clone))
         .await
-        .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))??;
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
 
     tracing::info!(
         session_id = %session_id,
@@ -197,7 +212,12 @@ pub async fn sftp_rename(
 
     spawn_blocking(move || SftpService::rename(&session.sftp, &from_clone, &to_clone))
         .await
-        .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))??;
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
 
     tracing::info!(
         session_id = %session_id,
@@ -233,7 +253,12 @@ pub async fn sftp_delete(
 
     spawn_blocking(move || SftpService::delete(&session.sftp, &path_clone, is_dir))
         .await
-        .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))??;
+        .map_err(|e| {
+            AppError::new(
+                crate::models::error::ErrorCode::Unknown,
+                format!("spawn_blocking failed: {}", e),
+            )
+        })??;
 
     tracing::info!(
         session_id = %session_id,
@@ -328,7 +353,12 @@ pub async fn sftp_chmod(
         }
     })
     .await
-    .map_err(|e| AppError::new(crate::models::error::ErrorCode::Unknown, format!("spawn_blocking failed: {}", e)))?;
+    .map_err(|e| {
+        AppError::new(
+            crate::models::error::ErrorCode::Unknown,
+            format!("spawn_blocking failed: {}", e),
+        )
+    })?;
 
     tracing::info!(
         session_id = %session_id,
@@ -362,14 +392,15 @@ pub async fn sftp_get_dir_stats(
     let session = session_manager.get_session(&session_id)?;
     let path_clone = path.clone();
 
-    let stats = spawn_blocking(move || SftpService::get_directory_stats(&session.sftp, &path_clone))
-        .await
-        .map_err(|e| {
-            AppError::new(
-                crate::models::error::ErrorCode::Unknown,
-                format!("spawn_blocking failed: {}", e),
-            )
-        })??;
+    let stats =
+        spawn_blocking(move || SftpService::get_directory_stats(&session.sftp, &path_clone))
+            .await
+            .map_err(|e| {
+                AppError::new(
+                    crate::models::error::ErrorCode::Unknown,
+                    format!("spawn_blocking failed: {}", e),
+                )
+            })??;
 
     tracing::debug!(
         session_id = %session_id,

@@ -140,7 +140,9 @@ mod session_lifecycle {
         let profile = create_test_profile(PORT_1);
 
         // First connect with fresh DB should return NeedHostKeyConfirm
-        let status = manager.connect(&db, &profile, Some(PASSWORD), None, 30).unwrap();
+        let status = manager
+            .connect(&db, &profile, Some(PASSWORD), None, 30)
+            .unwrap();
 
         match status {
             ConnectStatus::NeedHostKeyConfirm(pending) => {
@@ -256,7 +258,9 @@ mod session_lifecycle {
         let profile = create_test_profile(PORT_1);
 
         // First, trust the host key so we get past that step
-        let status = manager.connect(&db, &profile, Some(PASSWORD), None, 30).unwrap();
+        let status = manager
+            .connect(&db, &profile, Some(PASSWORD), None, 30)
+            .unwrap();
         if let ConnectStatus::NeedHostKeyConfirm(pending) = status {
             db.known_host_trust(
                 &pending.host,

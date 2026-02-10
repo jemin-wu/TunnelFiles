@@ -82,7 +82,7 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-good libunwind-dev \
             dbus-x11 xvfb
 
       - name: Setup Rust

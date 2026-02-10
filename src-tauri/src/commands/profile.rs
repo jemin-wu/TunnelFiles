@@ -76,8 +76,9 @@ pub async fn profile_upsert(
             // 存储新密码
             Some(credential_store_password(
                 &profile_id,
-                input.password.as_ref()
-                    .ok_or_else(|| AppError::invalid_argument("Password required when remember_password is set"))?,
+                input.password.as_ref().ok_or_else(|| {
+                    AppError::invalid_argument("Password required when remember_password is set")
+                })?,
             )?)
         } else {
             // 没有新密码，保持现有的 password_ref（更新时不清除）
@@ -104,8 +105,11 @@ pub async fn profile_upsert(
             // 存储新 passphrase
             Some(credential_store_passphrase(
                 &profile_id,
-                input.passphrase.as_ref()
-                    .ok_or_else(|| AppError::invalid_argument("Passphrase required when remember_passphrase is set"))?,
+                input.passphrase.as_ref().ok_or_else(|| {
+                    AppError::invalid_argument(
+                        "Passphrase required when remember_passphrase is set",
+                    )
+                })?,
             )?)
         } else {
             // 没有新 passphrase，保持现有的 passphrase_ref
