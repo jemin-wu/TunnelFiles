@@ -42,6 +42,26 @@ export async function waitForStable(ms = 500): Promise<void> {
   await browser.pause(ms);
 }
 
+/**
+ * Reveal hover-only action buttons on a profile row.
+ * WebKitWebDriver's moveTo() does not trigger CSS :hover pseudo-class,
+ * so we remove the opacity-0 class via JavaScript to make buttons clickable.
+ */
+export async function revealRowActions(row: WebdriverIO.Element): Promise<void> {
+  await row.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+  // Attempt real hover first (works in Chrome/Firefox, no-op in WebKitWebDriver)
+  await row.moveTo();
+  await waitForStable(300);
+  // Force hidden action containers visible by swapping Tailwind opacity classes
+  await browser.execute((el) => {
+    el.querySelectorAll(".opacity-0").forEach((child) => {
+      child.classList.remove("opacity-0");
+      child.classList.add("opacity-100");
+    });
+  }, row);
+  await waitForStable(100);
+}
+
 // ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
@@ -107,6 +127,9 @@ export async function fillConnectionForm(opts: {
   username: string;
 }): Promise<void> {
   const nameInput = await $('input[name="name"]');
+  // Wait for the sheet animation to complete and inputs to be interactable
+  await nameInput.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+  await waitForStable(300);
   await nameInput.clearValue();
   await nameInput.setValue(opts.name);
 
@@ -168,10 +191,8 @@ export async function profileExists(name: string): Promise<boolean> {
 
 /** Delete a profile by clicking its delete button and confirming */
 export async function deleteProfile(name: string): Promise<void> {
-  // Hover over the row to reveal action buttons
   const row = await getProfileRow(name);
-  await row.moveTo();
-  await waitForStable(300);
+  await revealRowActions(row);
 
   const deleteBtn = await $(`button[aria-label="Delete ${name}"]`);
   await deleteBtn.waitForClickable({ timeout: WAIT_TIMEOUT });
@@ -247,8 +268,7 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
 /** Click the connect button on a profile row */
 export async function connectToProfile(name: string): Promise<void> {
   const row = await getProfileRow(name);
-  await row.moveTo();
-  await waitForStable(300);
+  await revealRowActions(row);
 
   const connectBtn = await $(`button[aria-label="Connect to ${name}"]`);
   await connectBtn.waitForClickable({ timeout: WAIT_TIMEOUT });

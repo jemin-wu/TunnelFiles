@@ -15,6 +15,7 @@ import {
   fullConnectFlow,
   disconnect,
   btnByText,
+  revealRowActions,
 } from "../helpers/e2e-helpers";
 
 describe("Connection Flow", () => {
@@ -168,8 +169,7 @@ describe("Connection Flow", () => {
 
     it("should open edit sheet with pre-filled values", async () => {
       const row = await getProfileRow(ORIGINAL_NAME);
-      await row.moveTo();
-      await waitForStable(300);
+      await revealRowActions(row);
 
       const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
       await editBtn.waitForClickable({ timeout: 10_000 });
@@ -193,8 +193,7 @@ describe("Connection Flow", () => {
 
     it("should update profile name and save", async () => {
       const row = await getProfileRow(ORIGINAL_NAME);
-      await row.moveTo();
-      await waitForStable(300);
+      await revealRowActions(row);
 
       const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
       await editBtn.click();
@@ -202,8 +201,12 @@ describe("Connection Flow", () => {
       const sheet = await $('[role="dialog"]');
       await sheet.waitForExist({ timeout: 10_000 });
 
-      // Update the name field
+      // Wait for sheet animation to complete
       const nameInput = await $('input[name="name"]');
+      await nameInput.waitForDisplayed({ timeout: 10_000 });
+      await waitForStable(300);
+
+      // Update the name field
       await nameInput.clearValue();
       await nameInput.setValue(UPDATED_NAME);
 
@@ -228,10 +231,9 @@ describe("Connection Flow", () => {
       const profileName = "delete-cancel-test";
       await addConnectionProfile({ ...TEST_SERVER, name: profileName });
 
-      // Hover and click delete
+      // Reveal hover buttons and click delete
       const row = await getProfileRow(profileName);
-      await row.moveTo();
-      await waitForStable(300);
+      await revealRowActions(row);
 
       const deleteBtn = await $(`button[aria-label="Delete ${profileName}"]`);
       await deleteBtn.waitForClickable({ timeout: 10_000 });
