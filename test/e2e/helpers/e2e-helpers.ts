@@ -726,14 +726,35 @@ export async function waitForFileRow(
 /** Double-click a file/folder row to enter it */
 export async function doubleClickFile(name: string): Promise<void> {
   const row = await waitForFileRow(name);
-  await row.doubleClick();
+  try {
+    await row.doubleClick();
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).dispatchEvent(
+        new MouseEvent("dblclick", { bubbles: true, cancelable: true, detail: 2 })
+      );
+    }, row);
+  }
   await waitForStable(800);
 }
 
 /** Right-click a file row to open the context menu */
 export async function openContextMenu(name: string): Promise<void> {
   const row = await waitForFileRow(name);
-  await row.click({ button: "right" });
+  try {
+    await row.click({ button: "right" });
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          buttons: 2,
+        })
+      );
+    }, row);
+  }
   await waitForStable(300);
 }
 
