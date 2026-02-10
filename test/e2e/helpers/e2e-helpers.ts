@@ -35,6 +35,11 @@ export function btnByText(text: string): string {
   return `//button[normalize-space(.)='${text}']`;
 }
 
+/** Find a sheet title by exact text inside an open dialog/sheet. */
+function sheetTitleSelector(text: string): string {
+  return `//*[@role='dialog']//*[@data-slot='sheet-title' and normalize-space(.)=${xpathLiteral(text)}]`;
+}
+
 /** Escape string for safe use as an XPath string literal. */
 function xpathLiteral(value: string): string {
   if (!value.includes("'")) {
@@ -591,7 +596,7 @@ async function tryClickProfileMenuAction(name: string, label: "Edit" | "Delete")
 async function waitForEditSheetOpen(timeoutMs = 3000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const title = await $("//span[text()='Edit connection']");
+    const title = await $(sheetTitleSelector("Edit connection"));
     if (await isVisible(title)) return true;
     await browser.pause(120);
   }
@@ -682,11 +687,23 @@ export async function disconnect(): Promise<void> {
 
 /** Find a file/folder row by its name inside the file list grid */
 export async function findFileRow(name: string): Promise<WebdriverIO.Element | null> {
-  // File rows are role="row" inside the virtual list
-  const rows = await $$('[role="row"]');
+  // Preferred stable selector: data attribute on row root.
+  const byDataName = await $(`//div[@role='row' and @data-file-name=${xpathLiteral(name)}]`);
+  if (await byDataName.isExisting()) return byDataName;
+
+  // Fallback: filename title on the name cell.
+  const byTitle = await $(
+    `//div[@role='row' and .//div[@title=${xpathLiteral(name)} and normalize-space(.)=${xpathLiteral(name)}]]`
+  );
+  if (await byTitle.isExisting()) return byTitle;
+
+  // Last resort: text scan of rendered rows.
+  const rows = await $$("//div[@role='row']");
   for (const row of rows) {
-    const text = await row.getText();
-    if (text.includes(name)) return row;
+    const text = (await row.getText()).trim();
+    if (text.includes(name)) {
+      return row;
+    }
   }
   return null;
 }
@@ -734,6 +751,35 @@ export async function getCurrentBreadcrumb(): Promise<string> {
   const nav = await $('nav[aria-label="Breadcrumb navigation"]');
   const active = await nav.$('[aria-current="location"]');
   return active.getText();
+}
+
+/** Navigate breadcrumb back to the home segment (~) when available. */
+export async function navigateToHomeDirectory(): Promise<void> {
+  const nav = await $('nav[aria-label="Breadcrumb navigation"]');
+  await nav.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+
+  const active = await nav.$('[aria-current="location"]');
+  if ((await active.isExisting()) && (await active.getText()) === "~") {
+    return;
+  }
+
+  const homeBtn = await nav.$(".//button[normalize-space(.)='~']");
+  if (await homeBtn.isExisting()) {
+    await safeClick(homeBtn, 3000);
+    await waitForStable(700);
+    return;
+  }
+
+  const buttons = await nav.$$("button");
+  for (const button of buttons) {
+    const text = (await button.getText()).trim();
+    if (!text || text === "/" || text === "...") continue;
+    await safeClick(button, 3000);
+    await waitForStable(700);
+    return;
+  }
+
+  // If no suitable breadcrumb button is available, keep current path.
 }
 
 // ---------------------------------------------------------------------------

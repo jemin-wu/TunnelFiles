@@ -110,6 +110,9 @@ const FileRow = memo(function FileRow({
     <div
       role="row"
       tabIndex={0}
+      data-file-name={file.name}
+      data-file-path={file.path}
+      data-file-type={file.isDir ? "dir" : "file"}
       className={cn(
         "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent overflow-hidden",
         "hover:bg-accent/50 transition-colors",

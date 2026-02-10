@@ -15,6 +15,8 @@ import {
   fullConnectFlow,
   disconnect,
   findFileRow,
+  waitForFileRow,
+  navigateToHomeDirectory,
   doubleClickFile,
   getCurrentBreadcrumb,
   createFolder,
@@ -55,14 +57,9 @@ describe("File Operations", () => {
       await waitForFileBrowser();
 
       // The Docker server pre-creates these directories
-      const testFiles = await findFileRow("test-files");
-      expect(testFiles).not.toBeNull();
-
-      const emptyDir = await findFileRow("empty-dir");
-      expect(emptyDir).not.toBeNull();
-
-      const uploads = await findFileRow("uploads");
-      expect(uploads).not.toBeNull();
+      expect(await waitForFileRow("test-files")).toBeDefined();
+      expect(await waitForFileRow("empty-dir")).toBeDefined();
+      expect(await waitForFileRow("uploads")).toBeDefined();
     });
 
     it("should navigate into test-files directory", async () => {
@@ -73,29 +70,16 @@ describe("File Operations", () => {
       expect(breadcrumb).toBe("test-files");
 
       // Verify files are listed
-      const helloTxt = await findFileRow("hello.txt");
-      expect(helloTxt).not.toBeNull();
-
-      const testTxt = await findFileRow("test.txt");
-      expect(testTxt).not.toBeNull();
-
-      const randomBin = await findFileRow("random.bin");
-      expect(randomBin).not.toBeNull();
+      expect(await waitForFileRow("hello.txt")).toBeDefined();
+      expect(await waitForFileRow("test.txt")).toBeDefined();
+      expect(await waitForFileRow("random.bin")).toBeDefined();
     });
 
     it("should navigate back via breadcrumb", async () => {
-      // Click a parent segment in the breadcrumb to go back
-      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-      // Find and click the home/parent breadcrumb button (not the current location)
-      const buttons = await nav.$$("button");
-      if (buttons.length > 0) {
-        await buttons[0].click();
-        await waitForStable(800);
-      }
+      await navigateToHomeDirectory();
 
       // We should be back at home, seeing top-level dirs
-      const testFiles = await findFileRow("test-files");
-      expect(testFiles).not.toBeNull();
+      expect(await waitForFileRow("test-files")).toBeDefined();
     });
 
     it("should display file metadata columns", async () => {
@@ -124,25 +108,20 @@ describe("File Operations", () => {
 
     after(async () => {
       // Navigate back to home
-      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-      const buttons = await nav.$$("button");
-      if (buttons.length > 0) {
-        await buttons[0].click();
-        await waitForStable(800);
-      }
+      await navigateToHomeDirectory();
     });
 
     it("should create a new folder", async () => {
       await createFolder(TEST_FOLDER);
 
       // Verify the folder appears
-      const row = await findFileRow(TEST_FOLDER);
-      expect(row).not.toBeNull();
+      expect(await waitForFileRow(TEST_FOLDER)).toBeDefined();
     });
 
     it("should reject empty folder name", async () => {
       // Open create folder dialog
-      await browser.keys(["Meta", "n"]);
+      const modifier = process.platform === "darwin" ? "Meta" : "Control";
+      await browser.keys([modifier, "n"]);
       await waitForStable(500);
 
       const input = await $("#folder-name");
@@ -201,12 +180,7 @@ describe("File Operations", () => {
       }
 
       // Navigate back to home
-      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-      const buttons = await nav.$$("button");
-      if (buttons.length > 0) {
-        await buttons[0].click();
-        await waitForStable(800);
-      }
+      await navigateToHomeDirectory();
     });
 
     it("should rename a folder via context menu", async () => {
@@ -235,12 +209,7 @@ describe("File Operations", () => {
 
     after(async () => {
       // Navigate back to home
-      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-      const buttons = await nav.$$("button");
-      if (buttons.length > 0) {
-        await buttons[0].click();
-        await waitForStable(800);
-      }
+      await navigateToHomeDirectory();
     });
 
     it("should delete a folder via context menu", async () => {
@@ -298,19 +267,11 @@ describe("File Operations", () => {
       await waitForStable(500);
 
       // Navigate back to home via breadcrumb
-      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
-      const buttons = await nav.$$("button");
-      if (buttons.length > 0) {
-        await buttons[0].click();
-        await waitForStable(800);
-      }
+      await navigateToHomeDirectory();
 
       // After returning home, directory contents should still be present
-      const testFiles = await findFileRow("test-files");
-      expect(testFiles).not.toBeNull();
-
-      const uploads = await findFileRow("uploads");
-      expect(uploads).not.toBeNull();
+      expect(await waitForFileRow("test-files")).toBeDefined();
+      expect(await waitForFileRow("uploads")).toBeDefined();
     });
   });
 });

@@ -44,7 +44,9 @@ describe("Connection Flow", () => {
       await openAddConnectionSheet();
 
       // Verify the sheet is open with "New connection" title
-      const title = await $("//span[text()='New connection']");
+      const title = await $(
+        "//*[@role='dialog']//*[@data-slot='sheet-title' and normalize-space(.)='New connection']"
+      );
       expect(await title.isDisplayed()).toBe(true);
 
       // Close it
@@ -170,7 +172,9 @@ describe("Connection Flow", () => {
       await clickProfileAction(ORIGINAL_NAME, "edit");
 
       // Verify "Edit connection" title
-      const title = await $("//span[text()='Edit connection']");
+      const title = await $(
+        "//*[@role='dialog']//*[@data-slot='sheet-title' and normalize-space(.)='Edit connection']"
+      );
       await title.waitForExist({ timeout: 10_000 });
       expect(await title.isDisplayed()).toBe(true);
 
