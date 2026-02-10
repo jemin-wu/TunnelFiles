@@ -4,15 +4,16 @@
 
 import { useRef, useCallback, useEffect, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, FolderOpen, Loader2 } from "lucide-react";
+import { ChevronUp, ChevronDown, FolderOpen } from "lucide-react";
 
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { FileIcon } from "./FileIcon";
 import { FileContextMenu } from "./FileContextMenu";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { formatFileTime } from "@/lib/file";
 import { formatFileSize, formatFileMode } from "@/types/file";
 import { cn } from "@/lib/utils";
+import { formatShortcut } from "@/lib/platform";
 import type { FileEntry, SortField, SortSpec } from "@/types";
 
 interface FileListProps {
@@ -68,7 +69,7 @@ function HeaderCell({ field, currentSort, onSort, children, className, style }: 
         type="button"
         variant="ghost"
         className={cn(
-          "h-auto p-0 has-[>svg]:px-0 gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent transition-colors",
+          "h-auto p-0 has-[>svg]:px-0 gap-1 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-primary hover:bg-transparent! transition-colors",
           isActive && "text-primary"
         )}
         onClick={() => onSort(field)}
@@ -111,8 +112,8 @@ const FileRow = memo(function FileRow({
       tabIndex={0}
       className={cn(
         "flex items-center px-3 cursor-pointer select-none border-l-[3px] border-l-transparent overflow-hidden",
-        "hover:bg-accent/5 transition-colors",
-        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/20 focus-visible:ring-inset",
+        "hover:bg-accent/50 transition-colors",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/50 focus-visible:ring-inset",
         isSelected && "bg-primary/10 !border-l-primary",
         className
       )}
@@ -130,21 +131,15 @@ const FileRow = memo(function FileRow({
       </div>
 
       {/* Name */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className={cn(
-              "flex-1 min-w-0 truncate text-sm",
-              file.isDir ? "text-foreground font-medium" : "text-foreground/80"
-            )}
-          >
-            {file.name}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" align="start" className="font-mono text-xs">
-          {file.name}
-        </TooltipContent>
-      </Tooltip>
+      <div
+        title={file.name}
+        className={cn(
+          "flex-1 min-w-0 truncate text-sm",
+          file.isDir ? "text-foreground font-medium" : "text-foreground/80"
+        )}
+      >
+        {file.name}
+      </div>
 
       {/* Size */}
       <div
@@ -308,7 +303,7 @@ export function FileList({
   if (isLoading && files.length === 0) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+        <LoadingSpinner size="sm" />
       </div>
     );
   }
@@ -325,7 +320,7 @@ export function FileList({
           <div className="flex flex-col items-center gap-0.5">
             <p className="text-xs text-muted-foreground/50">Drag files here to upload</p>
             <p className="text-xs text-muted-foreground/40">
-              or press {/Mac/.test(navigator.userAgent) ? "\u2318" : "Ctrl+"}N to create a folder
+              or press {formatShortcut("Mod+N")} to create a folder
             </p>
           </div>
         </div>
@@ -336,102 +331,100 @@ export function FileList({
   const items = virtualizer.getVirtualItems();
 
   return (
-    <TooltipProvider delayDuration={500}>
-      <div className="flex flex-col h-full" role="grid" aria-label="File list">
-        {/* Header */}
-        <div
-          role="row"
-          className="flex items-center h-8 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
+    <div className="flex flex-col h-full" role="grid" aria-label="File list">
+      {/* Header */}
+      <div
+        role="row"
+        className="flex items-center h-8 px-3 border-b border-border bg-card/30 flex-shrink-0 overflow-hidden"
+      >
+        <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
+        <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>
+          Name
+        </HeaderCell>
+        <HeaderCell
+          field="size"
+          currentSort={sort}
+          onSort={onSortChange}
+          className="justify-end"
+          style={{ width: SIZE_WIDTH, flexShrink: 0 }}
         >
-          <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
-          <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>
-            Name
-          </HeaderCell>
-          <HeaderCell
-            field="size"
-            currentSort={sort}
-            onSort={onSortChange}
-            className="justify-end"
-            style={{ width: SIZE_WIDTH, flexShrink: 0 }}
-          >
-            Size
-          </HeaderCell>
-          <div
-            className="flex-shrink-0 flex items-center justify-end text-xs font-medium text-muted-foreground uppercase tracking-wider"
-            style={{ width: PERM_WIDTH }}
-          >
-            Perms
-          </div>
-          <HeaderCell
-            field="mtime"
-            currentSort={sort}
-            onSort={onSortChange}
-            className="justify-end"
-            style={{ width: MTIME_WIDTH, flexShrink: 0 }}
-          >
-            Modified
-          </HeaderCell>
-        </div>
-
-        {/* Virtual list */}
+          Size
+        </HeaderCell>
         <div
-          ref={parentRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden"
-          tabIndex={0}
-          onClick={(e) => {
-            // Click empty area to clear selection
-            if (e.target === e.currentTarget) {
-              onKeyAction?.("clearSelection");
-            }
+          className="flex-shrink-0 flex items-center justify-end text-xs font-medium text-muted-foreground uppercase tracking-wider"
+          style={{ width: PERM_WIDTH }}
+        >
+          Perms
+        </div>
+        <HeaderCell
+          field="mtime"
+          currentSort={sort}
+          onSort={onSortChange}
+          className="justify-end"
+          style={{ width: MTIME_WIDTH, flexShrink: 0 }}
+        >
+          Modified
+        </HeaderCell>
+      </div>
+
+      {/* Virtual list */}
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden"
+        tabIndex={0}
+        onClick={(e) => {
+          // Click empty area to clear selection
+          if (e.target === e.currentTarget) {
+            onKeyAction?.("clearSelection");
+          }
+        }}
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
           }}
         >
-          <div
-            style={{
-              height: `${virtualizer.getTotalSize()}px`,
-              width: "100%",
-              position: "relative",
-            }}
-          >
-            {items.map((virtualItem) => {
-              const file = files[virtualItem.index];
-              if (!file) return null;
-              return (
-                <div
-                  key={virtualItem.key}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    height: `${virtualItem.size}px`,
-                    transform: `translateY(${virtualItem.start}px)`,
-                  }}
+          {items.map((virtualItem) => {
+            const file = files[virtualItem.index];
+            if (!file) return null;
+            return (
+              <div
+                key={virtualItem.key}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: `${virtualItem.size}px`,
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                <FileContextMenu
+                  file={file}
+                  selectionCount={selectionCount}
+                  onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
+                  onDownload={onDownload ? () => onDownload(file) : undefined}
+                  onRename={onRename ? () => onRename(file) : undefined}
+                  onDelete={onDelete ? () => onDelete(file) : undefined}
+                  onChmod={onChmod ? () => onChmod(file) : undefined}
+                  onNewFolder={() => onKeyAction?.("newFolder")}
                 >
-                  <FileContextMenu
+                  <FileRow
                     file={file}
-                    selectionCount={selectionCount}
-                    onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
-                    onDownload={onDownload ? () => onDownload(file) : undefined}
-                    onRename={onRename ? () => onRename(file) : undefined}
-                    onDelete={onDelete ? () => onDelete(file) : undefined}
-                    onChmod={onChmod ? () => onChmod(file) : undefined}
-                    onNewFolder={() => onKeyAction?.("newFolder")}
-                  >
-                    <FileRow
-                      file={file}
-                      isSelected={isSelected(file.path)}
-                      onClick={(e: React.MouseEvent) =>
-                        onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
-                      }
-                      onDoubleClick={() => onFileDblClick(file)}
-                    />
-                  </FileContextMenu>
-                </div>
-              );
-            })}
-          </div>
+                    isSelected={isSelected(file.path)}
+                    onClick={(e: React.MouseEvent) =>
+                      onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
+                    }
+                    onDoubleClick={() => onFileDblClick(file)}
+                  />
+                </FileContextMenu>
+              </div>
+            );
+          })}
         </div>
       </div>
-    </TooltipProvider>
+    </div>
   );
 }

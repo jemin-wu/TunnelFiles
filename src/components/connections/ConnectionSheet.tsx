@@ -57,12 +57,7 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         className={cn(
           "h-auto py-2 px-3 text-sm font-medium transition-all duration-200",
           value === "password"
-            ? [
-                "bg-background text-foreground shadow-sm border border-border/80",
-                "hover:bg-background hover:text-foreground",
-                "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
-                "dark:hover:bg-primary/20 dark:hover:text-primary",
-              ]
+            ? "bg-accent dark:bg-accent/50 text-accent-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
@@ -77,12 +72,7 @@ function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelectorProps) 
         className={cn(
           "h-auto py-2 px-3 text-sm font-medium transition-all duration-200",
           value === "key"
-            ? [
-                "bg-background text-foreground shadow-sm border border-border/80",
-                "hover:bg-background hover:text-foreground",
-                "dark:bg-primary/15 dark:text-primary dark:border-primary/50",
-                "dark:hover:bg-primary/20 dark:hover:text-primary",
-              ]
+            ? "bg-accent dark:bg-accent/50 text-accent-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
@@ -227,9 +217,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="sm:max-w-md p-0 flex flex-col">
         <SheetHeader className="px-4 pt-4 pb-3 border-b border-border shrink-0">
-          <SheetTitle className="text-sm">
-            {isEditing ? "Edit connection" : "New connection"}
-          </SheetTitle>
+          <SheetTitle>{isEditing ? "Edit connection" : "New connection"}</SheetTitle>
           <SheetDescription className="text-xs">
             {isEditing
               ? "Update your server connection settings"
@@ -526,7 +514,6 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
               size="sm"
               onClick={() => onOpenChange(false)}
               disabled={upsertProfile.isPending}
-              className="h-8 px-4"
             >
               Cancel
             </Button>
@@ -535,7 +522,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
               form="connection-form"
               size="sm"
               disabled={upsertProfile.isPending}
-              className="h-8 px-5 gap-2"
+              className="gap-2"
             >
               {upsertProfile.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               <span>{isEditing ? "Save" : "Create"}</span>

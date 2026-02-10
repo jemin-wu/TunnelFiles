@@ -81,7 +81,6 @@ describe("Connection flow integration", () => {
     });
 
     expect(screen.getByText("Dev Server")).toBeInTheDocument();
-    expect(screen.getByText("2 connections")).toBeInTheDocument();
   });
 
   it("shows empty state when no profiles exist", async () => {
@@ -93,10 +92,8 @@ describe("Connection flow integration", () => {
     renderWithProviders(["/connections"]);
 
     await waitFor(() => {
-      expect(screen.getByText("No connections found")).toBeInTheDocument();
+      expect(screen.getByText("No connections yet")).toBeInTheDocument();
     });
-
-    expect(screen.getByText("No connections")).toBeInTheDocument();
   });
 
   it("connects to server and navigates to file browser", async () => {
@@ -120,9 +117,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    // Click the connect button for "Production Server"
-    const connectBtn = screen.getByRole("button", { name: "Connect to Production Server" });
-    await user.click(connectBtn);
+    // Click the connection item to connect
+    const items = screen.getAllByRole("listitem");
+    await user.click(items[0]);
 
     // Should navigate to /files/session-abc which shows file browser
     await waitFor(() => {
@@ -142,9 +139,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Dev Server")).toBeInTheDocument();
     });
 
-    // Click connect on "Dev Server" (no passwordRef => needs password)
-    const connectBtn = screen.getByRole("button", { name: "Connect to Dev Server" });
-    await user.click(connectBtn);
+    // Click on "Dev Server" item (no passwordRef => needs password)
+    const items = screen.getAllByRole("listitem");
+    await user.click(items[1]);
 
     // Password dialog should appear
     await waitFor(() => {
@@ -174,9 +171,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Dev Server")).toBeInTheDocument();
     });
 
-    // Click connect on Dev Server (no passwordRef)
-    const connectBtn = screen.getByRole("button", { name: "Connect to Dev Server" });
-    await user.click(connectBtn);
+    // Click on Dev Server (no passwordRef)
+    const items = screen.getAllByRole("listitem");
+    await user.click(items[1]);
 
     // Wait for password dialog
     await waitFor(() => {
@@ -222,9 +219,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    // Connect
-    const connectBtn = screen.getByRole("button", { name: "Connect to Production Server" });
-    await user.click(connectBtn);
+    // Connect via click
+    const items = screen.getAllByRole("listitem");
+    await user.click(items[0]);
 
     // Host key dialog should appear
     await waitFor(() => {
@@ -260,8 +257,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    const connectBtn = screen.getByRole("button", { name: "Connect to Production Server" });
-    await user.click(connectBtn);
+    // Connect via click
+    const items = screen.getAllByRole("listitem");
+    await user.click(items[0]);
 
     // Error toast should be shown
     await waitFor(() => {

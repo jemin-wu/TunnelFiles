@@ -45,7 +45,7 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
               <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-5 px-1.5 hover:bg-primary/5">
+                  <Button variant="ghost" size="sm" className="h-5 px-1.5">
                     <MoreHorizontal className="h-3.5 w-3.5" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -69,7 +69,7 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
             {!isFirst && <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />}
             {isLast ? (
               <span
-                className="text-foreground font-medium px-1.5 py-0.5 rounded truncate max-w-[160px]"
+                className="text-foreground font-medium px-1.5 py-0.5 rounded truncate max-w-40"
                 aria-current="location"
               >
                 {segment.name}
@@ -78,7 +78,7 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-auto px-1.5 py-0.5 text-sm text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded"
+                className="h-auto px-1.5 py-0.5 text-sm text-muted-foreground hover:text-foreground rounded"
                 onClick={() => onNavigate(segment.path)}
               >
                 {segment.name}

@@ -1,0 +1,594 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" font-family="Inter, -apple-system, system-ui, sans-serif">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a0f"/>
+      <stop offset="100%" stop-color="#0f1118"/>
+    </linearGradient>
+    <linearGradient id="uiGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="hookGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="libGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="ipcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f59e0b" stop-opacity="0.2"/>
+      <stop offset="50%" stop-color="#ef4444" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="rustGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ef4444" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="dataGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="arrowDown" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+    <linearGradient id="arrowUp" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#ef4444"/>
+    </linearGradient>
+    <linearGradient id="titleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="50%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#f472b6"/>
+    </linearGradient>
+
+    <!-- Glow filter -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Arrow markers -->
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#3b82f6" opacity="0.8"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#f97316" opacity="0.8"/>
+    </marker>
+    <marker id="arrowCyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#06b6d4" opacity="0.8"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- Subtle grid pattern -->
+  <g opacity="0.03">
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#ffffff" stroke-width="0.5"/>
+    </pattern>
+    <rect width="1200" height="1600" fill="url(#grid)"/>
+  </g>
+
+  <!-- Title -->
+  <text x="600" y="52" text-anchor="middle" font-size="28" font-weight="700" fill="url(#titleGrad)" letter-spacing="1">TunnelFiles Architecture</text>
+  <text x="600" y="78" text-anchor="middle" font-size="13" fill="#64748b" letter-spacing="0.5">React 19 + TypeScript + TailwindCSS 4 | Rust + Tauri 2 + ssh2 + tokio</text>
+
+  <!-- ==================== LAYER 1: UI Components ==================== -->
+  <g transform="translate(40, 105)">
+    <!-- Layer background -->
+    <rect x="0" y="0" width="1120" height="220" rx="12" fill="url(#uiGrad)" stroke="#3b82f6" stroke-opacity="0.25" stroke-width="1"/>
+    <!-- Layer label -->
+    <rect x="16" y="12" width="180" height="26" rx="6" fill="#3b82f6" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#60a5fa" letter-spacing="0.5">UI COMPONENTS</text>
+    <text x="168" y="30" font-size="10" fill="#475569">React 19</text>
+
+    <!-- Pages -->
+    <g transform="translate(20, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">PAGES</text>
+
+      <!-- ConnectionsPage -->
+      <rect x="0" y="12" width="160" height="56" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="12" y="32" font-size="12" font-weight="600" fill="#e2e8f0">ConnectionsPage</text>
+      <text x="12" y="48" font-size="9" fill="#64748b">/connections</text>
+      <text x="12" y="60" font-size="9" fill="#64748b">Server list + CRUD</text>
+
+      <!-- FileManagerPage -->
+      <rect x="172" y="12" width="160" height="56" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="184" y="32" font-size="12" font-weight="600" fill="#e2e8f0">FileManagerPage</text>
+      <text x="184" y="48" font-size="9" fill="#64748b">/files/:sessionId</text>
+      <text x="184" y="60" font-size="9" fill="#64748b">Browser + Terminal + Transfer</text>
+
+      <!-- SettingsPage -->
+      <rect x="344" y="12" width="140" height="56" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="356" y="32" font-size="12" font-weight="600" fill="#e2e8f0">SettingsPage</text>
+      <text x="356" y="48" font-size="9" fill="#64748b">/settings</text>
+      <text x="356" y="60" font-size="9" fill="#64748b">App configuration</text>
+    </g>
+
+    <!-- Domain Components -->
+    <g transform="translate(530, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">DOMAIN COMPONENTS</text>
+
+      <!-- Connections group -->
+      <rect x="0" y="12" width="135" height="80" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="12" y="30" font-size="11" font-weight="600" fill="#60a5fa">connections/</text>
+      <text x="12" y="45" font-size="9" fill="#94a3b8">ConnectionItem</text>
+      <text x="12" y="57" font-size="9" fill="#94a3b8">ConnectionSheet</text>
+      <text x="12" y="69" font-size="9" fill="#94a3b8">HostKey/PasswordDialog</text>
+      <text x="12" y="81" font-size="9" fill="#94a3b8">PasswordInput</text>
+
+      <!-- File browser group -->
+      <rect x="147" y="12" width="135" height="80" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="159" y="30" font-size="11" font-weight="600" fill="#60a5fa">file-browser/</text>
+      <text x="159" y="45" font-size="9" fill="#94a3b8">FileListContainer</text>
+      <text x="159" y="57" font-size="9" fill="#94a3b8">FileList + Breadcrumb</text>
+      <text x="159" y="69" font-size="9" fill="#94a3b8">FileContextMenu</text>
+      <text x="159" y="81" font-size="9" fill="#94a3b8">Rename/Mkdir/Chmod</text>
+
+      <!-- Terminal + Transfer -->
+      <rect x="294" y="12" width="120" height="80" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="306" y="30" font-size="11" font-weight="600" fill="#60a5fa">terminal/</text>
+      <text x="306" y="45" font-size="9" fill="#94a3b8">Terminal (xterm.js)</text>
+      <text x="306" y="61" font-size="11" font-weight="600" fill="#60a5fa">transfer/</text>
+      <text x="306" y="76" font-size="9" fill="#94a3b8">TransferQueue</text>
+      <text x="306" y="88" font-size="9" fill="#94a3b8">DropZone</text>
+
+      <!-- UI / shadcn -->
+      <rect x="426" y="12" width="155" height="80" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="438" y="30" font-size="11" font-weight="600" fill="#60a5fa">ui/ (shadcn)</text>
+      <text x="438" y="45" font-size="9" fill="#94a3b8">28 shadcn/ui primitives</text>
+      <text x="438" y="57" font-size="9" fill="#94a3b8">Button, Dialog, Sheet...</text>
+      <text x="438" y="69" font-size="9" fill="#94a3b8">+ Empty, ErrorState</text>
+      <text x="438" y="81" font-size="9" fill="#94a3b8">+ LoadingSpinner, Sonner</text>
+    </g>
+
+    <!-- State labels -->
+    <g transform="translate(20, 170)">
+      <rect x="0" y="0" width="95" height="20" rx="4" fill="#3b82f6" fill-opacity="0.1"/>
+      <text x="10" y="14" font-size="9" fill="#60a5fa">React Router v6</text>
+      <rect x="105" y="0" width="115" height="20" rx="4" fill="#3b82f6" fill-opacity="0.1"/>
+      <text x="115" y="14" font-size="9" fill="#60a5fa">TanStack Query</text>
+      <rect x="230" y="0" width="85" height="20" rx="4" fill="#3b82f6" fill-opacity="0.1"/>
+      <text x="240" y="14" font-size="9" fill="#60a5fa">TailwindCSS 4</text>
+      <rect x="325" y="0" width="70" height="20" rx="4" fill="#3b82f6" fill-opacity="0.1"/>
+      <text x="335" y="14" font-size="9" fill="#60a5fa">Radix UI</text>
+    </g>
+  </g>
+
+  <!-- Down arrow: UI -> Hooks -->
+  <g transform="translate(580, 328)">
+    <line x1="0" y1="0" x2="0" y2="22" stroke="#3b82f6" stroke-width="1.5" stroke-opacity="0.5" marker-end="url(#arrowBlue)"/>
+    <text x="14" y="14" font-size="9" fill="#475569">calls</text>
+  </g>
+
+  <!-- ==================== LAYER 2: React Hooks ==================== -->
+  <g transform="translate(40, 355)">
+    <rect x="0" y="0" width="1120" height="175" rx="12" fill="url(#hookGrad)" stroke="#06b6d4" stroke-opacity="0.25" stroke-width="1"/>
+    <rect x="16" y="12" width="160" height="26" rx="6" fill="#06b6d4" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#22d3ee" letter-spacing="0.5">REACT HOOKS</text>
+    <text x="150" y="30" font-size="10" fill="#475569">14</text>
+
+    <!-- Query hooks -->
+    <g transform="translate(20, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">QUERY HOOKS (TanStack)</text>
+      <rect x="0" y="10" width="125" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" fill="#22d3ee">useProfiles()</text>
+      <text x="10" y="42" font-size="8" fill="#64748b">profiles CRUD</text>
+
+      <rect x="135" y="10" width="120" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="145" y="28" font-size="10" fill="#22d3ee">useFileList()</text>
+      <text x="145" y="42" font-size="8" fill="#64748b">directory listing</text>
+
+      <rect x="265" y="10" width="120" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="275" y="28" font-size="10" fill="#22d3ee">useSettings()</text>
+      <text x="275" y="42" font-size="8" fill="#64748b">app settings</text>
+    </g>
+
+    <!-- Lifecycle hooks -->
+    <g transform="translate(430, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">LIFECYCLE HOOKS</text>
+      <rect x="0" y="10" width="115" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" fill="#22d3ee">useConnect()</text>
+      <text x="10" y="42" font-size="8" fill="#64748b">SSH flow state machine</text>
+
+      <rect x="125" y="10" width="125" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="135" y="28" font-size="10" fill="#22d3ee">useTerminal()</text>
+      <text x="135" y="42" font-size="8" fill="#64748b">terminal lifecycle</text>
+
+      <rect x="260" y="10" width="145" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="270" y="28" font-size="10" fill="#22d3ee">useFileOperations()</text>
+      <text x="270" y="42" font-size="8" fill="#64748b">mkdir/rename/delete/chmod</text>
+    </g>
+
+    <!-- Event hooks -->
+    <g transform="translate(20, 110)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">EVENT LISTENER HOOKS</text>
+      <rect x="0" y="10" width="145" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" fill="#fb923c">useTransferEvents()</text>
+      <text x="10" y="40" font-size="8" fill="#64748b">progress + status</text>
+
+      <rect x="155" y="10" width="145" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="165" y="28" font-size="10" fill="#fb923c">useTerminalEvents()</text>
+      <text x="165" y="40" font-size="8" fill="#64748b">output + status</text>
+
+      <rect x="310" y="10" width="145" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="320" y="28" font-size="10" fill="#fb923c">useSessionStatus()</text>
+      <text x="320" y="40" font-size="8" fill="#64748b">session validity</text>
+
+      <rect x="465" y="10" width="140" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="475" y="28" font-size="10" fill="#fb923c">useDropUpload()</text>
+      <text x="475" y="40" font-size="8" fill="#64748b">drag-and-drop</text>
+
+      <rect x="615" y="10" width="155" height="36" rx="6" fill="#1e293b" stroke="#f97316" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="625" y="28" font-size="10" fill="#fb923c">useDeleteProgress()</text>
+      <text x="625" y="40" font-size="8" fill="#64748b">recursive delete events</text>
+    </g>
+
+    <!-- Selection hook -->
+    <g transform="translate(840, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">UI STATE</text>
+      <rect x="0" y="10" width="145" height="40" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" fill="#22d3ee">useFileSelection()</text>
+      <text x="10" y="42" font-size="8" fill="#64748b">multi-select + keyboard</text>
+    </g>
+  </g>
+
+  <!-- Down arrow: Hooks -> Lib/Store -->
+  <g transform="translate(580, 533)">
+    <line x1="0" y1="0" x2="0" y2="22" stroke="#06b6d4" stroke-width="1.5" stroke-opacity="0.5" marker-end="url(#arrowCyan)"/>
+    <text x="14" y="14" font-size="9" fill="#475569">calls</text>
+  </g>
+
+  <!-- ==================== LAYER 3: Lib + Store ==================== -->
+  <g transform="translate(40, 560)">
+    <rect x="0" y="0" width="1120" height="195" rx="12" fill="url(#libGrad)" stroke="#10b981" stroke-opacity="0.25" stroke-width="1"/>
+    <rect x="16" y="12" width="280" height="26" rx="6" fill="#10b981" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#34d399" letter-spacing="0.5">IPC WRAPPERS + STATE</text>
+    <text x="230" y="30" font-size="10" fill="#475569">lib/ + stores/</text>
+
+    <!-- lib/ wrappers -->
+    <g transform="translate(20, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">lib/ IPC WRAPPERS (invoke)</text>
+
+      <rect x="0" y="10" width="108" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" font-weight="600" fill="#34d399">profile.ts</text>
+      <text x="10" y="42" font-size="8" fill="#64748b">list, get</text>
+      <text x="10" y="53" font-size="8" fill="#64748b">upsert, delete</text>
+
+      <rect x="118" y="10" width="118" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="128" y="28" font-size="10" font-weight="600" fill="#34d399">session.ts</text>
+      <text x="128" y="42" font-size="8" fill="#64748b">connect, disconnect</text>
+      <text x="128" y="53" font-size="8" fill="#64748b">trustHostKey, list</text>
+
+      <rect x="246" y="10" width="118" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="256" y="28" font-size="10" font-weight="600" fill="#34d399">sftp.ts</text>
+      <text x="256" y="42" font-size="8" fill="#64748b">listDir, stat, mkdir</text>
+      <text x="256" y="53" font-size="8" fill="#64748b">rename, delete, chmod</text>
+
+      <rect x="374" y="10" width="130" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="384" y="28" font-size="10" font-weight="600" fill="#34d399">transfer.ts</text>
+      <text x="384" y="42" font-size="8" fill="#64748b">upload/download file/dir</text>
+      <text x="384" y="53" font-size="8" fill="#64748b">cancel, retry, list</text>
+
+      <rect x="514" y="10" width="120" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="524" y="28" font-size="10" font-weight="600" fill="#34d399">terminal.ts</text>
+      <text x="524" y="42" font-size="8" fill="#64748b">open, close, input</text>
+      <text x="524" y="53" font-size="8" fill="#64748b">resize, Base64 codec</text>
+
+      <rect x="644" y="10" width="115" height="52" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="654" y="28" font-size="10" font-weight="600" fill="#34d399">settings.ts</text>
+      <text x="654" y="42" font-size="8" fill="#64748b">get, update</text>
+      <text x="654" y="53" font-size="8" fill="#64748b">exportDiagnostics</text>
+    </g>
+
+    <!-- Utilities -->
+    <g transform="translate(20, 122)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">UTILITIES</text>
+      <rect x="0" y="10" width="100" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="28" font-size="10" fill="#94a3b8">error.ts</text>
+      <text x="10" y="40" font-size="8" fill="#64748b">error handling</text>
+
+      <rect x="110" y="10" width="100" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="120" y="28" font-size="10" fill="#94a3b8">file.ts</text>
+      <text x="120" y="40" font-size="8" fill="#64748b">path utils</text>
+
+      <rect x="220" y="10" width="110" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="230" y="28" font-size="10" fill="#94a3b8">validation.ts</text>
+      <text x="230" y="40" font-size="8" fill="#64748b">input validation</text>
+
+      <rect x="340" y="10" width="90" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="350" y="28" font-size="10" fill="#94a3b8">query.ts</text>
+      <text x="350" y="40" font-size="8" fill="#64748b">QueryClient</text>
+    </g>
+
+    <!-- Zustand Store -->
+    <g transform="translate(800, 52)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">ZUSTAND STORE</text>
+      <rect x="0" y="10" width="290" height="80" rx="8" fill="#1e293b" stroke="#a855f7" stroke-opacity="0.4" stroke-width="1"/>
+      <text x="14" y="32" font-size="11" font-weight="600" fill="#c084fc">useTransferStore</text>
+      <text x="14" y="48" font-size="9" fill="#94a3b8">State: Map&lt;string, TransferTask&gt;</text>
+      <text x="14" y="62" font-size="9" fill="#94a3b8">Actions: add, updateProgress, updateStatus</text>
+      <text x="14" y="76" font-size="9" fill="#94a3b8">Selectors: active, completed, all tasks</text>
+
+      <text x="0" y="110" font-size="9" fill="#64748b" font-style="italic">Zod runtime validation on SFTP responses</text>
+    </g>
+  </g>
+
+  <!-- ==================== IPC BRIDGE ==================== -->
+  <g transform="translate(40, 770)">
+    <rect x="0" y="0" width="1120" height="60" rx="12" fill="url(#ipcGrad)" stroke="#f59e0b" stroke-opacity="0.3" stroke-width="1"/>
+
+    <!-- invoke() arrow down -->
+    <g transform="translate(200, 18)">
+      <text x="0" y="0" font-size="10" font-weight="700" fill="#fbbf24" letter-spacing="1">invoke()</text>
+      <line x1="70" y1="-6" x2="90" y2="-6" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+      <text x="98" y="-2" font-size="9" fill="#94a3b8">30 IPC commands</text>
+    </g>
+
+    <!-- Tauri IPC Bridge label -->
+    <text x="560" y="36" text-anchor="middle" font-size="16" font-weight="700" fill="#fbbf24" letter-spacing="2">TAURI 2 IPC BRIDGE</text>
+
+    <!-- Events arrow up -->
+    <g transform="translate(750, 18)">
+      <text x="0" y="0" font-size="10" font-weight="700" fill="#fb923c" letter-spacing="1">events</text>
+      <line x1="55" y1="-6" x2="75" y2="-6" stroke="#fb923c" stroke-width="1.5" marker-end="url(#arrowOrange)"/>
+      <text x="83" y="-2" font-size="9" fill="#94a3b8">6 event channels</text>
+    </g>
+  </g>
+
+  <!-- ==================== LAYER 4: Rust Commands ==================== -->
+  <g transform="translate(40, 845)">
+    <rect x="0" y="0" width="1120" height="170" rx="12" fill="url(#rustGrad)" stroke="#f97316" stroke-opacity="0.25" stroke-width="1"/>
+    <rect x="16" y="12" width="240" height="26" rx="6" fill="#f97316" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#fb923c" letter-spacing="0.5">RUST COMMANDS</text>
+    <text x="170" y="30" font-size="10" fill="#475569">commands/ (30 total)</text>
+
+    <!-- Command modules -->
+    <g transform="translate(20, 52)">
+      <rect x="0" y="0" width="148" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="18" font-size="11" font-weight="600" fill="#fb923c">profile.rs</text>
+      <text x="10" y="33" font-size="8" fill="#94a3b8">profile_list</text>
+      <text x="10" y="44" font-size="8" fill="#94a3b8">profile_get</text>
+      <text x="10" y="55" font-size="8" fill="#94a3b8">profile_upsert / delete</text>
+
+      <rect x="158" y="0" width="148" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="168" y="18" font-size="11" font-weight="600" fill="#fb923c">session.rs</text>
+      <text x="168" y="33" font-size="8" fill="#94a3b8">session_connect</text>
+      <text x="168" y="44" font-size="8" fill="#94a3b8">session_disconnect</text>
+      <text x="168" y="55" font-size="8" fill="#94a3b8">session_info / list</text>
+
+      <rect x="316" y="0" width="148" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="326" y="18" font-size="11" font-weight="600" fill="#fb923c">sftp.rs</text>
+      <text x="326" y="33" font-size="8" fill="#94a3b8">sftp_list_dir / stat</text>
+      <text x="326" y="44" font-size="8" fill="#94a3b8">sftp_mkdir / rename</text>
+      <text x="326" y="55" font-size="8" fill="#94a3b8">sftp_delete / chmod</text>
+
+      <rect x="474" y="0" width="165" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="484" y="18" font-size="11" font-weight="600" fill="#fb923c">transfer.rs</text>
+      <text x="484" y="33" font-size="8" fill="#94a3b8">transfer_upload / download</text>
+      <text x="484" y="44" font-size="8" fill="#94a3b8">transfer_upload_dir / download_dir</text>
+      <text x="484" y="55" font-size="8" fill="#94a3b8">transfer_cancel / retry / list</text>
+
+      <rect x="649" y="0" width="138" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="659" y="18" font-size="11" font-weight="600" fill="#fb923c">terminal.rs</text>
+      <text x="659" y="33" font-size="8" fill="#94a3b8">terminal_open / close</text>
+      <text x="659" y="44" font-size="8" fill="#94a3b8">terminal_input</text>
+      <text x="659" y="55" font-size="8" fill="#94a3b8">terminal_resize</text>
+
+      <rect x="797" y="0" width="148" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="807" y="18" font-size="11" font-weight="600" fill="#fb923c">security.rs</text>
+      <text x="807" y="33" font-size="8" fill="#94a3b8">security_trust_hostkey</text>
+      <text x="807" y="44" font-size="8" fill="#94a3b8">security_check_hostkey</text>
+      <text x="807" y="55" font-size="8" fill="#94a3b8">security_remove_hostkey</text>
+
+      <rect x="955" y="0" width="120" height="68" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="965" y="18" font-size="11" font-weight="600" fill="#fb923c">settings.rs</text>
+      <text x="965" y="33" font-size="8" fill="#94a3b8">settings_get / set</text>
+      <text x="965" y="44" font-size="8" fill="#94a3b8">export_diagnostics</text>
+    </g>
+
+    <!-- Event channels -->
+    <g transform="translate(20, 130)">
+      <text x="0" y="0" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="1">EVENT CHANNELS</text>
+      <rect x="110" y="-12" width="112" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="118" y="2" font-size="8" fill="#fb923c">session:status</text>
+      <rect x="232" y="-12" width="120" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="240" y="2" font-size="8" fill="#fb923c">transfer:progress</text>
+      <rect x="362" y="-12" width="112" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="370" y="2" font-size="8" fill="#fb923c">transfer:status</text>
+      <rect x="484" y="-12" width="112" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="492" y="2" font-size="8" fill="#fb923c">terminal:output</text>
+      <rect x="606" y="-12" width="112" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="614" y="2" font-size="8" fill="#fb923c">terminal:status</text>
+      <rect x="728" y="-12" width="112" height="18" rx="4" fill="#f97316" fill-opacity="0.1"/>
+      <text x="736" y="2" font-size="8" fill="#fb923c">delete:progress</text>
+    </g>
+  </g>
+
+  <!-- Down arrow: Commands -> Services -->
+  <g transform="translate(580, 1018)">
+    <line x1="0" y1="0" x2="0" y2="22" stroke="#f97316" stroke-width="1.5" stroke-opacity="0.5" marker-end="url(#arrowOrange)"/>
+    <text x="14" y="14" font-size="9" fill="#475569">delegates</text>
+  </g>
+
+  <!-- ==================== LAYER 5: Rust Services ==================== -->
+  <g transform="translate(40, 1045)">
+    <rect x="0" y="0" width="1120" height="180" rx="12" fill="url(#rustGrad)" stroke="#ef4444" stroke-opacity="0.2" stroke-width="1"/>
+    <rect x="16" y="12" width="200" height="26" rx="6" fill="#ef4444" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#f87171" letter-spacing="0.5">RUST SERVICES</text>
+    <text x="162" y="30" font-size="10" fill="#475569">services/</text>
+
+    <g transform="translate(20, 52)">
+      <!-- SessionManager -->
+      <rect x="0" y="0" width="178" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="12" y="20" font-size="11" font-weight="600" fill="#f87171">SessionManager</text>
+      <text x="12" y="34" font-size="8" fill="#64748b">~930 lines</text>
+      <line x1="12" y1="40" x2="166" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="12" y="54" font-size="9" fill="#94a3b8">SSH connect/disconnect</text>
+      <text x="12" y="67" font-size="9" fill="#94a3b8">Host key verification</text>
+      <text x="12" y="80" font-size="9" fill="#94a3b8">Credential resolution</text>
+      <text x="12" y="93" font-size="9" fill="#94a3b8">SFTP channel creation</text>
+      <text x="12" y="106" font-size="8" fill="#475569">HashMap + RwLock</text>
+
+      <!-- SftpService -->
+      <rect x="188" y="0" width="158" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="200" y="20" font-size="11" font-weight="600" fill="#f87171">SftpService</text>
+      <text x="200" y="34" font-size="8" fill="#64748b">~1100 lines</text>
+      <line x1="200" y1="40" x2="334" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="200" y="54" font-size="9" fill="#94a3b8">list_dir / stat</text>
+      <text x="200" y="67" font-size="9" fill="#94a3b8">mkdir / rename</text>
+      <text x="200" y="80" font-size="9" fill="#94a3b8">delete / chmod</text>
+      <text x="200" y="93" font-size="9" fill="#94a3b8">recursive operations</text>
+      <text x="200" y="106" font-size="8" fill="#475569">spawn_blocking</text>
+
+      <!-- TransferManager -->
+      <rect x="356" y="0" width="178" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="368" y="20" font-size="11" font-weight="600" fill="#f87171">TransferManager</text>
+      <text x="368" y="34" font-size="8" fill="#64748b">~1900 lines</text>
+      <line x1="368" y1="40" x2="522" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="368" y="54" font-size="9" fill="#94a3b8">Upload/download tasks</text>
+      <text x="368" y="67" font-size="9" fill="#94a3b8">Cancel / retry</text>
+      <text x="368" y="80" font-size="9" fill="#94a3b8">Progress events</text>
+      <text x="368" y="93" font-size="9" fill="#94a3b8">Loop-based retry</text>
+      <text x="368" y="106" font-size="8" fill="#475569">tokio::Semaphore</text>
+
+      <!-- TerminalManager -->
+      <rect x="544" y="0" width="168" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="556" y="20" font-size="11" font-weight="600" fill="#f87171">TerminalManager</text>
+      <text x="556" y="34" font-size="8" fill="#64748b">~470 lines</text>
+      <line x1="556" y1="40" x2="700" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="556" y="54" font-size="9" fill="#94a3b8">Separate SSH session</text>
+      <text x="556" y="67" font-size="9" fill="#94a3b8">PTY channel</text>
+      <text x="556" y="80" font-size="9" fill="#94a3b8">Output reader thread</text>
+      <text x="556" y="93" font-size="9" fill="#94a3b8">Throttled events</text>
+      <text x="556" y="106" font-size="8" fill="#475569">16ms / 4KB buffer</text>
+
+      <!-- StorageService -->
+      <rect x="722" y="0" width="168" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="734" y="20" font-size="11" font-weight="600" fill="#f87171">StorageService</text>
+      <text x="734" y="34" font-size="8" fill="#64748b">~960 lines</text>
+      <line x1="734" y1="40" x2="878" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="734" y="54" font-size="9" fill="#94a3b8">Profiles CRUD</text>
+      <text x="734" y="67" font-size="9" fill="#94a3b8">Settings CRUD</text>
+      <text x="734" y="80" font-size="9" fill="#94a3b8">Known hosts CRUD</text>
+      <text x="734" y="93" font-size="9" fill="#94a3b8">Recent connections</text>
+      <text x="734" y="106" font-size="8" fill="#475569">SQLite WAL + prepare_cached</text>
+
+      <!-- SecurityService -->
+      <rect x="900" y="0" width="168" height="110" rx="8" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="912" y="20" font-size="11" font-weight="600" fill="#f87171">SecurityService</text>
+      <text x="912" y="34" font-size="8" fill="#64748b">~290 lines</text>
+      <line x1="912" y1="40" x2="1056" y2="40" stroke="#334155" stroke-width="0.5"/>
+      <text x="912" y="54" font-size="9" fill="#94a3b8">Keychain CRUD</text>
+      <text x="912" y="67" font-size="9" fill="#94a3b8">Password storage</text>
+      <text x="912" y="80" font-size="9" fill="#94a3b8">Host key trust</text>
+      <text x="912" y="93" font-size="9" fill="#94a3b8">Passphrase storage</text>
+      <text x="912" y="106" font-size="8" fill="#475569">keyring crate</text>
+    </g>
+  </g>
+
+  <!-- ==================== LAYER 6: Data / Storage ==================== -->
+  <g transform="translate(40, 1245)">
+    <rect x="0" y="0" width="1120" height="110" rx="12" fill="url(#dataGrad)" stroke="#a855f7" stroke-opacity="0.25" stroke-width="1"/>
+    <rect x="16" y="12" width="240" height="26" rx="6" fill="#a855f7" fill-opacity="0.15"/>
+    <text x="26" y="30" font-size="12" font-weight="600" fill="#c084fc" letter-spacing="0.5">DATA &amp; STORAGE</text>
+    <text x="185" y="30" font-size="10" fill="#475569">models/ + utils/</text>
+
+    <g transform="translate(20, 52)">
+      <!-- SQLite -->
+      <rect x="0" y="0" width="170" height="44" rx="6" fill="#1e293b" stroke="#a855f7" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="12" y="18" font-size="11" font-weight="600" fill="#c084fc">SQLite (rusqlite)</text>
+      <text x="12" y="34" font-size="9" fill="#94a3b8">Profiles, Settings, Known Hosts</text>
+
+      <!-- System Keychain -->
+      <rect x="185" y="0" width="170" height="44" rx="6" fill="#1e293b" stroke="#a855f7" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="197" y="18" font-size="11" font-weight="600" fill="#c084fc">System Keychain</text>
+      <text x="197" y="34" font-size="9" fill="#94a3b8">Passwords, Passphrases</text>
+
+      <!-- SSH Sessions -->
+      <rect x="370" y="0" width="195" height="44" rx="6" fill="#1e293b" stroke="#a855f7" stroke-opacity="0.3" stroke-width="0.5"/>
+      <text x="382" y="18" font-size="11" font-weight="600" fill="#c084fc">SSH Sessions (ssh2)</text>
+      <text x="382" y="34" font-size="9" fill="#94a3b8">In-memory HashMap&lt;Arc&lt;Session&gt;&gt;</text>
+
+      <!-- Models -->
+      <rect x="580" y="0" width="195" height="44" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="592" y="18" font-size="11" font-weight="600" fill="#c084fc">Models (6 files)</text>
+      <text x="592" y="34" font-size="9" fill="#94a3b8">Profile, FileEntry, Transfer...</text>
+
+      <!-- Types -->
+      <rect x="790" y="0" width="195" height="44" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="802" y="18" font-size="11" font-weight="600" fill="#c084fc">TS Types (8 files)</text>
+      <text x="802" y="34" font-size="9" fill="#94a3b8">Shared contract with Rust</text>
+    </g>
+  </g>
+
+  <!-- ==================== Data Flow Legend ==================== -->
+  <g transform="translate(40, 1380)">
+    <rect x="0" y="0" width="1120" height="90" rx="12" fill="#0f1118" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="24" font-size="12" font-weight="600" fill="#94a3b8" letter-spacing="0.5">DATA FLOW</text>
+
+    <!-- invoke flow -->
+    <g transform="translate(20, 40)">
+      <line x1="0" y1="10" x2="70" y2="10" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrowBlue)"/>
+      <text x="80" y="15" font-size="10" fill="#94a3b8">invoke() — Component → Hook → lib/ → Tauri IPC → Rust Command → Service</text>
+    </g>
+
+    <!-- event flow -->
+    <g transform="translate(20, 62)">
+      <line x1="0" y1="10" x2="70" y2="10" stroke="#f97316" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrowOrange)"/>
+      <text x="80" y="15" font-size="10" fill="#94a3b8">events — Rust Service → emit() → Event Listener Hook → Zustand Store → UI re-render</text>
+    </g>
+
+    <!-- State split note -->
+    <g transform="translate(680, 40)">
+      <rect x="0" y="-4" width="14" height="14" rx="3" fill="#06b6d4" fill-opacity="0.3"/>
+      <text x="22" y="8" font-size="10" fill="#94a3b8">TanStack Query = server data (profiles, files, settings)</text>
+    </g>
+    <g transform="translate(680, 62)">
+      <rect x="0" y="-4" width="14" height="14" rx="3" fill="#a855f7" fill-opacity="0.3"/>
+      <text x="22" y="8" font-size="10" fill="#94a3b8">Zustand = real-time push data (transfer progress/status)</text>
+    </g>
+  </g>
+
+  <!-- ==================== Key Patterns ==================== -->
+  <g transform="translate(40, 1490)">
+    <rect x="0" y="0" width="1120" height="90" rx="12" fill="#0f1118" stroke="#1e293b" stroke-width="1"/>
+    <text x="20" y="24" font-size="12" font-weight="600" fill="#94a3b8" letter-spacing="0.5">KEY ARCHITECTURAL PATTERNS</text>
+
+    <g transform="translate(20, 40)">
+      <rect x="0" y="0" width="210" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="10" y="15" font-size="9" font-weight="600" fill="#fbbf24">IPC Contract</text>
+      <text x="10" y="29" font-size="8" fill="#64748b">camelCase serde + Zod validation</text>
+
+      <rect x="220" y="0" width="210" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="230" y="15" font-size="9" font-weight="600" fill="#fbbf24">SSH Session Isolation</text>
+      <text x="230" y="29" font-size="8" fill="#64748b">Terminal = separate SSH session</text>
+
+      <rect x="440" y="0" width="210" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="450" y="15" font-size="9" font-weight="600" fill="#fbbf24">Concurrency Control</text>
+      <text x="450" y="29" font-size="8" fill="#64748b">tokio::Semaphore + spawn_blocking</text>
+
+      <rect x="660" y="0" width="210" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="670" y="15" font-size="9" font-weight="600" fill="#fbbf24">Security</text>
+      <text x="670" y="29" font-size="8" fill="#64748b">System keychain + TOFU + path validation</text>
+
+      <rect x="880" y="0" width="210" height="36" rx="6" fill="#1e293b" stroke="#334155" stroke-width="0.5"/>
+      <text x="890" y="15" font-size="9" font-weight="600" fill="#fbbf24">Error Model</text>
+      <text x="890" y="29" font-size="8" fill="#64748b">Unified AppError across IPC boundary</text>
+    </g>
+  </g>
+</svg>

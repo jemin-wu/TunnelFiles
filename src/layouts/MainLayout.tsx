@@ -71,11 +71,11 @@ export function MainLayout() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 gap-1 text-sm hover:bg-primary/10 hover:text-primary"
+                    className="h-7 px-2 gap-1 text-sm text-muted-foreground"
                     onClick={handleBack}
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
-                    <span className="text-muted-foreground">Back</span>
+                    <span>Back</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
@@ -90,7 +90,7 @@ export function MainLayout() {
 
         {/* Center title */}
         <div className="flex-1 flex items-center justify-center" data-tauri-drag-region>
-          <span className="text-sm font-medium">{pageInfo.title}</span>
+          <span className="text-base font-semibold">{pageInfo.title}</span>
         </div>
 
         {/* Right toolbar */}
@@ -99,12 +99,7 @@ export function MainLayout() {
             {/* Theme toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                  onClick={toggleTheme}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleTheme}>
                   {theme === "dark" ? (
                     <Sun className="h-3.5 w-3.5" />
                   ) : (
@@ -120,12 +115,7 @@ export function MainLayout() {
             {/* Settings */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                  onClick={handleSettings}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSettings}>
                   <Settings className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>

@@ -3,26 +3,10 @@
  */
 
 import { useCallback, useMemo } from "react";
-import {
-  Upload,
-  Download,
-  X,
-  Check,
-  RotateCcw,
-  CheckCircle,
-  XCircle,
-  Trash2,
-  ArrowUpFromLine,
-} from "lucide-react";
+import { Upload, Download, X, Check, RotateCcw, CheckCircle, XCircle, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-  EmptyDescription,
-} from "@/components/ui/empty";
+import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -66,14 +50,8 @@ export function TransferQueue({ className }: TransferQueueProps) {
 
   if (tasks.length === 0) {
     return (
-      <Empty className={className}>
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <ArrowUpFromLine />
-          </EmptyMedia>
-          <EmptyTitle>No active transfers</EmptyTitle>
-          <EmptyDescription>Drag files to the left panel to start uploading</EmptyDescription>
-        </EmptyHeader>
+      <Empty className={cn("w-full", className)}>
+        <EmptyDescription>No active transfers</EmptyDescription>
       </Empty>
     );
   }

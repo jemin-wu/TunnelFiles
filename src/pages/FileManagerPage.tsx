@@ -18,6 +18,8 @@ import {
   FolderPlus,
 } from "lucide-react";
 
+import { FullPageLoader } from "@/components/ui/LoadingSpinner";
+
 import { FileListContainer } from "@/components/file-browser/FileListContainer";
 import { Breadcrumb } from "@/components/file-browser/Breadcrumb";
 import { DropZone } from "@/components/transfer/DropZone";
@@ -103,12 +105,7 @@ function PageToolbar({
             {/* New folder */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                  onClick={onCreateFolder}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateFolder}>
                   <FolderPlus className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
@@ -121,7 +118,7 @@ function PageToolbar({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  className="h-7 w-7"
                   onClick={onRefresh}
                   disabled={isFetching}
                 >
@@ -141,7 +138,7 @@ function PageToolbar({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
+                  className="h-7 w-7"
                   onClick={onToggleHidden}
                   aria-pressed={showHidden}
                 >
@@ -189,8 +186,8 @@ function PageToolbar({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-7 w-7 hover:bg-primary/10 hover:text-primary",
-                activeTab === "files" && "bg-primary/10 text-primary"
+                "h-7 w-7",
+                activeTab === "files" && "bg-accent dark:bg-accent/50 text-accent-foreground"
               )}
               onClick={() => onTabChange("files")}
               aria-pressed={activeTab === "files"}
@@ -207,8 +204,8 @@ function PageToolbar({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-7 w-7 hover:bg-primary/10 hover:text-primary",
-                activeTab === "terminal" && "bg-primary/10 text-primary"
+                "h-7 w-7",
+                activeTab === "terminal" && "bg-accent dark:bg-accent/50 text-accent-foreground"
               )}
               onClick={() => onTabChange("terminal")}
               aria-pressed={activeTab === "terminal"}
@@ -488,15 +485,7 @@ export function FileManagerPage() {
   }, []);
 
   if (!sessionId || isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <div className="flex flex-col items-center gap-1">
-          <span className="text-sm text-muted-foreground">Initializing SFTP...</span>
-          <span className="text-xs text-muted-foreground/60">Establishing secure connection</span>
-        </div>
-      </div>
-    );
+    return <FullPageLoader label="Initializing SFTP..." />;
   }
 
   if (!isValid) {
@@ -568,12 +557,7 @@ export function FileManagerPage() {
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                      onClick={toggleSidebar}
-                    >
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleSidebar}>
                       <PanelRightClose className="h-3.5 w-3.5" />
                     </Button>
                   </TooltipTrigger>
@@ -611,12 +595,7 @@ export function FileManagerPage() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 hover:bg-primary/10 hover:text-primary"
-                  onClick={toggleSidebar}
-                >
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleSidebar}>
                   <PanelRightOpen className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
@@ -632,7 +611,7 @@ export function FileManagerPage() {
           <div className="relative">
             <Activity className="h-3.5 w-3.5 text-muted-foreground" />
             {activeTransferCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-[16px] rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-0.5 leading-none">
+              <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-primary text-primary-foreground text-xs font-medium flex items-center justify-center px-0.5 leading-none">
                 {activeTransferCount}
               </span>
             )}

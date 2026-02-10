@@ -23,6 +23,12 @@ describe("ConnectionItem", () => {
     privateKeyPath: "/path/to/key",
   };
 
+  const nonStandardPortProfile: Profile = {
+    ...mockProfile,
+    id: "custom-port-profile",
+    port: 2222,
+  };
+
   const mockOnConnect = vi.fn();
   const mockOnEdit = vi.fn();
   const mockOnDelete = vi.fn();
@@ -40,32 +46,63 @@ describe("ConnectionItem", () => {
     vi.clearAllMocks();
   });
 
-  it("should render profile information", () => {
+  it("should render profile name and host info", () => {
     render(<ConnectionItem {...defaultProps} />);
 
     expect(screen.getByText("Test Server")).toBeInTheDocument();
-    expect(screen.getByText("testuser@192.168.1.100:22")).toBeInTheDocument();
+    expect(screen.getByText("testuser@192.168.1.100")).toBeInTheDocument();
   });
 
-  it("should show SSH key badge for key auth type", () => {
-    render(<ConnectionItem {...defaultProps} profile={keyProfile} />);
-
-    expect(screen.getByText("key")).toBeInTheDocument();
-  });
-
-  it("should not show SSH key badge for password auth type", () => {
+  it("should hide port 22 in host info", () => {
     render(<ConnectionItem {...defaultProps} />);
 
-    expect(screen.queryByText("key")).not.toBeInTheDocument();
+    // Port 22 is default, should not show :22
+    expect(screen.queryByText(/.*:22$/)).not.toBeInTheDocument();
   });
 
-  it("should call onConnect when double-clicked", async () => {
+  it("should show non-standard port in host info", () => {
+    render(<ConnectionItem {...defaultProps} profile={nonStandardPortProfile} />);
+
+    expect(screen.getByText(/testuser@192\.168\.1\.100:2222/)).toBeInTheDocument();
+  });
+
+  it("should show SSH key icon for key auth type", () => {
+    const { container } = render(<ConnectionItem {...defaultProps} profile={keyProfile} />);
+
+    // Key icon is rendered for key auth type
+    const keyIcon = container.querySelector(".lucide-key");
+    expect(keyIcon).toBeInTheDocument();
+  });
+
+  it("should call onConnect when clicked", async () => {
     const user = userEvent.setup();
     render(<ConnectionItem {...defaultProps} />);
 
-    await user.dblClick(screen.getByRole("listitem"));
+    await user.click(screen.getByRole("listitem"));
 
     expect(mockOnConnect).toHaveBeenCalledWith("test-profile-1");
+  });
+
+  it("should call onConnect on Enter key", async () => {
+    const user = userEvent.setup();
+    render(<ConnectionItem {...defaultProps} />);
+
+    const item = screen.getByRole("listitem");
+    item.focus();
+    await user.keyboard("{Enter}");
+
+    expect(mockOnConnect).toHaveBeenCalledWith("test-profile-1");
+  });
+
+  it("should call onDelete on Delete key", async () => {
+    const user = userEvent.setup();
+    render(<ConnectionItem {...defaultProps} />);
+
+    const item = screen.getByRole("listitem");
+    item.focus();
+    await user.keyboard("{Delete}");
+
+    expect(mockOnDelete).toHaveBeenCalledWith(mockProfile);
   });
 
   it("should apply connecting styles when isConnecting", () => {
@@ -81,45 +118,26 @@ describe("ConnectionItem", () => {
     expect(screen.getByText("Test Server")).toBeInTheDocument();
   });
 
-  it("should show action buttons", () => {
+  it("should have accessible aria-label on actions menu button", () => {
     render(<ConnectionItem {...defaultProps} />);
 
-    expect(screen.getByLabelText("Connect to Test Server")).toBeInTheDocument();
-    expect(screen.getByLabelText("Edit Test Server")).toBeInTheDocument();
-    expect(screen.getByLabelText("Delete Test Server")).toBeInTheDocument();
+    expect(screen.getByLabelText("Actions for Test Server")).toBeInTheDocument();
   });
 
-  it("should call onConnect via connect button", async () => {
+  it("should have accessible label on SSH key indicator", () => {
+    render(<ConnectionItem {...defaultProps} profile={keyProfile} />);
+
+    expect(screen.getByLabelText("SSH key authentication")).toBeInTheDocument();
+  });
+
+  it("should not trigger delete on Backspace key", async () => {
     const user = userEvent.setup();
     render(<ConnectionItem {...defaultProps} />);
 
-    await user.click(screen.getByLabelText("Connect to Test Server"));
+    const item = screen.getByRole("listitem");
+    item.focus();
+    await user.keyboard("{Backspace}");
 
-    expect(mockOnConnect).toHaveBeenCalledWith("test-profile-1");
-  });
-
-  it("should call onEdit via edit button", async () => {
-    const user = userEvent.setup();
-    render(<ConnectionItem {...defaultProps} />);
-
-    await user.click(screen.getByLabelText("Edit Test Server"));
-
-    expect(mockOnEdit).toHaveBeenCalledWith(mockProfile);
-  });
-
-  it("should call onDelete via delete button", async () => {
-    const user = userEvent.setup();
-    render(<ConnectionItem {...defaultProps} />);
-
-    await user.click(screen.getByLabelText("Delete Test Server"));
-
-    expect(mockOnDelete).toHaveBeenCalledWith(mockProfile);
-  });
-
-  it("should show spinner when connecting", () => {
-    render(<ConnectionItem {...defaultProps} isConnecting={true} />);
-
-    // The spinner replaces action buttons
-    expect(screen.queryByLabelText("Connect to Test Server")).not.toBeInTheDocument();
+    expect(mockOnDelete).not.toHaveBeenCalled();
   });
 });

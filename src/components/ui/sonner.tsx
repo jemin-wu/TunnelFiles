@@ -1,14 +1,10 @@
 /**
  * Sonner Toast - Precision Engineering
  *
- * 双主题设计：简洁、克制的通知样式
- *
- * 类型区分：
- * - success: 绿色系
- * - error: 红色系
- * - warning: 琥珀/金色系
- * - info: 青色系
- * - loading: 主色调
+ * 简洁克制的通知设计：
+ * - 2px 左边框标识类型（success/error/warning/info）
+ * - 裸图标 + 语义色，无多余装饰
+ * - 深浅主题统一结构，仅 token 色值切换
  */
 
 import {
@@ -33,147 +29,46 @@ const Toaster = ({ ...props }: ToasterProps) => {
         classNames: {
           toast: `
             group toast
-            flex items-start gap-3 w-full p-4
-            border text-sm
-            rounded-md
+            flex items-start gap-3 w-full px-4 py-3
+            rounded-md border border-border bg-card text-sm
+            shadow-sm
             transition-all duration-200 ease-in-out
 
-            /* === 深色模式 === */
-            dark:backdrop-blur-sm
-
-            dark:data-[type=success]:border-success/30
-            dark:data-[type=success]:bg-success/8
-
-            dark:data-[type=error]:border-destructive/30
-            dark:data-[type=error]:bg-destructive/8
-
-            dark:data-[type=warning]:border-warning/30
-            dark:data-[type=warning]:bg-warning/8
-
-            dark:data-[type=info]:border-info/30
-            dark:data-[type=info]:bg-info/8
-
-            dark:data-[type=loading]:border-border
-            dark:data-[type=loading]:bg-card/90
-
-            dark:data-[type=default]:border-border
-            dark:data-[type=default]:bg-card/90
-
-            /* === 浅色模式 === */
-            shadow-sm
-
-            data-[type=success]:border-l-[3px]
-            data-[type=success]:border-l-success
-            data-[type=success]:border-t-border
-            data-[type=success]:border-r-border
-            data-[type=success]:border-b-border
-            data-[type=success]:bg-success/6
-
-            data-[type=error]:border-l-[3px]
-            data-[type=error]:border-l-destructive
-            data-[type=error]:border-t-border
-            data-[type=error]:border-r-border
-            data-[type=error]:border-b-border
-            data-[type=error]:bg-destructive/6
-
-            data-[type=warning]:border-l-[3px]
-            data-[type=warning]:border-l-warning
-            data-[type=warning]:border-t-border
-            data-[type=warning]:border-r-border
-            data-[type=warning]:border-b-border
-            data-[type=warning]:bg-warning/6
-
-            data-[type=info]:border-l-[3px]
-            data-[type=info]:border-l-info
-            data-[type=info]:border-t-border
-            data-[type=info]:border-r-border
-            data-[type=info]:border-b-border
-            data-[type=info]:bg-info/6
-
-            data-[type=loading]:border-border
-            data-[type=loading]:bg-card
-
-            data-[type=default]:border-border
-            data-[type=default]:bg-card
-
-            /* 深色模式覆盖浅色的左边框样式 */
-            dark:data-[type=success]:border-l-[1px]
-            dark:data-[type=error]:border-l-[1px]
-            dark:data-[type=warning]:border-l-[1px]
-            dark:data-[type=info]:border-l-[1px]
+            data-[type=success]:border-l-2 data-[type=success]:border-l-success
+            data-[type=error]:border-l-2 data-[type=error]:border-l-destructive
+            data-[type=warning]:border-l-2 data-[type=warning]:border-l-warning
+            data-[type=info]:border-l-2 data-[type=info]:border-l-info
           `,
           title: `
-            font-semibold tracking-wide
-
-            /* 深色模式 */
-            dark:data-[type=success]:text-success
-            dark:data-[type=error]:text-destructive
-            dark:data-[type=warning]:text-warning
-            dark:data-[type=info]:text-info
-            dark:data-[type=loading]:text-primary
-            dark:data-[type=default]:text-foreground
-
-            /* 浅色模式 */
-            data-[type=success]:text-success
-            data-[type=error]:text-destructive
-            data-[type=warning]:text-warning
-            data-[type=info]:text-info
-            data-[type=loading]:text-primary
-            data-[type=default]:text-foreground
+            font-medium text-foreground
           `,
           description: `
-            text-xs text-muted-foreground mt-1 opacity-80
+            text-xs text-muted-foreground mt-1
           `,
           actionButton: `
             px-3 py-1.5 text-xs font-medium rounded-md
-            transition-all duration-200
-
-            /* 深色模式 */
-            dark:bg-primary/20 dark:text-primary dark:border dark:border-primary/30
-            dark:hover:bg-primary/30
-
-            /* 浅色模式 */
             bg-primary text-primary-foreground
             hover:bg-primary/90
+            transition-colors duration-150
           `,
           cancelButton: `
             px-3 py-1.5 text-xs font-medium rounded-md
             bg-muted text-muted-foreground border border-border
-            hover:bg-muted/80
-            transition-all duration-200
+            hover:bg-accent/50
+            transition-colors duration-150
           `,
           closeButton: `
             opacity-50 hover:opacity-100
-            transition-opacity
+            transition-opacity duration-150
           `,
         },
       }}
       icons={{
-        success: (
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-success/12 flex items-center justify-center">
-            <CircleCheckIcon className="size-4 text-success" />
-          </div>
-        ),
-        info: (
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-info/12 flex items-center justify-center">
-            <InfoIcon className="size-4 text-info" />
-          </div>
-        ),
-        warning: (
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-warning/12 flex items-center justify-center">
-            <TriangleAlertIcon className="size-4 text-warning" />
-          </div>
-        ),
-        error: (
-          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-destructive/12 flex items-center justify-center">
-            <OctagonXIcon className="size-4 text-destructive" />
-          </div>
-        ),
-        loading: (
-          <div className="flex-shrink-0">
-            <Loader2Icon className="size-5 text-primary animate-spin" />
-          </div>
-        ),
+        success: <CircleCheckIcon className="size-5 shrink-0 text-success" />,
+        info: <InfoIcon className="size-5 shrink-0 text-info" />,
+        warning: <TriangleAlertIcon className="size-5 shrink-0 text-warning" />,
+        error: <OctagonXIcon className="size-5 shrink-0 text-destructive" />,
+        loading: <Loader2Icon className="size-5 shrink-0 text-muted-foreground animate-spin" />,
       }}
       style={
         {

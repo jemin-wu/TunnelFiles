@@ -108,8 +108,8 @@ export function CreateFolderDialog({
               className={cn(
                 "font-mono bg-background/50",
                 error
-                  ? "border-destructive focus-visible:ring-destructive"
-                  : "border-border focus-visible:ring-primary"
+                  ? "border-destructive focus-visible:ring-destructive/50"
+                  : "border-border focus-visible:ring-ring/50"
               )}
             />
             {error && (
@@ -123,12 +123,13 @@ export function CreateFolderDialog({
             <Button
               type="button"
               variant="outline"
+              size="sm"
               onClick={() => handleOpenChange(false)}
               disabled={isPending}
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isPending || !name.trim()}>
+            <Button type="submit" size="sm" disabled={isPending || !name.trim()}>
               {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               Create
             </Button>

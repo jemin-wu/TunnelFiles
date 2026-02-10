@@ -123,10 +123,16 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
         </div>
 
         <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={handleCancel} disabled={isPending}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleCancel}
+            disabled={isPending}
+          >
             Cancel
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={isPending}>
+          <Button type="button" size="sm" onClick={handleSubmit} disabled={isPending}>
             {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
             Apply
           </Button>

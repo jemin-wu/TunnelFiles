@@ -74,9 +74,7 @@ export function PasswordDialog({
         showCloseButton={!isConnecting}
       >
         <DialogHeader className="gap-1.5">
-          <DialogTitle className="text-sm font-medium">
-            {isPassword ? "Password required" : "Passphrase required"}
-          </DialogTitle>
+          <DialogTitle>{isPassword ? "Password required" : "Passphrase required"}</DialogTitle>
           <DialogDescription className="text-xs">
             {hostInfo ? (
               <>
@@ -107,16 +105,10 @@ export function PasswordDialog({
               size="sm"
               onClick={() => handleOpenChange(false)}
               disabled={isConnecting}
-              className="h-8 px-3"
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              size="sm"
-              disabled={isConnecting || !value.trim()}
-              className="h-8 px-4"
-            >
+            <Button type="submit" size="sm" disabled={isConnecting || !value.trim()}>
               {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
             </Button>
           </DialogFooter>

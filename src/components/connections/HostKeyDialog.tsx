@@ -131,12 +131,13 @@ export function HostKeyDialog({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={onReject} disabled={isProcessing}>
+          <Button variant="outline" size="sm" onClick={onReject} disabled={isProcessing}>
             Reject
           </Button>
           <Button
             onClick={onTrust}
             disabled={isProcessing}
+            size="sm"
             variant={isMismatch ? "destructive" : "default"}
           >
             {isProcessing && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}

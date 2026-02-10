@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { cn } from "@/lib/utils";
+import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
 import type { LogLevel } from "@/types/settings";
 
@@ -59,12 +60,15 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       onClick={onClick}
       className={cn(
         "justify-start gap-2.5 w-full h-auto px-3 py-2.5 text-sm transition-all duration-200",
-        "hover:bg-muted/80",
-        active ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-muted-foreground"
+        "hover:bg-accent/50",
+        active ? "bg-accent dark:bg-accent/50 text-accent-foreground" : "text-muted-foreground"
       )}
     >
       <span
-        className={cn("transition-colors", active ? "text-primary" : "text-muted-foreground/70")}
+        className={cn(
+          "transition-colors",
+          active ? "text-accent-foreground" : "text-muted-foreground/70"
+        )}
       >
         {icon}
       </span>
@@ -136,12 +140,7 @@ export function SettingsPage() {
   }, [navigate]);
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Loading settings...</span>
-      </div>
-    );
+    return <FullPageLoader label="Loading settings..." />;
   }
 
   return (
@@ -178,7 +177,7 @@ export function SettingsPage() {
               {/* TRANSFER_CONFIG */}
               {activeSection === "transfer" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium mb-1">Transfer settings</h2>
+                  <h2 className="text-base font-medium mb-1">Transfer settings</h2>
                   <p className="text-xs text-muted-foreground mb-6">
                     File upload and download settings
                   </p>
@@ -278,7 +277,7 @@ export function SettingsPage() {
               {/* CONNECTION_CONFIG */}
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium mb-1">Connection settings</h2>
+                  <h2 className="text-base font-medium mb-1">Connection settings</h2>
                   <p className="text-xs text-muted-foreground mb-6">SSH connection settings</p>
 
                   <div>
@@ -313,7 +312,7 @@ export function SettingsPage() {
               {/* LOGGING_CONFIG */}
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
-                  <h2 className="text-sm font-medium mb-1">Logging settings</h2>
+                  <h2 className="text-base font-medium mb-1">Logging settings</h2>
                   <p className="text-xs text-muted-foreground mb-6">Application log output</p>
 
                   <div>

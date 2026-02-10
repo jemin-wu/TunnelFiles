@@ -26,7 +26,7 @@ export function LoadingSpinner({ size = "md", className, label }: LoadingSpinner
       role="status"
       aria-label={label || "Loading"}
     >
-      <Loader2 className={cn("animate-spin text-muted-foreground", sizeClasses[size])} />
+      <Loader2 className={cn("animate-spin text-primary", sizeClasses[size])} />
       {label && <span className="text-sm text-muted-foreground">{label}</span>}
     </div>
   );

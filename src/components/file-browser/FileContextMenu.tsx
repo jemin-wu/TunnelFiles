@@ -23,6 +23,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { showSuccessToast, showErrorToast } from "@/lib/error";
+import { formatShortcut } from "@/lib/platform";
 import type { FileEntry } from "@/types";
 
 interface FileContextMenuProps {
@@ -123,7 +124,7 @@ export function FileContextMenu({
               <FolderPlus className="h-3.5 w-3.5 text-primary" />
               <span>New folder</span>
             </span>
-            <span className="text-muted-foreground text-xs">⌘N</span>
+            <span className="text-muted-foreground text-xs">{formatShortcut("Mod+N")}</span>
           </ContextMenuItem>
         )}
 
@@ -134,7 +135,7 @@ export function FileContextMenu({
               <Pencil className="h-3.5 w-3.5" />
               <span>Rename</span>
             </span>
-            <span className="text-muted-foreground text-xs">⌘R</span>
+            <span className="text-muted-foreground text-xs">{formatShortcut("Mod+R")}</span>
           </ContextMenuItem>
         )}
 
@@ -154,7 +155,7 @@ export function FileContextMenu({
             <Trash2 className="h-3.5 w-3.5" />
             <span>Delete</span>
           </span>
-          <span className="text-xs opacity-70">⌘⌫</span>
+          <span className="text-xs opacity-70">{formatShortcut("Mod+Backspace")}</span>
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>

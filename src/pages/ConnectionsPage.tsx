@@ -1,12 +1,13 @@
 /**
  * Connections Page - Precision Engineering
- * Compact list with side sheet for add/edit, keyboard navigation
+ * Card-based connection list with single-click connect
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Plus, Loader2, Server } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
@@ -30,7 +31,6 @@ import { ConnectionItem } from "@/components/connections/ConnectionItem";
 import { ConnectionSheet } from "@/components/connections/ConnectionSheet";
 import { PasswordDialog } from "@/components/connections/PasswordDialog";
 import { HostKeyDialog } from "@/components/connections/HostKeyDialog";
-import { cn } from "@/lib/utils";
 import { useProfiles, useDeleteProfile } from "@/hooks/useProfiles";
 import { useConnect } from "@/hooks/useConnect";
 import type { Profile } from "@/types";
@@ -44,7 +44,6 @@ export function ConnectionsPage() {
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [profileToDelete, setProfileToDelete] = useState<Profile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
 
   // Connection flow
   const {
@@ -108,39 +107,11 @@ export function ConnectionsPage() {
   // --- Render ---
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="text-sm text-muted-foreground">Loading profiles...</span>
-      </div>
-    );
+    return <FullPageLoader label="Loading profiles..." />;
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div
-        className={cn(
-          "flex items-center justify-between px-4 h-9 shrink-0",
-          "border-b border-border bg-card/30"
-        )}
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium">SSH hosts</span>
-          <span className="text-xs text-muted-foreground">
-            {profiles.length === 0 ? "No connections" : `${profiles.length} connections`}
-          </span>
-        </div>
-        <Button
-          onClick={handleAdd}
-          size="icon"
-          variant="ghost"
-          className="h-6 w-6 hover:bg-primary/10 hover:text-primary"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
       {/* Connection list */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {profiles.length === 0 ? (
@@ -149,25 +120,19 @@ export function ConnectionsPage() {
               <EmptyMedia variant="icon">
                 <Server />
               </EmptyMedia>
-              <EmptyTitle className="text-sm">No connections found</EmptyTitle>
-              <EmptyDescription className="text-xs">
-                Create your first remote server connection
-              </EmptyDescription>
+              <EmptyTitle>No connections yet</EmptyTitle>
+              <EmptyDescription>Add a remote server to get started</EmptyDescription>
             </EmptyHeader>
             <EmptyContent>
-              <Button
-                onClick={handleAdd}
-                variant="outline"
-                className="gap-2 border-primary/50 hover:border-primary"
-              >
-                <Plus className="h-4 w-4" />
+              <Button onClick={handleAdd} size="sm" className="gap-2">
+                <Plus className="h-3.5 w-3.5" />
                 <span>New connection</span>
               </Button>
             </EmptyContent>
           </Empty>
         ) : (
           <ScrollArea className="h-full">
-            <div ref={listRef} role="list" className="py-1">
+            <div className="p-3 space-y-1.5" role="list" aria-label="Saved connections">
               {profiles.map((profile, index) => (
                 <ConnectionItem
                   key={profile.id}
@@ -179,6 +144,16 @@ export function ConnectionsPage() {
                   onDelete={setProfileToDelete}
                 />
               ))}
+
+              {/* Add connection button at end of list */}
+              <Button
+                variant="ghost"
+                onClick={handleAdd}
+                className="w-full h-10 gap-2 border border-dashed border-border/60 text-xs text-muted-foreground hover:border-primary/40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New connection
+              </Button>
             </div>
           </ScrollArea>
         )}
@@ -203,7 +178,7 @@ export function ConnectionsPage() {
       >
         <AlertDialogContent className="border-destructive/30 bg-card">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-sm">Confirm delete</AlertDialogTitle>
+            <AlertDialogTitle>Confirm delete</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
               {profileToDelete ? `Delete "${profileToDelete.name}"?` : "Delete this connection?"}
             </AlertDialogDescription>

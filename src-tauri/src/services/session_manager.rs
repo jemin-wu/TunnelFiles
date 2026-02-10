@@ -418,7 +418,7 @@ impl SessionManager {
 
             sessions
                 .iter()
-                .filter(|(_, s)| s.idle_secs() > idle_timeout_secs)
+                .filter(|(_, s)| s.idle_secs() >= idle_timeout_secs)
                 .map(|(id, _)| id.clone())
                 .collect()
         };
