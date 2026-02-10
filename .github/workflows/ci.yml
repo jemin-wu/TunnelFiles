@@ -131,10 +131,21 @@ jobs:
           eval $(dbus-launch --sh-syntax)
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
 
+      - name: Start tauri-driver
+        run: |
+          ~/.cargo/bin/tauri-driver &
+          sleep 2
+          # Verify tauri-driver is listening
+          curl -s http://127.0.0.1:4444/status || echo "Warning: tauri-driver status check failed"
+
       - name: Run E2E tests
+        env:
+          TAURI_DRIVER_EXTERNAL: "1"
         run: pnpm test:e2e
 
       - name: Run visual regression tests
+        env:
+          TAURI_DRIVER_EXTERNAL: "1"
         run: pnpm test:visual
 
       - name: Upload test artifacts
