@@ -277,9 +277,16 @@ export async function handlePasswordDialog(password = TEST_SERVER.password): Pro
   const credInput = await $("#credential");
   await credInput.waitForExist({ timeout: WAIT_TIMEOUT });
   await credInput.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+  await credInput.clearValue();
   await credInput.setValue(password);
 
   const connectBtn = await $(btnByText("Connect"));
+  await connectBtn.waitForExist({ timeout: WAIT_TIMEOUT });
+  await connectBtn.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+  await browser.waitUntil(() => connectBtn.isEnabled(), {
+    timeout: WAIT_TIMEOUT,
+    timeoutMsg: "Password dialog connect button did not become enabled",
+  });
   await connectBtn.click();
   await waitForStable(500);
 }
@@ -291,6 +298,7 @@ export async function handlePasswordDialog(password = TEST_SERVER.password): Pro
  */
 export async function handleConnectionDialogs(password = TEST_SERVER.password): Promise<void> {
   const deadline = Date.now() + CONNECT_TIMEOUT;
+  let submittedCredentials = false;
 
   while (Date.now() < deadline) {
     const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
@@ -299,20 +307,43 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
     }
 
     const trustBtn = await $(btnByText("Trust"));
-    if (await trustBtn.isExisting()) {
+    if (await trustBtn.isExisting() && (await trustBtn.isDisplayed())) {
       await trustBtn.click();
       await waitForStable(600);
       continue;
     }
 
+    const trustAnywayBtn = await $(btnByText("Trust anyway"));
+    if (await trustAnywayBtn.isExisting() && (await trustAnywayBtn.isDisplayed())) {
+      await trustAnywayBtn.click();
+      await waitForStable(600);
+      continue;
+    }
+
     const credInput = await $("#credential");
-    if (await credInput.isExisting()) {
+    if (await credInput.isExisting() && (await credInput.isDisplayed())) {
       await handlePasswordDialog(password);
-      return;
+      submittedCredentials = true;
+      continue;
+    }
+
+    // Credentials may have just been submitted; give the next dialog/page transition time.
+    if (submittedCredentials) {
+      await browser.pause(200);
+      continue;
     }
 
     await browser.pause(250);
   }
+
+  const dialog = await $('[role="dialog"]');
+  const dialogText =
+    (await dialog.isExisting()) && (await dialog.isDisplayed())
+      ? (await dialog.getText()).replace(/\s+/g, " ").trim()
+      : "none";
+  throw new Error(
+    `Connection flow timed out after ${CONNECT_TIMEOUT}ms. File browser not visible. Active dialog: ${dialogText}`
+  );
 }
 
 /** Click the connect button on a profile row */
@@ -327,11 +358,23 @@ function legacyActionLabel(action: ProfileAction, name: string): string {
 }
 
 async function tryClickLegacyActionButton(action: ProfileAction, name: string): Promise<boolean> {
-  const legacyBtn = await $(`button[aria-label="${legacyActionLabel(action, name)}"]`);
-  if (!(await legacyBtn.isExisting())) return false;
-  await legacyBtn.waitForClickable({ timeout: WAIT_TIMEOUT });
-  await legacyBtn.click();
-  return true;
+  const expectedLabel = legacyActionLabel(action, name);
+  const legacyBtns = await $$(`button[aria-label="${expectedLabel}"]`);
+  if (legacyBtns.length === 0) return false;
+
+  for (const legacyBtn of legacyBtns) {
+    try {
+      if (!(await legacyBtn.isDisplayed())) continue;
+      if ((await legacyBtn.getAttribute("aria-label")) !== expectedLabel) continue;
+      await legacyBtn.waitForClickable({ timeout: 1200 });
+      await legacyBtn.click();
+      return true;
+    } catch {
+      // Fall through to modern action paths if legacy click is not usable.
+    }
+  }
+
+  return false;
 }
 
 async function openProfileActionsMenu(name: string): Promise<void> {
@@ -350,7 +393,7 @@ async function openProfileActionsMenu(name: string): Promise<void> {
 }
 
 async function clickProfileMenuItem(label: "Edit" | "Delete"): Promise<void> {
-  const actionItem = await $(`//div[@role='menuitem'][normalize-space(.)='${label}']`);
+  const actionItem = await $(`//div[@role='menuitem'][contains(normalize-space(.), '${label}')]`);
   await actionItem.waitForExist({ timeout: WAIT_TIMEOUT });
   try {
     await actionItem.waitForClickable({ timeout: WAIT_TIMEOUT });
@@ -389,13 +432,22 @@ export async function clickProfileAction(name: string, action: ProfileAction): P
 
   if (action === "connect") {
     const row = await getProfileRow(name);
-    await row.waitForClickable({ timeout: WAIT_TIMEOUT });
-    await row.click();
+    try {
+      await row.waitForClickable({ timeout: WAIT_TIMEOUT });
+      await row.click();
+    } catch {
+      await browser.execute((el) => {
+        (el as HTMLElement).click();
+      }, row);
+    }
     return;
   }
 
   const itemLabel = action === "edit" ? "Edit" : "Delete";
-  if (await tryClickProfileMenuAction(name, itemLabel)) return;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (await tryClickProfileMenuAction(name, itemLabel)) return;
+    await waitForStable(150);
+  }
 
   const row = await focusProfileRow(name);
   if (action === "edit") {
