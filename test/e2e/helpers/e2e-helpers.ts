@@ -168,6 +168,8 @@ export async function fillConnectionForm(opts: {
   host: string;
   port: string;
   username: string;
+  password?: string;
+  rememberPassword?: boolean;
 }): Promise<void> {
   const nameInput = await $('input[name="name"]');
   // Wait for the sheet animation to complete and inputs to be interactable
@@ -187,6 +189,25 @@ export async function fillConnectionForm(opts: {
   const usernameInput = await $('input[name="username"]');
   await usernameInput.clearValue();
   await usernameInput.setValue(opts.username);
+
+  if (opts.password !== undefined) {
+    const passwordInput = await $('input[placeholder="Enter SSH password"]');
+    await passwordInput.waitForExist({ timeout: WAIT_TIMEOUT });
+    await passwordInput.clearValue();
+    await passwordInput.setValue(opts.password);
+  }
+
+  if (opts.rememberPassword) {
+    const saveToKeychain = await $(
+      "//label[normalize-space(.)='Save to keychain']/preceding-sibling::*[@role='checkbox']"
+    );
+    if (await saveToKeychain.isExisting()) {
+      const state = await saveToKeychain.getAttribute("data-state");
+      if (state !== "checked") {
+        await saveToKeychain.click();
+      }
+    }
+  }
 }
 
 /** Click "Create" (or "Save") in the sheet footer */
@@ -207,14 +228,26 @@ export async function submitConnectionSheet(): Promise<void> {
  * Returns once the sheet has closed.
  */
 export async function addConnectionProfile(
-  opts: { name: string; host: string; port: string; username: string } = TEST_SERVER
+  opts: {
+    name: string;
+    host: string;
+    port: string;
+    username: string;
+    password?: string;
+    rememberPassword?: boolean;
+  } = TEST_SERVER
 ): Promise<void> {
+  const profile = {
+    ...opts,
+    // Stabilize e2e connect flow by persisting credentials in keychain.
+    rememberPassword: opts.rememberPassword ?? true,
+  };
   await openAddConnectionSheet();
-  await fillConnectionForm(opts);
+  await fillConnectionForm(profile);
   await submitConnectionSheet();
-  await browser.waitUntil(() => profileExists(opts.name), {
+  await browser.waitUntil(() => profileExists(profile.name), {
     timeout: CONNECT_TIMEOUT,
-    timeoutMsg: `Profile "${opts.name}" was not visible after creation`,
+    timeoutMsg: `Profile "${profile.name}" was not visible after creation`,
   });
 }
 
@@ -278,14 +311,6 @@ async function waitForConnectSignal(name: string, timeoutMs = 6000): Promise<boo
 
     const credInput = await $("#credential");
     if (await credInput.isExisting()) return true;
-
-    const row = await $(profileRowSelector(name));
-    if (await row.isExisting()) {
-      const classes = (await row.getAttribute("class")) ?? "";
-      if (classes.includes("pointer-events-none") || classes.includes("opacity-50")) {
-        return true;
-      }
-    }
 
     await browser.pause(150);
   }
@@ -391,7 +416,7 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
 /** Click the connect button on a profile row */
 export async function connectToProfile(name: string): Promise<void> {
   if (await tryClickLegacyActionButton("connect", name)) {
-    if (await waitForConnectSignal(name)) return;
+    if (await waitForConnectSignal(name, 8000)) return;
   }
 
   let lastError = "";
@@ -403,7 +428,7 @@ export async function connectToProfile(name: string): Promise<void> {
 
     // Keyboard path is the most stable with the current ConnectionItem handlers.
     await browser.keys("Enter");
-    if (await waitForConnectSignal(name)) return;
+    if (await waitForConnectSignal(name, 8000)) return;
 
     try {
       await row.waitForClickable({ timeout: 1500 });
@@ -419,7 +444,7 @@ export async function connectToProfile(name: string): Promise<void> {
       }
     }
 
-    if (await waitForConnectSignal(name)) return;
+    if (await waitForConnectSignal(name, 8000)) return;
     await waitForStable(200);
   }
 
@@ -502,7 +527,10 @@ async function tryClickProfileMenuAction(name: string, label: "Edit" | "Delete")
   try {
     await openProfileActionsMenu(name);
     await clickProfileMenuItem(label);
-    return true;
+    if (label === "Edit") {
+      return waitForEditSheetOpen(2500);
+    }
+    return waitForDeleteDialogOpen(2500);
   } catch {
     return false;
   }
