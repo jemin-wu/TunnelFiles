@@ -9,13 +9,12 @@ import {
   navigateToConnections,
   openAddConnectionSheet,
   addConnectionProfile,
-  getProfileRow,
   profileExists,
   deleteProfile,
   fullConnectFlow,
   disconnect,
   btnByText,
-  revealRowActions,
+  clickProfileAction,
 } from "../helpers/e2e-helpers";
 
 describe("Connection Flow", () => {
@@ -168,12 +167,7 @@ describe("Connection Flow", () => {
     });
 
     it("should open edit sheet with pre-filled values", async () => {
-      const row = await getProfileRow(ORIGINAL_NAME);
-      await revealRowActions(row);
-
-      const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
-      await editBtn.waitForClickable({ timeout: 10_000 });
-      await editBtn.click();
+      await clickProfileAction(ORIGINAL_NAME, "edit");
 
       // Verify "Edit connection" title
       const title = await $("//span[text()='Edit connection']");
@@ -192,11 +186,7 @@ describe("Connection Flow", () => {
     });
 
     it("should update profile name and save", async () => {
-      const row = await getProfileRow(ORIGINAL_NAME);
-      await revealRowActions(row);
-
-      const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
-      await editBtn.click();
+      await clickProfileAction(ORIGINAL_NAME, "edit");
 
       const sheet = await $('[role="dialog"]');
       await sheet.waitForExist({ timeout: 10_000 });
@@ -231,13 +221,8 @@ describe("Connection Flow", () => {
       const profileName = "delete-cancel-test";
       await addConnectionProfile({ ...TEST_SERVER, name: profileName });
 
-      // Reveal hover buttons and click delete
-      const row = await getProfileRow(profileName);
-      await revealRowActions(row);
-
-      const deleteBtn = await $(`button[aria-label="Delete ${profileName}"]`);
-      await deleteBtn.waitForClickable({ timeout: 10_000 });
-      await deleteBtn.click();
+      // Trigger delete from profile actions
+      await clickProfileAction(profileName, "delete");
 
       // AlertDialog should appear
       const alertDialog = await $('[role="alertdialog"]');

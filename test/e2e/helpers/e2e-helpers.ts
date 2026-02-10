@@ -24,6 +24,8 @@ const WAIT_TIMEOUT = 10_000;
 /** Longer timeout for connection-related waits */
 const CONNECT_TIMEOUT = 15_000;
 
+type ProfileAction = "connect" | "edit" | "delete";
+
 // ---------------------------------------------------------------------------
 // Selector helpers (WebKitWebDriver compatible)
 // ---------------------------------------------------------------------------
@@ -192,6 +194,10 @@ export async function addConnectionProfile(
   await openAddConnectionSheet();
   await fillConnectionForm(opts);
   await submitConnectionSheet();
+  await browser.waitUntil(() => profileExists(opts.name), {
+    timeout: WAIT_TIMEOUT,
+    timeoutMsg: `Profile "${opts.name}" was not visible after creation`,
+  });
 }
 
 /** Get a profile row (listitem) by profile name text (partial match) */
@@ -214,12 +220,7 @@ export async function profileExists(name: string): Promise<boolean> {
 
 /** Delete a profile by clicking its delete button and confirming */
 export async function deleteProfile(name: string): Promise<void> {
-  const row = await getProfileRow(name);
-  await revealRowActions(row);
-
-  const deleteBtn = await $(`button[aria-label="Delete ${name}"]`);
-  await deleteBtn.waitForClickable({ timeout: WAIT_TIMEOUT });
-  await deleteBtn.click();
+  await clickProfileAction(name, "delete");
 
   // AlertDialog confirmation
   const alertDialog = await $('[role="alertdialog"]');
@@ -227,7 +228,10 @@ export async function deleteProfile(name: string): Promise<void> {
 
   const confirmBtn = await alertDialog.$(".//button[normalize-space(.)='Delete']");
   await confirmBtn.click();
-  await waitForStable(500);
+  await browser.waitUntil(async () => !(await profileExists(name)), {
+    timeout: WAIT_TIMEOUT,
+    timeoutMsg: `Profile "${name}" still exists after delete confirmation`,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -290,12 +294,50 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
 
 /** Click the connect button on a profile row */
 export async function connectToProfile(name: string): Promise<void> {
+  await clickProfileAction(name, "connect");
+}
+
+function legacyActionLabel(action: ProfileAction, name: string): string {
+  if (action === "connect") return `Connect to ${name}`;
+  if (action === "edit") return `Edit ${name}`;
+  return `Delete ${name}`;
+}
+
+async function tryClickLegacyActionButton(action: ProfileAction, name: string): Promise<boolean> {
+  const legacyBtn = await $(`button[aria-label="${legacyActionLabel(action, name)}"]`);
+  if (!(await legacyBtn.isExisting())) return false;
+  await legacyBtn.waitForClickable({ timeout: WAIT_TIMEOUT });
+  await legacyBtn.click();
+  return true;
+}
+
+async function openProfileActionsMenu(name: string): Promise<void> {
   const row = await getProfileRow(name);
   await revealRowActions(row);
+  const trigger = await row.$(`button[aria-label="Actions for ${name}"]`);
+  await trigger.waitForClickable({ timeout: WAIT_TIMEOUT });
+  await trigger.click();
+}
 
-  const connectBtn = await $(`button[aria-label="Connect to ${name}"]`);
-  await connectBtn.waitForClickable({ timeout: WAIT_TIMEOUT });
-  await connectBtn.click();
+/**
+ * Click a profile action while supporting both legacy (dedicated buttons)
+ * and current UI (row connect + dropdown actions).
+ */
+export async function clickProfileAction(name: string, action: ProfileAction): Promise<void> {
+  if (await tryClickLegacyActionButton(action, name)) return;
+
+  if (action === "connect") {
+    const row = await getProfileRow(name);
+    await row.waitForClickable({ timeout: WAIT_TIMEOUT });
+    await row.click();
+    return;
+  }
+
+  await openProfileActionsMenu(name);
+  const itemLabel = action === "edit" ? "Edit" : "Delete";
+  const actionItem = await $(`//div[@role='menuitem'][normalize-space(.)='${itemLabel}']`);
+  await actionItem.waitForClickable({ timeout: WAIT_TIMEOUT });
+  await actionItem.click();
 }
 
 /**
