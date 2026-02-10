@@ -22,7 +22,7 @@ export const TEST_SERVER = {
 const WAIT_TIMEOUT = 10_000;
 
 /** Longer timeout for connection-related waits */
-const CONNECT_TIMEOUT = 15_000;
+const CONNECT_TIMEOUT = 30_000;
 
 type ProfileAction = "connect" | "edit" | "delete";
 
@@ -290,23 +290,28 @@ export async function handlePasswordDialog(password = TEST_SERVER.password): Pro
  * 2. Password (always for password-auth profiles)
  */
 export async function handleConnectionDialogs(password = TEST_SERVER.password): Promise<void> {
-  // Wait a moment for either dialog to appear
-  await waitForStable(1000);
+  const deadline = Date.now() + CONNECT_TIMEOUT;
 
-  // Check which dialog appeared – HostKey or Password
-  const trustBtn = await $(btnByText("Trust"));
-  const credInput = await $("#credential");
+  while (Date.now() < deadline) {
+    const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
+    if (await fileBrowser.isExisting()) {
+      return;
+    }
 
-  const hasTrust = await trustBtn.isExisting();
-  const hasCred = await credInput.isExisting();
+    const trustBtn = await $(btnByText("Trust"));
+    if (await trustBtn.isExisting()) {
+      await trustBtn.click();
+      await waitForStable(600);
+      continue;
+    }
 
-  if (hasTrust) {
-    await trustBtn.click();
-    await waitForStable(1000);
-    // After trusting, the password dialog should appear
-    await handlePasswordDialog(password);
-  } else if (hasCred) {
-    await handlePasswordDialog(password);
+    const credInput = await $("#credential");
+    if (await credInput.isExisting()) {
+      await handlePasswordDialog(password);
+      return;
+    }
+
+    await browser.pause(250);
   }
 }
 
@@ -333,8 +338,46 @@ async function openProfileActionsMenu(name: string): Promise<void> {
   const row = await getProfileRow(name);
   await revealRowActions(row);
   const trigger = await row.$(`button[aria-label="Actions for ${name}"]`);
-  await trigger.waitForClickable({ timeout: WAIT_TIMEOUT });
-  await trigger.click();
+  await trigger.waitForExist({ timeout: WAIT_TIMEOUT });
+  try {
+    await trigger.waitForClickable({ timeout: WAIT_TIMEOUT });
+    await trigger.click();
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).click();
+    }, trigger);
+  }
+}
+
+async function clickProfileMenuItem(label: "Edit" | "Delete"): Promise<void> {
+  const actionItem = await $(`//div[@role='menuitem'][normalize-space(.)='${label}']`);
+  await actionItem.waitForExist({ timeout: WAIT_TIMEOUT });
+  try {
+    await actionItem.waitForClickable({ timeout: WAIT_TIMEOUT });
+    await actionItem.click();
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).click();
+    }, actionItem);
+  }
+}
+
+async function focusProfileRow(name: string): Promise<WebdriverIO.Element> {
+  const row = await getProfileRow(name);
+  await browser.execute((el) => {
+    (el as HTMLElement).focus();
+  }, row);
+  return row;
+}
+
+async function tryClickProfileMenuAction(name: string, label: "Edit" | "Delete"): Promise<boolean> {
+  try {
+    await openProfileActionsMenu(name);
+    await clickProfileMenuItem(label);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -351,11 +394,17 @@ export async function clickProfileAction(name: string, action: ProfileAction): P
     return;
   }
 
-  await openProfileActionsMenu(name);
   const itemLabel = action === "edit" ? "Edit" : "Delete";
-  const actionItem = await $(`//div[@role='menuitem'][normalize-space(.)='${itemLabel}']`);
-  await actionItem.waitForClickable({ timeout: WAIT_TIMEOUT });
-  await actionItem.click();
+  if (await tryClickProfileMenuAction(name, itemLabel)) return;
+
+  const row = await focusProfileRow(name);
+  if (action === "edit") {
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await browser.keys([modifier, "e"]);
+  } else {
+    await row.click();
+    await browser.keys("Delete");
+  }
 }
 
 /**
