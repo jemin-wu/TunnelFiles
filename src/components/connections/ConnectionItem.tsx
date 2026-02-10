@@ -37,6 +37,9 @@ export function ConnectionItem({
     <div
       role="listitem"
       tabIndex={0}
+      data-profile-id={profile.id}
+      data-profile-name={profile.name}
+      data-testid="connection-row"
       className={cn(
         "group relative flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer",
         "transition-colors duration-100",
@@ -107,6 +110,9 @@ export function ConnectionItem({
             variant="ghost"
             size="icon"
             aria-label={`Actions for ${profile.name}`}
+            data-profile-id={profile.id}
+            data-profile-name={profile.name}
+            data-testid="connection-actions-trigger"
             className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
             onClick={(e) => e.stopPropagation()}
           >
@@ -115,6 +121,7 @@ export function ConnectionItem({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-36">
           <DropdownMenuItem
+            data-testid="connection-action-edit"
             onClick={(e) => {
               e.stopPropagation();
               onEdit(profile);
@@ -125,6 +132,7 @@ export function ConnectionItem({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            data-testid="connection-action-delete"
             variant="destructive"
             onClick={(e) => {
               e.stopPropagation();

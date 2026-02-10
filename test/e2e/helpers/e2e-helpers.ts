@@ -50,7 +50,7 @@ function xpathLiteral(value: string): string {
 /** Stable selector for a profile row by exact profile name. */
 function profileRowSelector(name: string): string {
   const nameLiteral = xpathLiteral(name);
-  return `//div[@role='listitem'][.//span[@title=${nameLiteral}] or contains(., ${nameLiteral})]`;
+  return `//div[@role='listitem' and ((@data-testid='connection-row' and @data-profile-name=${nameLiteral}) or .//span[@title=${nameLiteral}] or contains(., ${nameLiteral}))]`;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +256,43 @@ export async function deleteProfile(name: string): Promise<void> {
 // Connection flow
 // ---------------------------------------------------------------------------
 
+async function isOnFileManagerRoute(): Promise<boolean> {
+  const url = await browser.getUrl();
+  return /\/files\//.test(url);
+}
+
+async function waitForConnectSignal(name: string, timeoutMs = 6000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (await isOnFileManagerRoute()) return true;
+
+    const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
+    if (await fileBrowser.isExisting()) return true;
+
+    const trustBtn = await $(btnByText("Trust"));
+    if (await trustBtn.isExisting()) return true;
+
+    const trustAnywayBtn = await $(btnByText("Trust anyway"));
+    if (await trustAnywayBtn.isExisting()) return true;
+
+    const credInput = await $("#credential");
+    if (await credInput.isExisting()) return true;
+
+    const row = await $(profileRowSelector(name));
+    if (await row.isExisting()) {
+      const classes = (await row.getAttribute("class")) ?? "";
+      if (classes.includes("pointer-events-none") || classes.includes("opacity-50")) {
+        return true;
+      }
+    }
+
+    await browser.pause(150);
+  }
+
+  return false;
+}
+
 /** Handle the HostKey dialog if it appears (TOFU: click Trust) */
 export async function handleHostKeyDialog(): Promise<boolean> {
   try {
@@ -301,6 +338,10 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
   let submittedCredentials = false;
 
   while (Date.now() < deadline) {
+    if (await isOnFileManagerRoute()) {
+      return;
+    }
+
     const fileBrowser = await $('nav[aria-label="Breadcrumb navigation"]');
     if (await fileBrowser.isExisting()) {
       return;
@@ -341,14 +382,50 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
     (await dialog.isExisting()) && (await dialog.isDisplayed())
       ? (await dialog.getText()).replace(/\s+/g, " ").trim()
       : "none";
+  const currentUrl = await browser.getUrl();
   throw new Error(
-    `Connection flow timed out after ${CONNECT_TIMEOUT}ms. File browser not visible. Active dialog: ${dialogText}`
+    `Connection flow timed out after ${CONNECT_TIMEOUT}ms. File browser not visible. Active dialog: ${dialogText}. URL: ${currentUrl}`
   );
 }
 
 /** Click the connect button on a profile row */
 export async function connectToProfile(name: string): Promise<void> {
-  await clickProfileAction(name, "connect");
+  if (await tryClickLegacyActionButton("connect", name)) {
+    if (await waitForConnectSignal(name)) return;
+  }
+
+  let lastError = "";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const row = await getProfileRow(name);
+    await browser.execute((el) => {
+      (el as HTMLElement).focus();
+    }, row);
+
+    // Keyboard path is the most stable with the current ConnectionItem handlers.
+    await browser.keys("Enter");
+    if (await waitForConnectSignal(name)) return;
+
+    try {
+      await row.waitForClickable({ timeout: 1500 });
+      await row.click();
+    } catch (error) {
+      lastError = String(error);
+      try {
+        await browser.execute((el) => {
+          (el as HTMLElement).click();
+        }, row);
+      } catch (jsError) {
+        lastError = `${lastError}; jsClick=${String(jsError)}`;
+      }
+    }
+
+    if (await waitForConnectSignal(name)) return;
+    await waitForStable(200);
+  }
+
+  throw new Error(
+    `Could not trigger connect for profile "${name}". Last error: ${lastError || "none"}`
+  );
 }
 
 function legacyActionLabel(action: ProfileAction, name: string): string {
@@ -380,7 +457,10 @@ async function tryClickLegacyActionButton(action: ProfileAction, name: string): 
 async function openProfileActionsMenu(name: string): Promise<void> {
   const row = await getProfileRow(name);
   await revealRowActions(row);
-  const trigger = await row.$(`button[aria-label="Actions for ${name}"]`);
+  let trigger = await row.$('[data-testid="connection-actions-trigger"]');
+  if (!(await trigger.isExisting())) {
+    trigger = await row.$(`button[aria-label="Actions for ${name}"]`);
+  }
   await trigger.waitForExist({ timeout: WAIT_TIMEOUT });
   try {
     await trigger.waitForClickable({ timeout: WAIT_TIMEOUT });
@@ -393,7 +473,12 @@ async function openProfileActionsMenu(name: string): Promise<void> {
 }
 
 async function clickProfileMenuItem(label: "Edit" | "Delete"): Promise<void> {
-  const actionItem = await $(`//div[@role='menuitem'][contains(normalize-space(.), '${label}')]`);
+  const testId =
+    label === "Edit" ? '[data-testid="connection-action-edit"]' : '[data-testid="connection-action-delete"]';
+  let actionItem = await $(testId);
+  if (!(await actionItem.isExisting())) {
+    actionItem = await $(`//div[@role='menuitem'][contains(normalize-space(.), '${label}')]`);
+  }
   await actionItem.waitForExist({ timeout: WAIT_TIMEOUT });
   try {
     await actionItem.waitForClickable({ timeout: WAIT_TIMEOUT });
@@ -423,24 +508,46 @@ async function tryClickProfileMenuAction(name: string, label: "Edit" | "Delete")
   }
 }
 
+async function waitForEditSheetOpen(timeoutMs = 3000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const title = await $("//span[text()='Edit connection']");
+    if (await title.isExisting()) return true;
+    await browser.pause(120);
+  }
+  return false;
+}
+
+async function waitForDeleteDialogOpen(timeoutMs = 3000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const dialog = await $('[role="alertdialog"]');
+    if (await dialog.isExisting()) return true;
+    await browser.pause(120);
+  }
+  return false;
+}
+
 /**
  * Click a profile action while supporting both legacy (dedicated buttons)
  * and current UI (row connect + dropdown actions).
  */
 export async function clickProfileAction(name: string, action: ProfileAction): Promise<void> {
+  if (action === "connect") {
+    await connectToProfile(name);
+    return;
+  }
+
   if (await tryClickLegacyActionButton(action, name)) return;
 
-  if (action === "connect") {
-    const row = await getProfileRow(name);
-    try {
-      await row.waitForClickable({ timeout: WAIT_TIMEOUT });
-      await row.click();
-    } catch {
-      await browser.execute((el) => {
-        (el as HTMLElement).click();
-      }, row);
-    }
-    return;
+  const row = await focusProfileRow(name);
+  if (action === "edit") {
+    const modifier = process.platform === "darwin" ? "Meta" : "Control";
+    await browser.keys([modifier, "e"]);
+    if (await waitForEditSheetOpen()) return;
+  } else {
+    await browser.keys("Delete");
+    if (await waitForDeleteDialogOpen()) return;
   }
 
   const itemLabel = action === "edit" ? "Edit" : "Delete";
@@ -449,7 +556,6 @@ export async function clickProfileAction(name: string, action: ProfileAction): P
     await waitForStable(150);
   }
 
-  const row = await focusProfileRow(name);
   if (action === "edit") {
     const modifier = process.platform === "darwin" ? "Meta" : "Control";
     await browser.keys([modifier, "e"]);
