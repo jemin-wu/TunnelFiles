@@ -120,7 +120,13 @@ describe("File Operations", () => {
 
       const input = await $("#folder-name");
       await input.waitForExist({ timeout: 10_000 });
-      await input.clearValue();
+      await browser.execute((el) => {
+        const field = el as HTMLInputElement;
+        field.focus();
+        field.value = "";
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+      }, input);
       await browser.waitUntil(async () => (await input.getValue()).trim() === "", {
         timeout: 3_000,
         timeoutMsg: "Expected folder name input to be empty",
