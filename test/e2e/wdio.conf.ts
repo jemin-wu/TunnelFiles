@@ -51,6 +51,23 @@ export const config: Options.Testrunner = {
     timeout: 60000,
   },
 
+  // Disable all CSS animations on page load for WebKitWebDriver compat
+  async before() {
+    await browser.execute(() => {
+      const style = document.createElement("style");
+      style.id = "e2e-no-animations";
+      style.textContent = [
+        "*, *::before, *::after {",
+        "  animation-duration: 0s !important;",
+        "  animation-delay: 0s !important;",
+        "  transition-duration: 0s !important;",
+        "  transition-delay: 0s !important;",
+        "}",
+      ].join("\n");
+      document.head.appendChild(style);
+    });
+  },
+
   // Spawn tauri-driver before each session (unless externally managed)
   beforeSession() {
     if (externalDriver) return;

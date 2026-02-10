@@ -43,15 +43,35 @@ export async function waitForStable(ms = 500): Promise<void> {
 }
 
 /**
+ * Disable all CSS animations and transitions.
+ * WebKitWebDriver considers elements mid-animation (opacity < 1) as not interactable,
+ * which causes flaky tests. Must be called after each full page navigation since
+ * browser.url() reloads the page and loses injected styles.
+ */
+export async function disableAnimations(): Promise<void> {
+  await browser.execute(() => {
+    if (document.getElementById("e2e-no-animations")) return;
+    const style = document.createElement("style");
+    style.id = "e2e-no-animations";
+    style.textContent = [
+      "*, *::before, *::after {",
+      "  animation-duration: 0s !important;",
+      "  animation-delay: 0s !important;",
+      "  transition-duration: 0s !important;",
+      "  transition-delay: 0s !important;",
+      "}",
+    ].join("\n");
+    document.head.appendChild(style);
+  });
+}
+
+/**
  * Reveal hover-only action buttons on a profile row.
  * WebKitWebDriver's moveTo() does not trigger CSS :hover pseudo-class,
  * so we remove the opacity-0 class via JavaScript to make buttons clickable.
  */
 export async function revealRowActions(row: WebdriverIO.Element): Promise<void> {
   await row.waitForDisplayed({ timeout: WAIT_TIMEOUT });
-  // Attempt real hover first (works in Chrome/Firefox, no-op in WebKitWebDriver)
-  await row.moveTo();
-  await waitForStable(300);
   // Force hidden action containers visible by swapping Tailwind opacity classes
   await browser.execute((el) => {
     el.querySelectorAll(".opacity-0").forEach((child) => {
@@ -74,6 +94,7 @@ export async function navigateToConnections(): Promise<void> {
   const currentUrl = await browser.getUrl();
   const origin = new URL(currentUrl).origin;
   await browser.url(`${origin}/`);
+  await disableAnimations();
   await waitForStable();
   const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });
@@ -114,9 +135,11 @@ export async function openAddConnectionSheet(): Promise<void> {
       }
     }
   }
-  // Wait for the sheet to appear
+  // Wait for the sheet to appear and its animation to complete
   const sheet = await $('[role="dialog"]');
   await sheet.waitForExist({ timeout: WAIT_TIMEOUT });
+  await sheet.waitForDisplayed({ timeout: WAIT_TIMEOUT });
+  await waitForStable(500);
 }
 
 /** Fill in the connection form fields inside the open sheet */
