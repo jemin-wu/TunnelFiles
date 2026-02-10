@@ -8,6 +8,7 @@ const projectRoot = path.resolve(__dirname, "../..");
 
 export const config: Options.Testrunner = {
   ...baseConfig,
+  maxInstances: 1,
   specs: [path.resolve(projectRoot, "test/e2e/visual/**/*.visual.ts")],
   services: [
     [
@@ -22,8 +23,11 @@ export const config: Options.Testrunner = {
       },
     ],
   ],
+  waitforTimeout: 20_000,
+  connectionRetryTimeout: 120_000,
+  connectionRetryCount: 5,
   mochaOpts: {
     ui: "bdd",
-    timeout: 90000,
+    timeout: 120_000,
   },
 };

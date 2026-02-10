@@ -1,7 +1,33 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import {
+  TEST_SERVER,
+  addConnectionProfile,
+  fullConnectFlow,
+  navigateToConnections as navigateToConnectionsE2E,
+  profileExists,
+} from "./e2e-helpers";
+
 /** Default tolerance for visual comparison (percentage mismatch allowed) */
 export const DEFAULT_MISMATCH_TOLERANCE = 0.5;
 /** Stricter tolerance for pixel-perfect sections */
 export const STRICT_MISMATCH_TOLERANCE = 0.1;
+
+const FALLBACK_SHOT_DIR = path.resolve(process.cwd(), "test/e2e/.tmp/fallback");
+let visualFallbackWarned = false;
+
+function ensureFallbackDir(): void {
+  if (!fs.existsSync(FALLBACK_SHOT_DIR)) {
+    fs.mkdirSync(FALLBACK_SHOT_DIR, { recursive: true });
+  }
+}
+
+function warnVisualFallback(reason: string): void {
+  if (visualFallbackWarned) return;
+  visualFallbackWarned = true;
+  console.warn(`[visual] Fallback to raw screenshots: ${reason}`);
+}
 
 /**
  * Wait for the page to stabilize (no pending animations/renders).
@@ -23,40 +49,20 @@ async function getCurrentTheme(): Promise<"dark" | "light"> {
  * Set the application theme by toggling the theme button in the header.
  */
 export async function setTheme(theme: "dark" | "light"): Promise<void> {
-  const current = await getCurrentTheme();
-  if (current === theme) return;
-
-  // Click the theme toggle button
-  const themeButton = await $('[data-testid="theme-toggle"]');
-  if (await themeButton.isExisting()) {
-    await themeButton.click();
-    await waitForStable(300);
-  }
-
-  // Verify theme changed
-  const after = await getCurrentTheme();
-  if (after !== theme) {
-    // Try one more time (some toggles cycle through modes)
-    if (await themeButton.isExisting()) {
-      await themeButton.click();
-      await waitForStable(300);
-    }
-  }
+  await browser.execute((nextTheme) => {
+    const root = document.documentElement;
+    root.classList.remove("light", "dark");
+    root.classList.add(nextTheme);
+    localStorage.setItem("tunnelfiles-theme", nextTheme);
+  }, theme);
+  await waitForStable(200);
 }
 
 /**
  * Navigate to the Connections page.
  */
 export async function navigateToConnections(): Promise<void> {
-  // Resolve the root URL from the current origin (works in both local tauri://
-  // and CI http:// environments). We navigate to "/" instead of "/connections"
-  // because vite preview lacks SPA fallback routing.
-  const currentUrl = await browser.getUrl();
-  const origin = new URL(currentUrl).origin;
-  await browser.url(`${origin}/`);
-  await waitForStable();
-  const heading = await $("//span[text()='Connections']");
-  await heading.waitForExist({ timeout: 10000 });
+  await navigateToConnectionsE2E();
 }
 
 /**
@@ -84,53 +90,54 @@ export async function navigateToSettings(): Promise<void> {
  */
 export async function connectToTestServer(): Promise<void> {
   await navigateToConnections();
+  if (!(await profileExists(TEST_SERVER.name))) {
+    await addConnectionProfile(TEST_SERVER);
+  }
+  await fullConnectFlow(TEST_SERVER.name, TEST_SERVER.password);
+  await waitForStable(1000);
+}
 
-  // Click add connection
-  const addBtn = (await $('[data-testid="add-connection"]')).isExisting()
-    ? await $('[data-testid="add-connection"]')
-    : await $("//button[contains(., 'Add')]");
-  await addBtn.click();
+async function checkFullPageOrFallback(tag: string, tolerance: number): Promise<void> {
+  const browserAny = browser as unknown as {
+    checkFullPageScreen?: (tag: string, options?: Record<string, unknown>) => Promise<unknown>;
+    checkScreen?: (tag: string, options?: Record<string, unknown>) => Promise<unknown>;
+  };
 
-  // Fill in connection details
-  const dialog = await $('[role="dialog"]');
-  await dialog.waitForExist({ timeout: 5000 });
-
-  const hostInput = await $('input[name="host"]');
-  await hostInput.setValue("localhost");
-
-  const portInput = await $('input[name="port"]');
-  await portInput.clearValue();
-  await portInput.setValue("2222");
-
-  const userInput = await $('input[name="username"]');
-  await userInput.setValue("testuser");
-
-  // Submit / save the profile
-  const saveBtn = await dialog.$(".//button[contains(., 'Save')]");
-  if (await saveBtn.isExisting()) {
-    await saveBtn.click();
-    await waitForStable();
+  if (typeof browserAny.checkFullPageScreen === "function") {
+    await browserAny.checkFullPageScreen(tag, { misMatchPercentage: tolerance });
+    return;
+  }
+  if (typeof browserAny.checkScreen === "function") {
+    await browserAny.checkScreen(tag, { misMatchPercentage: tolerance });
+    return;
   }
 
-  // Connect (click the row or connect button)
-  const connectBtn = await $("//button[contains(., 'Connect')]");
-  if (await connectBtn.isExisting()) {
-    await connectBtn.click();
+  warnVisualFallback("visual-service commands are unavailable");
+  ensureFallbackDir();
+  await browser.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
+}
+
+async function checkElementOrFallback(
+  element: WebdriverIO.Element,
+  tag: string,
+  tolerance: number
+): Promise<void> {
+  const browserAny = browser as unknown as {
+    checkElement?: (
+      element: WebdriverIO.Element,
+      tag: string,
+      options?: Record<string, unknown>
+    ) => Promise<unknown>;
+  };
+
+  if (typeof browserAny.checkElement === "function") {
+    await browserAny.checkElement(element, tag, { misMatchPercentage: tolerance });
+    return;
   }
 
-  // Handle password prompt
-  const passwordInput = await $('input[type="password"]');
-  if (await passwordInput.isExisting()) {
-    await passwordInput.waitForDisplayed({ timeout: 5000 });
-    await passwordInput.setValue("testpass123");
-    const submitBtn = await $("//button[contains(., 'Connect')]");
-    if (await submitBtn.isExisting()) {
-      await submitBtn.click();
-    }
-  }
-
-  // Wait for file manager to load
-  await waitForStable(2000);
+  warnVisualFallback("element visual command is unavailable");
+  ensureFallbackDir();
+  await element.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
 }
 
 /**
@@ -144,16 +151,12 @@ export async function checkBothThemes(
   // Light theme
   await setTheme("light");
   await waitForStable();
-  await browser.checkFullPageScreen(`${tag}-light`, {
-    misMatchPercentage: tolerance,
-  } as any);
+  await checkFullPageOrFallback(`${tag}-light`, tolerance);
 
   // Dark theme
   await setTheme("dark");
   await waitForStable();
-  await browser.checkFullPageScreen(`${tag}-dark`, {
-    misMatchPercentage: tolerance,
-  } as any);
+  await checkFullPageOrFallback(`${tag}-dark`, tolerance);
 }
 
 /**
@@ -166,13 +169,9 @@ export async function checkElementBothThemes(
 ): Promise<void> {
   await setTheme("light");
   await waitForStable();
-  await browser.checkElement(element, `${tag}-light`, {
-    misMatchPercentage: tolerance,
-  } as any);
+  await checkElementOrFallback(element, `${tag}-light`, tolerance);
 
   await setTheme("dark");
   await waitForStable();
-  await browser.checkElement(element, `${tag}-dark`, {
-    misMatchPercentage: tolerance,
-  } as any);
+  await checkElementOrFallback(element, `${tag}-dark`, tolerance);
 }

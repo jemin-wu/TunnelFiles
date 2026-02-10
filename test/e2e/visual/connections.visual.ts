@@ -11,8 +11,8 @@ describe("Connections Page Visual Regression", () => {
 
   it("should match add connection sheet", async () => {
     // Open the add connection dialog/sheet
-    const addBtn = (await $('[data-testid="add-connection"]').isExisting())
-      ? await $('[data-testid="add-connection"]')
+    const addBtn = (await $('[data-testid="add-connection-button"]').isExisting())
+      ? await $('[data-testid="add-connection-button"]')
       : await $("//button[contains(., 'Add')]");
 
     if (await addBtn.isExisting()) {
@@ -36,8 +36,8 @@ describe("Connections Page Visual Regression", () => {
   });
 
   it("should match SSH key auth variant in add sheet", async () => {
-    const addBtn = (await $('[data-testid="add-connection"]').isExisting())
-      ? await $('[data-testid="add-connection"]')
+    const addBtn = (await $('[data-testid="add-connection-button"]').isExisting())
+      ? await $('[data-testid="add-connection-button"]')
       : await $("//button[contains(., 'Add')]");
 
     if (await addBtn.isExisting()) {
@@ -45,15 +45,10 @@ describe("Connections Page Visual Regression", () => {
       await waitForStable();
 
       // Switch auth type to SSH key
-      const authSelect = await $('[data-testid="auth-type"]');
-      if (await authSelect.isExisting()) {
-        await authSelect.click();
-        await waitForStable(200);
-        const keyOption = await $("//*[text()='Key']");
-        if (await keyOption.isExisting()) {
-          await keyOption.click();
-          await waitForStable();
-        }
+      const keyAuthBtn = await $("//button[normalize-space(.)='SSH key']");
+      if (await keyAuthBtn.isExisting()) {
+        await keyAuthBtn.click();
+        await waitForStable();
       }
 
       await checkBothThemes("connections-ssh-key-auth");
