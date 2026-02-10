@@ -105,7 +105,14 @@ function PageToolbar({
             {/* New folder */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onCreateFolder}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="New folder"
+                  data-testid="new-folder-button"
+                  className="h-7 w-7"
+                  onClick={onCreateFolder}
+                >
                   <FolderPlus className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>

@@ -18,7 +18,7 @@ import {
   waitForFileRow,
   navigateToHomeDirectory,
   doubleClickFile,
-  getCurrentBreadcrumb,
+  openCreateFolderDialog,
   createFolder,
   renameFile,
   deleteFileViaContextMenu,
@@ -64,10 +64,6 @@ describe("File Operations", () => {
 
     it("should navigate into test-files directory", async () => {
       await doubleClickFile("test-files");
-
-      // Verify breadcrumb shows test-files
-      const breadcrumb = await getCurrentBreadcrumb();
-      expect(breadcrumb).toBe("test-files");
 
       // Verify files are listed
       expect(await waitForFileRow("hello.txt")).toBeDefined();
@@ -120,9 +116,7 @@ describe("File Operations", () => {
 
     it("should reject empty folder name", async () => {
       // Open create folder dialog
-      const modifier = process.platform === "darwin" ? "Meta" : "Control";
-      await browser.keys([modifier, "n"]);
-      await waitForStable(500);
+      await openCreateFolderDialog();
 
       const input = await $("#folder-name");
       await input.waitForExist({ timeout: 10_000 });

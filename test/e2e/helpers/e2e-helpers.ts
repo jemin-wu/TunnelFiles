@@ -786,12 +786,37 @@ export async function navigateToHomeDirectory(): Promise<void> {
 // File operations
 // ---------------------------------------------------------------------------
 
-/** Create a new folder via the keyboard shortcut or toolbar button */
-export async function createFolder(folderName: string): Promise<void> {
-  // Use Cmd+N (macOS) or Ctrl+N (Linux/Windows) keyboard shortcut
+/** Open the "New folder" dialog via shortcut, with toolbar fallback. */
+export async function openCreateFolderDialog(): Promise<void> {
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
   await browser.keys([modifier, "n"]);
   await waitForStable(500);
+
+  const input = await $("#folder-name");
+  if (await input.isExisting()) {
+    await input.waitForExist({ timeout: WAIT_TIMEOUT });
+    return;
+  }
+
+  const toolbarCandidates = await $$(
+    '[data-testid="new-folder-button"], button[aria-label="New folder"]'
+  );
+  for (const button of toolbarCandidates) {
+    if (!(await isVisible(button))) continue;
+    await safeClick(button);
+    await waitForStable(300);
+    if (await input.isExisting()) {
+      await input.waitForExist({ timeout: WAIT_TIMEOUT });
+      return;
+    }
+  }
+
+  throw new Error('Could not open "New folder" dialog via shortcut or toolbar');
+}
+
+/** Create a new folder via the keyboard shortcut or toolbar button */
+export async function createFolder(folderName: string): Promise<void> {
+  await openCreateFolderDialog();
 
   const input = await $("#folder-name");
   await input.waitForExist({ timeout: WAIT_TIMEOUT });
