@@ -1,47 +1,269 @@
+/**
+ * E2E tests for the connection lifecycle.
+ * Requires Docker SSH server running on localhost:2222.
+ */
+
+import {
+  TEST_SERVER,
+  waitForStable,
+  navigateToConnections,
+  openAddConnectionSheet,
+  addConnectionProfile,
+  getProfileRow,
+  profileExists,
+  deleteProfile,
+  fullConnectFlow,
+  disconnect,
+} from "../helpers/e2e-helpers";
+
 describe("Connection Flow", () => {
-  // These tests require Docker SSH servers running
-  const DOCKER_CHECK_TIMEOUT = 5000;
-
-  async function isDockerAvailable(): Promise<boolean> {
-    try {
-      // Check if we can see the connections page with any pre-configured profiles
-      // In E2E tests, we'd need to add a profile through the UI first
-      return true; // Simplified - actual check would ping Docker
-    } catch {
-      return false;
-    }
-  }
-
-  it("should show add connection dialog", async () => {
-    // Click add connection button
-    const addButton = await $('[data-testid="add-connection"]');
-    if (!(await addButton.isExisting())) {
-      // Try finding by aria-label or text
-      const btn = await $("button*=Add");
-      if (await btn.isExisting()) {
-        await btn.click();
-      }
-      return; // Skip if no button found - UI may differ
-    }
-    await addButton.click();
-
-    // Verify dialog appears
-    const dialog = await $('[role="dialog"]');
-    await dialog.waitForExist({ timeout: 5000 });
-    expect(await dialog.isDisplayed()).toBe(true);
+  // Clean up any leftover test profiles before we start
+  before(async () => {
+    await navigateToConnections();
   });
 
-  it("should handle connection and disconnection", async () => {
-    // This is a placeholder for a full connection test
-    // Requires:
-    // 1. Docker SSH servers running
-    // 2. Adding a profile through the UI
-    // 3. Connecting with password
-    // 4. Verifying file browser appears
-    // 5. Disconnecting
-    // 6. Verifying return to connections page
-    //
-    // Implementation depends on actual UI selectors
-    console.log("Full connection E2E test - requires Docker environment");
+  // -----------------------------------------------------------------------
+  // Add Connection Profile
+  // -----------------------------------------------------------------------
+
+  describe("Add Connection Profile", () => {
+    after(async () => {
+      // Clean up: delete the profile we created
+      await navigateToConnections();
+      if (await profileExists(TEST_SERVER.name)) {
+        await deleteProfile(TEST_SERVER.name);
+      }
+    });
+
+    it("should open the connection sheet from empty state", async () => {
+      await navigateToConnections();
+
+      // If no profiles exist, the empty state "New connection" button should be visible
+      // Otherwise, the "+" button in the toolbar
+      await openAddConnectionSheet();
+
+      // Verify the sheet is open with "New connection" title
+      const title = await $("text=New connection");
+      expect(await title.isDisplayed()).toBe(true);
+
+      // Close it
+      const cancelBtn = await $("button=Cancel");
+      await cancelBtn.click();
+      await waitForStable(300);
+    });
+
+    it("should create a new connection profile", async () => {
+      await addConnectionProfile();
+
+      // Verify the profile appears in the list
+      const exists = await profileExists(TEST_SERVER.name);
+      expect(exists).toBe(true);
+    });
+
+    it("should validate required fields", async () => {
+      await openAddConnectionSheet();
+
+      // Try to submit with empty fields
+      const createBtn = await $("button=Create");
+      await createBtn.click();
+      await waitForStable(300);
+
+      // Validation messages should appear
+      const sheet = await $('[role="dialog"]');
+      const sheetText = await sheet.getText();
+      expect(sheetText).toContain("required");
+
+      // Close the sheet
+      const cancelBtn = await $("button=Cancel");
+      await cancelBtn.click();
+      await waitForStable(300);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Connect with Password
+  // -----------------------------------------------------------------------
+
+  describe("Connect with Password", () => {
+    before(async () => {
+      await navigateToConnections();
+      if (!(await profileExists(TEST_SERVER.name))) {
+        await addConnectionProfile();
+      }
+    });
+
+    after(async () => {
+      // Make sure we're back on connections page
+      try {
+        await disconnect();
+      } catch {
+        await navigateToConnections();
+      }
+      if (await profileExists(TEST_SERVER.name)) {
+        await deleteProfile(TEST_SERVER.name);
+      }
+    });
+
+    it("should connect to Docker server and show file browser", async () => {
+      await fullConnectFlow();
+
+      // Verify file browser is displayed
+      const nav = await $('nav[aria-label="Breadcrumb navigation"]');
+      expect(await nav.isDisplayed()).toBe(true);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Disconnect
+  // -----------------------------------------------------------------------
+
+  describe("Disconnect", () => {
+    before(async () => {
+      await navigateToConnections();
+      if (!(await profileExists(TEST_SERVER.name))) {
+        await addConnectionProfile();
+      }
+      await fullConnectFlow();
+    });
+
+    after(async () => {
+      await navigateToConnections();
+      if (await profileExists(TEST_SERVER.name)) {
+        await deleteProfile(TEST_SERVER.name);
+      }
+    });
+
+    it("should return to connections page when clicking Back", async () => {
+      await disconnect();
+
+      // Verify we're on the connections page
+      const heading = await $("text=SSH hosts");
+      expect(await heading.isDisplayed()).toBe(true);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Edit Connection Profile
+  // -----------------------------------------------------------------------
+
+  describe("Edit Connection Profile", () => {
+    const ORIGINAL_NAME = "edit-test-server";
+    const UPDATED_NAME = "edit-test-updated";
+
+    before(async () => {
+      await navigateToConnections();
+      await addConnectionProfile({ ...TEST_SERVER, name: ORIGINAL_NAME });
+    });
+
+    after(async () => {
+      await navigateToConnections();
+      // Clean up whichever name the profile ended up with
+      for (const name of [UPDATED_NAME, ORIGINAL_NAME]) {
+        if (await profileExists(name)) {
+          await deleteProfile(name);
+        }
+      }
+    });
+
+    it("should open edit sheet with pre-filled values", async () => {
+      const row = await getProfileRow(ORIGINAL_NAME);
+      await row.moveTo();
+      await waitForStable(300);
+
+      const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
+      await editBtn.waitForClickable({ timeout: 10_000 });
+      await editBtn.click();
+
+      // Verify "Edit connection" title
+      const title = await $("text=Edit connection");
+      await title.waitForExist({ timeout: 10_000 });
+      expect(await title.isDisplayed()).toBe(true);
+
+      // Verify pre-filled host
+      const hostInput = await $('input[name="host"]');
+      const hostValue = await hostInput.getValue();
+      expect(hostValue).toBe(TEST_SERVER.host);
+
+      // Close
+      const cancelBtn = await $("button=Cancel");
+      await cancelBtn.click();
+      await waitForStable(300);
+    });
+
+    it("should update profile name and save", async () => {
+      const row = await getProfileRow(ORIGINAL_NAME);
+      await row.moveTo();
+      await waitForStable(300);
+
+      const editBtn = await $(`button[aria-label="Edit ${ORIGINAL_NAME}"]`);
+      await editBtn.click();
+
+      const sheet = await $('[role="dialog"]');
+      await sheet.waitForExist({ timeout: 10_000 });
+
+      // Update the name field
+      const nameInput = await $('input[name="name"]');
+      await nameInput.clearValue();
+      await nameInput.setValue(UPDATED_NAME);
+
+      // Save
+      const saveBtn = await $("button=Save");
+      await saveBtn.click();
+      await waitForStable(800);
+
+      // Verify the updated name appears in the list
+      const exists = await profileExists(UPDATED_NAME);
+      expect(exists).toBe(true);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // Delete Connection Profile
+  // -----------------------------------------------------------------------
+
+  describe("Delete Connection Profile", () => {
+    it("should cancel deletion", async () => {
+      await navigateToConnections();
+      const profileName = "delete-cancel-test";
+      await addConnectionProfile({ ...TEST_SERVER, name: profileName });
+
+      // Hover and click delete
+      const row = await getProfileRow(profileName);
+      await row.moveTo();
+      await waitForStable(300);
+
+      const deleteBtn = await $(`button[aria-label="Delete ${profileName}"]`);
+      await deleteBtn.waitForClickable({ timeout: 10_000 });
+      await deleteBtn.click();
+
+      // AlertDialog should appear
+      const alertDialog = await $('[role="alertdialog"]');
+      await alertDialog.waitForExist({ timeout: 10_000 });
+
+      // Click Cancel
+      const cancelBtn = await alertDialog.$("button=Cancel");
+      await cancelBtn.click();
+      await waitForStable(300);
+
+      // Profile should still exist
+      const exists = await profileExists(profileName);
+      expect(exists).toBe(true);
+
+      // Clean up
+      await deleteProfile(profileName);
+    });
+
+    it("should confirm and delete profile", async () => {
+      await navigateToConnections();
+      const profileName = "delete-confirm-test";
+      await addConnectionProfile({ ...TEST_SERVER, name: profileName });
+
+      // Delete via helper
+      await deleteProfile(profileName);
+
+      // Verify profile is gone
+      const exists = await profileExists(profileName);
+      expect(exists).toBe(false);
+    });
   });
 });

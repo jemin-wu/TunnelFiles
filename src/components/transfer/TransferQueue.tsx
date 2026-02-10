@@ -24,7 +24,7 @@ import {
   EmptyDescription,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cancelTransfer, retryTransfer, cleanupTransfers } from "@/lib/transfer";
@@ -79,7 +79,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
   }
 
   return (
-    <div className={cn("flex flex-col h-full", className)}>
+    <div className={cn("flex flex-col h-full overflow-hidden", className)}>
       {/* Toolbar */}
       {(activeTasks.length > 0 || completedTasks.length > 0) && (
         <div className="flex items-center justify-between px-3 py-2 border-b border-border/50 bg-muted/30">
@@ -119,7 +119,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
       )}
 
       {/* Task list */}
-      <ScrollArea className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         <div className="divide-y divide-border/30">
           {tasks.map((task, index) => (
             <div
@@ -131,7 +131,7 @@ export function TransferQueue({ className }: TransferQueueProps) {
             </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -174,9 +174,9 @@ function TransferItem({ task }: TransferItemProps) {
         status === "running" && "bg-primary/5"
       )}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <TaskIcon direction={task.direction} status={status} />
-        <span className="flex-1 text-sm font-medium truncate" title={task.fileName}>
+        <span className="flex-1 min-w-0 text-sm font-medium truncate" title={task.fileName}>
           {task.fileName}
         </span>
         <TaskActions
@@ -287,7 +287,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="flex items-center gap-0.5">
+      <div className="flex items-center gap-0.5 shrink-0">
         {isActive && (
           <ActionButton
             icon={X}
@@ -309,7 +309,7 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
             icon={X}
             tooltip="Remove"
             onClick={onRemove}
-            className="hover:text-muted-foreground"
+            className="hover:bg-destructive/10 hover:text-destructive"
           />
         )}
       </div>

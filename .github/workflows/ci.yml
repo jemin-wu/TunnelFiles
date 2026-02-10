@@ -68,3 +68,83 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  e2e:
+    name: E2E & Visual Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-good \
+            dbus-x11 xvfb
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          cache-on-failure: true
+
+      - name: Install tauri-driver
+        uses: actions/cache@v4
+        id: cache-tauri-driver
+        with:
+          path: ~/.cargo/bin/tauri-driver
+          key: tauri-driver-${{ runner.os }}-v1
+      - if: steps.cache-tauri-driver.outputs.cache-hit != 'true'
+        run: cargo install tauri-driver
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Tauri app (debug)
+        run: pnpm tauri build --debug --no-bundle
+
+      - name: Start SSH test servers
+        run: |
+          cd docker && ./setup-test-env.sh
+
+      - name: Start Xvfb and D-Bus
+        run: |
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          eval $(dbus-launch --sh-syntax)
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
+      - name: Run visual regression tests
+        run: pnpm test:visual
+
+      - name: Upload test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: test/e2e/.tmp/
+          retention-days: 7
+
+      - name: Stop SSH test servers
+        if: always()
+        run: cd docker && docker compose down

@@ -19,8 +19,7 @@
     "test:e2e": "wdio run ./test/e2e/wdio.conf.ts",
     "test:visual": "wdio run ./test/e2e/wdio.visual.conf.ts",
     "test:visual:update": "wdio run ./test/e2e/wdio.visual.conf.ts --update-visual-baseline",
-    "pretest:e2e": "cd docker && ./setup-test-env.sh",
-    "pretest:visual": "cd docker && ./setup-test-env.sh"
+    "pretest:e2e": "cd docker && ./setup-test-env.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

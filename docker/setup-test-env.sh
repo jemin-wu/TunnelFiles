@@ -24,7 +24,7 @@ fi
 # Start Docker containers
 echo "启动 Docker SSH 服务..."
 cd "$SCRIPT_DIR"
-docker-compose up -d --build
+docker compose up -d --build
 
 # Wait for SSH servers to be ready
 echo "等待 SSH 服务器就绪..."
@@ -57,4 +57,4 @@ echo "  /home/testuser/readonly-dir/ - 只读目录"
 echo "  /home/testuser/uploads/     - 上传目标目录"
 echo ""
 echo "运行集成测试: cd src-tauri && cargo test --features integration-test"
-echo "停止测试环境: docker-compose down"
+echo "停止测试环境: docker compose down"

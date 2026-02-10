@@ -80,7 +80,7 @@ integration_testing:
   docker:
     setup: "cd docker && ./setup-test-env.sh"
     run: "cd src-tauri && cargo test --test integration_tests -- --test-threads=1"
-    cleanup: "cd docker && docker-compose down"
+    cleanup: "cd docker && docker compose down"
   servers:
     - host: "localhost:2222"
       user: "testuser"
