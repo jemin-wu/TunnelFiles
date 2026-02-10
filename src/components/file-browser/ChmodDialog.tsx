@@ -74,10 +74,10 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isPending}>
+      <DialogContent className="border-border bg-card sm:max-w-md" showCloseButton={!isPending}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-primary" />
+            <Shield className="text-primary h-4 w-4" />
             <span>Change permissions</span>
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -85,25 +85,25 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="py-4 space-y-4">
+        <div className="space-y-4 py-4">
           {/* Selected file list */}
           <div className="space-y-2">
-            <div className="text-xs text-muted-foreground flex items-center gap-2">
+            <div className="text-muted-foreground flex items-center gap-2 text-xs">
               <span>Selected:</span>
               <span>
                 {files.length} {files.length === 1 ? "item" : "items"}
               </span>
             </div>
 
-            <ScrollArea className="h-24 bg-background/30 rounded border border-border/50">
-              <div className="p-2 space-y-1">
+            <ScrollArea className="bg-background/30 border-border/50 h-24 rounded border">
+              <div className="space-y-1 p-2">
                 {files.map((file) => (
                   <div
                     key={file.path}
-                    className="text-xs font-mono flex items-center gap-2 text-muted-foreground"
+                    className="text-muted-foreground flex items-center gap-2 font-mono text-xs"
                   >
                     {file.isDir ? (
-                      <Folder className="h-3 w-3 text-primary shrink-0" />
+                      <Folder className="text-primary h-3 w-3 shrink-0" />
                     ) : (
                       <FileText className="h-3 w-3 shrink-0" />
                     )}

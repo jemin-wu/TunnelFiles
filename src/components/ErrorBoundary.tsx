@@ -117,31 +117,31 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8">
-      <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
-      <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
-      <p className="text-muted-foreground text-center mb-4 max-w-md">{message}</p>
+    <div className="flex h-full flex-col items-center justify-center p-8">
+      <AlertTriangle className="text-destructive mb-4 h-12 w-12" />
+      <h2 className="mb-2 text-xl font-semibold">Something went wrong</h2>
+      <p className="text-muted-foreground mb-4 max-w-md text-center">{message}</p>
       {detail && (
-        <pre className="text-xs text-muted-foreground bg-muted p-4 rounded-lg max-w-2xl overflow-auto max-h-48 mb-4">
+        <pre className="text-muted-foreground bg-muted mb-4 max-h-48 max-w-2xl overflow-auto rounded-lg p-4 text-xs">
           {detail}
         </pre>
       )}
-      <div className="flex gap-2 flex-wrap justify-center">
+      <div className="flex flex-wrap justify-center gap-2">
         <Button variant="secondary" onClick={handleCopy}>
           {copied ? (
             <>
-              <Check className="h-4 w-4 mr-2" />
+              <Check className="mr-2 h-4 w-4" />
               Copied
             </>
           ) : (
             <>
-              <Copy className="h-4 w-4 mr-2" />
+              <Copy className="mr-2 h-4 w-4" />
               Copy error info
             </>
           )}
         </Button>
         <Button onClick={onReset}>
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
         <Button variant="outline" onClick={() => (window.location.href = "/connections")}>

@@ -87,11 +87,11 @@ export function RenameDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md border-border bg-card" showCloseButton={!isPending}>
+      <DialogContent className="border-border bg-card sm:max-w-md" showCloseButton={!isPending}>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="h-4 w-4 text-primary" />
+              <Pencil className="text-primary h-4 w-4" />
               <span>Rename</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
@@ -99,14 +99,14 @@ export function RenameDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="py-4 space-y-3">
+          <div className="space-y-3 py-4">
             {/* Current name */}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded">
+            <div className="text-muted-foreground bg-muted/30 flex items-center gap-2 rounded px-3 py-2 text-xs">
               <span>Current:</span>
-              <span className="font-mono text-foreground truncate">{currentName}</span>
+              <span className="text-foreground truncate font-mono">{currentName}</span>
             </div>
 
-            <Label htmlFor="new-name" className="text-sm text-muted-foreground">
+            <Label htmlFor="new-name" className="text-muted-foreground text-sm">
               Enter new name
             </Label>
             <Input
@@ -126,14 +126,14 @@ export function RenameDialog({
                 }
               }}
               className={cn(
-                "font-mono bg-background/50",
+                "bg-background/50 font-mono",
                 error
                   ? "border-destructive focus-visible:ring-destructive/50"
                   : "border-border focus-visible:ring-ring/50"
               )}
             />
             {error && (
-              <p className="text-xs text-destructive flex items-center gap-1">
+              <p className="text-destructive flex items-center gap-1 text-xs">
                 <span className="text-destructive">!</span> {error}
               </p>
             )}

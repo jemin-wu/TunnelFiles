@@ -53,17 +53,17 @@ export function MainLayout() {
   const showBackButton = isFilesPage || isSettingsPage;
 
   return (
-    <div className="flex flex-col h-screen bg-background overflow-hidden">
+    <div className="bg-background flex h-screen flex-col overflow-hidden">
       {/* Top navigation bar */}
       <header
         className={cn(
-          "flex items-center h-11 px-3 border-b border-border",
-          "bg-card/80 backdrop-blur-sm shrink-0 select-none"
+          "border-border flex h-11 items-center border-b px-3",
+          "bg-card/80 shrink-0 backdrop-blur-sm select-none"
         )}
         data-tauri-drag-region
       >
         {/* Left area */}
-        <div className="flex items-center gap-2 min-w-[140px]">
+        <div className="flex min-w-[140px] items-center gap-2">
           {showBackButton ? (
             <TooltipProvider delayDuration={300}>
               <Tooltip>
@@ -71,7 +71,7 @@ export function MainLayout() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 px-2 gap-1 text-sm text-muted-foreground"
+                    className="text-muted-foreground h-7 gap-1 px-2 text-sm"
                     onClick={handleBack}
                   >
                     <ChevronLeft className="h-3.5 w-3.5" />
@@ -89,12 +89,12 @@ export function MainLayout() {
         </div>
 
         {/* Center title */}
-        <div className="flex-1 flex items-center justify-center" data-tauri-drag-region>
+        <div className="flex flex-1 items-center justify-center" data-tauri-drag-region>
           <span className="text-base font-semibold">{pageInfo.title}</span>
         </div>
 
         {/* Right toolbar */}
-        <div className="flex items-center gap-1 min-w-[140px] justify-end">
+        <div className="flex min-w-[140px] items-center justify-end gap-1">
           <TooltipProvider delayDuration={300}>
             {/* Theme toggle */}
             <Tooltip>
@@ -128,20 +128,20 @@ export function MainLayout() {
       </header>
 
       {/* Main content area */}
-      <main className="flex-1 min-h-0 overflow-hidden flex flex-col">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <Outlet />
       </main>
 
       {/* Footer status bar */}
       <footer
         className={cn(
-          "flex items-center justify-between h-6 px-3 border-t border-border",
-          "bg-card/50 text-xs text-muted-foreground shrink-0"
+          "border-border flex h-6 items-center justify-between border-t px-3",
+          "bg-card/50 text-muted-foreground shrink-0 text-xs"
         )}
       >
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-success" /> Ready
+            <span className="bg-success h-1.5 w-1.5 rounded-full" /> Ready
           </span>
         </div>
         <span>SFTP / SSH2</span>

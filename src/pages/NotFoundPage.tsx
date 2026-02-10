@@ -11,10 +11,10 @@ export function NotFoundPage() {
   const navigate = useNavigate();
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-6 p-8">
-      <div className="text-center space-y-3">
-        <h1 className="text-5xl font-bold text-foreground">404</h1>
-        <p className="text-sm text-muted-foreground">Page not found</p>
+    <div className="flex h-full flex-col items-center justify-center gap-6 p-8">
+      <div className="space-y-3 text-center">
+        <h1 className="text-foreground text-5xl font-bold">404</h1>
+        <p className="text-muted-foreground text-sm">Page not found</p>
       </div>
 
       <div className="flex items-center gap-3">

@@ -26,8 +26,8 @@ export function LoadingSpinner({ size = "md", className, label }: LoadingSpinner
       role="status"
       aria-label={label || "Loading"}
     >
-      <Loader2 className={cn("animate-spin text-primary", sizeClasses[size])} />
-      {label && <span className="text-sm text-muted-foreground">{label}</span>}
+      <Loader2 className={cn("text-primary animate-spin", sizeClasses[size])} />
+      {label && <span className="text-muted-foreground text-sm">{label}</span>}
     </div>
   );
 }
@@ -37,7 +37,7 @@ export function LoadingSpinner({ size = "md", className, label }: LoadingSpinner
  */
 export function FullPageLoader({ label }: { label?: string }) {
   return (
-    <div className="flex items-center justify-center h-full min-h-[200px]">
+    <div className="flex h-full min-h-[200px] items-center justify-center">
       <LoadingSpinner size="lg" label={label} />
     </div>
   );

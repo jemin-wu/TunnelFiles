@@ -64,9 +64,9 @@ export function PermissionMatrix({
         {/* Header */}
         <thead>
           <tr>
-            <th className="w-20 text-left py-1.5 text-muted-foreground font-normal" />
+            <th className="text-muted-foreground w-20 py-1.5 text-left font-normal" />
             {PERMISSIONS.map(({ key, label }) => (
-              <th key={key} className="w-12 text-center py-1.5 text-muted-foreground font-normal">
+              <th key={key} className="text-muted-foreground w-12 py-1.5 text-center font-normal">
                 {label}
               </th>
             ))}
@@ -75,10 +75,10 @@ export function PermissionMatrix({
         {/* Body */}
         <tbody>
           {ROLES.map(({ key: role, label }) => (
-            <tr key={role} className="border-t border-border/50">
-              <td className="py-1.5 text-muted-foreground">{label}</td>
+            <tr key={role} className="border-border/50 border-t">
+              <td className="text-muted-foreground py-1.5">{label}</td>
               {PERMISSIONS.map(({ key: perm }) => (
-                <td key={perm} className="text-center py-1.5">
+                <td key={perm} className="py-1.5 text-center">
                   <Checkbox
                     checked={permissions[role][perm]}
                     onCheckedChange={(checked) => handleChange(role, perm, checked === true)}
@@ -93,7 +93,7 @@ export function PermissionMatrix({
       </table>
 
       {/* Octal display */}
-      <div className="mt-3 flex items-center gap-2 text-muted-foreground">
+      <div className="text-muted-foreground mt-3 flex items-center gap-2">
         <span>Octal:</span>
         <span className="text-primary font-bold">{formatOctalMode(octalMode)}</span>
       </div>

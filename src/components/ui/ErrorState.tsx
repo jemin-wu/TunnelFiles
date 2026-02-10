@@ -67,7 +67,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-4 py-8 px-4 text-center",
+        "flex flex-col items-center justify-center gap-4 px-4 py-8 text-center",
         className
       )}
       role="alert"
@@ -75,9 +75,9 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
       <div className="text-destructive">{icon}</div>
 
       <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">{friendlyMessage}</p>
+        <p className="text-foreground text-sm font-medium">{friendlyMessage}</p>
         {appError.message !== friendlyMessage && (
-          <p className="text-xs text-muted-foreground truncate max-w-[300px]">
+          <p className="text-muted-foreground max-w-[300px] truncate text-xs">
             {appError.message.length > 100
               ? `${appError.message.slice(0, 100)}...`
               : appError.message}
@@ -91,7 +91,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
             variant="ghost"
             size="sm"
             onClick={() => setDetailExpanded(!detailExpanded)}
-            className="gap-1 text-xs text-muted-foreground hover:text-foreground mx-auto h-auto py-1"
+            className="text-muted-foreground hover:text-foreground mx-auto h-auto gap-1 py-1 text-xs"
           >
             {detailExpanded ? (
               <>
@@ -104,7 +104,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
             )}
           </Button>
           {detailExpanded && (
-            <pre className="mt-2 p-3 bg-muted rounded-md text-xs text-left overflow-auto max-h-[150px]">
+            <pre className="bg-muted mt-2 max-h-[150px] overflow-auto rounded-md p-3 text-left text-xs">
               {appError.detail}
             </pre>
           )}
@@ -131,7 +131,7 @@ interface InlineErrorProps {
 
 export function InlineError({ message, className }: InlineErrorProps) {
   return (
-    <div className={cn("flex items-center gap-2 text-sm text-destructive", className)} role="alert">
+    <div className={cn("text-destructive flex items-center gap-2 text-sm", className)} role="alert">
       <AlertCircle className="h-4 w-4 flex-shrink-0" />
       <span>{message}</span>
     </div>

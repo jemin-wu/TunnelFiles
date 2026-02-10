@@ -70,7 +70,7 @@ export function PasswordDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="sm:max-w-sm border-border bg-card p-5 gap-0"
+        className="border-border bg-card gap-0 p-5 sm:max-w-sm"
         showCloseButton={!isConnecting}
       >
         <DialogHeader className="gap-1.5">
@@ -79,7 +79,7 @@ export function PasswordDialog({
             {hostInfo ? (
               <>
                 Enter {isPassword ? "password" : "passphrase"} for{" "}
-                <span className="font-mono text-foreground">{hostInfo}</span>
+                <span className="text-foreground font-mono">{hostInfo}</span>
               </>
             ) : (
               <>Enter your {isPassword ? "SSH password" : "private key passphrase"} to connect</>

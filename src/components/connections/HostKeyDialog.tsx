@@ -62,7 +62,7 @@ export function HostKeyDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         className={cn(
-          "sm:max-w-lg bg-card",
+          "bg-card sm:max-w-lg",
           isMismatch ? "border-destructive/50" : "border-warning/50"
         )}
         showCloseButton={!isProcessing}
@@ -73,7 +73,7 @@ export function HostKeyDialog({
             <span>{isMismatch ? "Host key mismatch" : "Verify host key"}</span>
           </DialogTitle>
           <DialogDescription asChild>
-            <p className="text-xs text-muted-foreground pt-1">
+            <p className="text-muted-foreground pt-1 text-xs">
               {isMismatch
                 ? "Server fingerprint does not match the stored record. This may indicate a security risk."
                 : "First connection to this server. Please verify the fingerprint."}
@@ -83,8 +83,8 @@ export function HostKeyDialog({
 
         <div className="space-y-4 py-4">
           {/* 服务器信息 */}
-          <div className="flex items-center justify-between text-xs bg-background/30 px-3 py-2 rounded">
-            <span className="flex items-center gap-2 text-muted-foreground">
+          <div className="bg-background/30 flex items-center justify-between rounded px-3 py-2 text-xs">
+            <span className="text-muted-foreground flex items-center gap-2">
               <Server className="h-3 w-3" />
               Server
             </span>
@@ -98,7 +98,7 @@ export function HostKeyDialog({
             <span className="text-muted-foreground">Key type</span>
             <Badge
               variant="secondary"
-              className="font-mono text-xs bg-primary/10 text-primary border-primary/30"
+              className="bg-primary/10 text-primary border-primary/30 font-mono text-xs"
             >
               {payload.keyType}
             </Badge>
@@ -106,19 +106,19 @@ export function HostKeyDialog({
 
           {/* 指纹 */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Fingerprint className="h-3.5 w-3.5 text-primary" />
+            <div className="text-muted-foreground flex items-center gap-2 text-xs">
+              <Fingerprint className="text-primary h-3.5 w-3.5" />
               <span>SHA256 fingerprint</span>
             </div>
-            <div className="rounded bg-background/50 border border-border p-3 font-mono text-xs break-all leading-relaxed text-foreground">
+            <div className="bg-background/50 border-border text-foreground rounded border p-3 font-mono text-xs leading-relaxed break-all">
               {payload.fingerprint}
             </div>
           </div>
 
           {/* 警告提示 */}
           {isMismatch && (
-            <div className="flex items-start gap-2 rounded bg-destructive/10 border border-destructive/20 p-3 text-xs">
-              <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="bg-destructive/10 border-destructive/20 flex items-start gap-2 rounded border p-3 text-xs">
+              <AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
               <div className="space-y-1">
                 <p className="text-destructive font-medium">Security warning</p>
                 <p className="text-destructive/80">
@@ -140,7 +140,7 @@ export function HostKeyDialog({
             size="sm"
             variant={isMismatch ? "destructive" : "default"}
           >
-            {isProcessing && <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />}
+            {isProcessing && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
             {isMismatch ? "Trust anyway" : "Trust"}
           </Button>
         </DialogFooter>

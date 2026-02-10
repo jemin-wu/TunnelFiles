@@ -111,9 +111,9 @@ export function ConnectionsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex h-full flex-col">
       {/* Connection list */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {profiles.length === 0 ? (
           <Empty className="h-full border-0">
             <EmptyHeader>
@@ -137,7 +137,7 @@ export function ConnectionsPage() {
           </Empty>
         ) : (
           <ScrollArea className="h-full">
-            <div className="p-3 space-y-1.5" role="list" aria-label="Saved connections">
+            <div className="space-y-1.5 p-3" role="list" aria-label="Saved connections">
               {profiles.map((profile, index) => (
                 <ConnectionItem
                   key={profile.id}
@@ -155,7 +155,7 @@ export function ConnectionsPage() {
                 variant="ghost"
                 onClick={handleAdd}
                 data-testid="add-connection-button"
-                className="w-full h-10 gap-2 border border-dashed border-border/60 text-xs text-muted-foreground hover:border-primary/40"
+                className="border-border/60 text-muted-foreground hover:border-primary/40 h-10 w-full gap-2 border border-dashed text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 New connection

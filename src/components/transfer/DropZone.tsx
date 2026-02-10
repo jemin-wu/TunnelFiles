@@ -33,25 +33,25 @@ export function DropZone({
       {/* 拖拽覆盖层 */}
       {isDragging && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center backdrop-blur-md">
-          <div className="absolute inset-0 bg-background/90" />
+          <div className="bg-background/90 absolute inset-0" />
 
           {/* Border */}
-          <div className="absolute inset-4 border-2 border-dashed border-primary rounded" />
+          <div className="border-primary absolute inset-4 rounded border-2 border-dashed" />
 
           {/* Content */}
-          <div className="relative flex flex-col items-center gap-4 animate-fade-in">
-            <div className="w-16 h-16 flex items-center justify-center rounded-lg bg-primary/10 border border-primary/30">
-              <Upload className="h-8 w-8 text-primary" />
+          <div className="animate-fade-in relative flex flex-col items-center gap-4">
+            <div className="bg-primary/10 border-primary/30 flex h-16 w-16 items-center justify-center rounded-lg border">
+              <Upload className="text-primary h-8 w-8" />
             </div>
 
-            <div className="text-center space-y-2">
-              <p className="text-sm font-medium text-primary">Drop to upload</p>
-              <p className="text-xs text-muted-foreground">
+            <div className="space-y-2 text-center">
+              <p className="text-primary text-sm font-medium">Drop to upload</p>
+              <p className="text-muted-foreground text-xs">
                 Release files into the current directory
               </p>
-              <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground bg-muted/50 px-3 py-1 rounded">
+              <div className="text-muted-foreground bg-muted/50 flex items-center justify-center gap-1 rounded px-3 py-1 text-xs">
                 <span>Target:</span>
-                <span className="font-mono text-foreground truncate max-w-[200px]">
+                <span className="text-foreground max-w-[200px] truncate font-mono">
                   {remotePath}
                 </span>
               </div>

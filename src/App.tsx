@@ -26,13 +26,13 @@ function App() {
   };
 
   return (
-    <main className="min-h-screen bg-background p-8">
+    <main className="bg-background min-h-screen p-8">
       <div className="mx-auto max-w-4xl space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-foreground">TunnelFiles</h1>
-            <p className="text-sm text-muted-foreground">SSH/SFTP File Manager - Theme Preview</p>
+            <h1 className="text-foreground text-2xl font-semibold">TunnelFiles</h1>
+            <p className="text-muted-foreground text-sm">SSH/SFTP File Manager - Theme Preview</p>
           </div>
           <Button variant="outline" size="sm" onClick={toggleTheme}>
             {isDark ? "☀️ Light" : "🌙 Dark"}
@@ -101,12 +101,12 @@ function App() {
             <Card className="shadow-card">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ServerIcon className="h-4 w-4 text-primary" />
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ServerIcon className="text-primary h-4 w-4" />
                     Production Server
                   </CardTitle>
                   <Badge variant="outline" className="text-success border-success">
-                    <CheckCircleIcon className="h-3 w-3 mr-1" />
+                    <CheckCircleIcon className="mr-1 h-3 w-3" />
                     Connected
                   </Badge>
                 </div>
@@ -127,12 +127,12 @@ function App() {
             <Card className="shadow-card">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ServerIcon className="h-4 w-4 text-muted-foreground" />
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <ServerIcon className="text-muted-foreground h-4 w-4" />
                     Staging Server
                   </CardTitle>
                   <Badge variant="outline" className="text-muted-foreground">
-                    <XCircleIcon className="h-3 w-3 mr-1" />
+                    <XCircleIcon className="mr-1 h-3 w-3" />
                     Offline
                   </Badge>
                 </div>
@@ -159,34 +159,34 @@ function App() {
           <h2 className="text-lg font-medium">File List</h2>
           <Card className="shadow-card">
             <CardContent className="p-0">
-              <div className="divide-y divide-border">
+              <div className="divide-border divide-y">
                 <FileRow
-                  icon={<FolderIcon className="h-5 w-5 text-file-folder" />}
+                  icon={<FolderIcon className="text-file-folder h-5 w-5" />}
                   name="Documents"
                   size="—"
                   date="Jan 10, 2026"
                 />
                 <FileRow
-                  icon={<FolderIcon className="h-5 w-5 text-file-folder" />}
+                  icon={<FolderIcon className="text-file-folder h-5 w-5" />}
                   name="Projects"
                   size="—"
                   date="Jan 8, 2026"
                   selected
                 />
                 <FileRow
-                  icon={<FileIcon className="h-5 w-5 text-file-document" />}
+                  icon={<FileIcon className="text-file-document h-5 w-5" />}
                   name="config.json"
                   size="2.4 KB"
                   date="Jan 5, 2026"
                 />
                 <FileRow
-                  icon={<FileIcon className="h-5 w-5 text-file-code" />}
+                  icon={<FileIcon className="text-file-code h-5 w-5" />}
                   name="deploy.sh"
                   size="1.2 KB"
                   date="Jan 3, 2026"
                 />
                 <FileRow
-                  icon={<FileIcon className="h-5 w-5 text-file-image" />}
+                  icon={<FileIcon className="text-file-image h-5 w-5" />}
                   name="screenshot.png"
                   size="458 KB"
                   date="Dec 28, 2025"
@@ -202,21 +202,21 @@ function App() {
         <section className="space-y-4">
           <h2 className="text-lg font-medium">Transfer Queue</h2>
           <Card className="shadow-card">
-            <CardContent className="p-4 space-y-4">
+            <CardContent className="space-y-4 p-4">
               <TransferItem
-                icon={<UploadIcon className="h-4 w-4 text-transfer-upload" />}
+                icon={<UploadIcon className="text-transfer-upload h-4 w-4" />}
                 name="backup.tar.gz"
                 status="Uploading..."
                 progress={67}
               />
               <TransferItem
-                icon={<DownloadIcon className="h-4 w-4 text-transfer-download" />}
+                icon={<DownloadIcon className="text-transfer-download h-4 w-4" />}
                 name="database.sql"
                 status="Downloading..."
                 progress={34}
               />
               <TransferItem
-                icon={<UploadIcon className="h-4 w-4 text-transfer-pending" />}
+                icon={<UploadIcon className="text-transfer-pending h-4 w-4" />}
                 name="assets.zip"
                 status="Waiting..."
                 progress={0}
@@ -227,7 +227,7 @@ function App() {
         </section>
 
         {/* Footer */}
-        <div className="pt-8 text-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground pt-8 text-center text-sm">
           Theme: macOS Finder Inspired • shadcn/ui + TailwindCSS 4
         </div>
       </div>
@@ -239,7 +239,7 @@ function ColorSwatch({ name, className }: { name: string; className: string }) {
   return (
     <div className="space-y-1.5">
       <div className={cn("h-12 rounded-lg", className)} />
-      <p className="text-xs text-muted-foreground">{name}</p>
+      <p className="text-muted-foreground text-xs">{name}</p>
     </div>
   );
 }
@@ -260,14 +260,14 @@ function FileRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 px-4 py-2.5 hover:bg-accent/50 cursor-pointer transition-colors duration-100",
+        "hover:bg-accent/50 flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors duration-100",
         selected && "file-selected-active"
       )}
     >
       {icon}
       <span className="flex-1 text-sm font-medium">{name}</span>
-      <span className="text-sm text-muted-foreground w-20 text-right">{size}</span>
-      <span className="text-sm text-muted-foreground w-28 text-right">{date}</span>
+      <span className="text-muted-foreground w-20 text-right text-sm">{size}</span>
+      <span className="text-muted-foreground w-28 text-right text-sm">{date}</span>
     </div>
   );
 }

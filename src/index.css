@@ -435,7 +435,7 @@
 
   /* Focus states - outline only, no glow */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-ring;
+    @apply outline-ring outline-2 outline-offset-2;
   }
 
   /* Selection highlight */
@@ -490,7 +490,7 @@
 
   /* Toolbar style */
   .toolbar {
-    @apply bg-card border-b border-border;
+    @apply bg-card border-border border-b;
   }
 
   /* Alternating rows */
@@ -522,7 +522,7 @@
 @layer components {
   /* Status indicator dot - static, no effects */
   .status-dot {
-    @apply w-2 h-2 rounded-full;
+    @apply h-2 w-2 rounded-full;
   }
 
   .status-dot-connected {
