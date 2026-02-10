@@ -14,6 +14,7 @@ import {
   deleteProfile,
   fullConnectFlow,
   disconnect,
+  btnByText,
 } from "../helpers/e2e-helpers";
 
 describe("Connection Flow", () => {
@@ -43,11 +44,11 @@ describe("Connection Flow", () => {
       await openAddConnectionSheet();
 
       // Verify the sheet is open with "New connection" title
-      const title = await $("text=New connection");
+      const title = await $("//span[text()='New connection']");
       expect(await title.isDisplayed()).toBe(true);
 
       // Close it
-      const cancelBtn = await $("button=Cancel");
+      const cancelBtn = await $(btnByText("Cancel"));
       await cancelBtn.click();
       await waitForStable(300);
     });
@@ -64,7 +65,7 @@ describe("Connection Flow", () => {
       await openAddConnectionSheet();
 
       // Try to submit with empty fields
-      const createBtn = await $("button=Create");
+      const createBtn = await $(btnByText("Create"));
       await createBtn.click();
       await waitForStable(300);
 
@@ -74,7 +75,7 @@ describe("Connection Flow", () => {
       expect(sheetText).toContain("required");
 
       // Close the sheet
-      const cancelBtn = await $("button=Cancel");
+      const cancelBtn = await $(btnByText("Cancel"));
       await cancelBtn.click();
       await waitForStable(300);
     });
@@ -137,7 +138,7 @@ describe("Connection Flow", () => {
       await disconnect();
 
       // Verify we're on the connections page
-      const heading = await $("text=SSH hosts");
+      const heading = await $("//span[text()='Connections']");
       expect(await heading.isDisplayed()).toBe(true);
     });
   });
@@ -175,7 +176,7 @@ describe("Connection Flow", () => {
       await editBtn.click();
 
       // Verify "Edit connection" title
-      const title = await $("text=Edit connection");
+      const title = await $("//span[text()='Edit connection']");
       await title.waitForExist({ timeout: 10_000 });
       expect(await title.isDisplayed()).toBe(true);
 
@@ -185,7 +186,7 @@ describe("Connection Flow", () => {
       expect(hostValue).toBe(TEST_SERVER.host);
 
       // Close
-      const cancelBtn = await $("button=Cancel");
+      const cancelBtn = await $(btnByText("Cancel"));
       await cancelBtn.click();
       await waitForStable(300);
     });
@@ -207,7 +208,7 @@ describe("Connection Flow", () => {
       await nameInput.setValue(UPDATED_NAME);
 
       // Save
-      const saveBtn = await $("button=Save");
+      const saveBtn = await $(btnByText("Save"));
       await saveBtn.click();
       await waitForStable(800);
 
@@ -241,7 +242,7 @@ describe("Connection Flow", () => {
       await alertDialog.waitForExist({ timeout: 10_000 });
 
       // Click Cancel
-      const cancelBtn = await alertDialog.$("button=Cancel");
+      const cancelBtn = await alertDialog.$(".//button[normalize-space(.)='Cancel']");
       await cancelBtn.click();
       await waitForStable(300);
 

@@ -20,6 +20,7 @@ import {
   createFolder,
   renameFile,
   deleteFileViaContextMenu,
+  btnByText,
 } from "../helpers/e2e-helpers";
 
 describe("File Operations", () => {
@@ -148,14 +149,14 @@ describe("File Operations", () => {
       await input.waitForExist({ timeout: 10_000 });
 
       // Leave the name empty and try to submit
-      const createBtn = await $("button=Create");
+      const createBtn = await $(btnByText("Create"));
 
       // Create button should be disabled when input is empty
       const isDisabled = await createBtn.getAttribute("disabled");
       expect(isDisabled).not.toBeNull();
 
       // Close the dialog
-      const cancelBtn = await $("button=Cancel");
+      const cancelBtn = await $(btnByText("Cancel"));
       await cancelBtn.click();
       await waitForStable(300);
     });

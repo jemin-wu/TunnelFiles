@@ -1,6 +1,9 @@
 /**
  * Shared E2E helper functions for functional tests.
  * Provides constants, navigation, profile CRUD, connection flow, and file operation helpers.
+ *
+ * NOTE: WebKitWebDriver (used by tauri-driver) does not support WDIO's
+ * `text=` and `button=` selector strategies. Use XPath or CSS selectors instead.
  */
 
 // ---------------------------------------------------------------------------
@@ -22,6 +25,15 @@ const WAIT_TIMEOUT = 10_000;
 const CONNECT_TIMEOUT = 15_000;
 
 // ---------------------------------------------------------------------------
+// Selector helpers (WebKitWebDriver compatible)
+// ---------------------------------------------------------------------------
+
+/** Find a button by its visible text content (XPath) */
+export function btnByText(text: string): string {
+  return `//button[normalize-space(.)='${text}']`;
+}
+
+// ---------------------------------------------------------------------------
 // Generic helpers
 // ---------------------------------------------------------------------------
 
@@ -38,13 +50,13 @@ export async function waitForStable(ms = 500): Promise<void> {
 export async function navigateToConnections(): Promise<void> {
   await browser.url("/connections");
   await waitForStable();
-  const heading = await $("text=Connections");
+  const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });
 }
 
 /** Wait until the connections page is visible */
 export async function waitForConnectionsPage(): Promise<void> {
-  const heading = await $("text=Connections");
+  const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });
 }
 
@@ -61,7 +73,7 @@ export async function waitForFileBrowser(): Promise<void> {
 /** Click the "+" button in the toolbar (or the empty-state "New connection" button) */
 export async function openAddConnectionSheet(): Promise<void> {
   // Try the empty-state button first
-  const emptyBtn = await $("button=New connection");
+  const emptyBtn = await $(btnByText("New connection"));
   if (await emptyBtn.isExisting()) {
     await emptyBtn.click();
   } else {
@@ -109,11 +121,11 @@ export async function fillConnectionForm(opts: {
 /** Click "Create" (or "Save") in the sheet footer */
 export async function submitConnectionSheet(): Promise<void> {
   // In add mode the button says "Create", in edit mode "Save"
-  const createBtn = await $("button=Create");
+  const createBtn = await $(btnByText("Create"));
   if (await createBtn.isExisting()) {
     await createBtn.click();
   } else {
-    const saveBtn = await $("button=Save");
+    const saveBtn = await $(btnByText("Save"));
     await saveBtn.click();
   }
   await waitForStable(800);
@@ -134,8 +146,8 @@ export async function addConnectionProfile(
 /** Get a profile row (listitem) by profile name text (partial match) */
 export async function getProfileRow(name: string): Promise<WebdriverIO.Element> {
   // Each ConnectionItem is role="listitem" containing name + username@host:port
-  // Use *= (partial text match) since the div contains concatenated text
-  const row = await $(`[role="listitem"]*=${name}`);
+  // Use XPath contains for partial text match
+  const row = await $(`//div[@role='listitem'][contains(., '${name}')]`);
   return row;
 }
 
@@ -164,7 +176,7 @@ export async function deleteProfile(name: string): Promise<void> {
   const alertDialog = await $('[role="alertdialog"]');
   await alertDialog.waitForExist({ timeout: WAIT_TIMEOUT });
 
-  const confirmBtn = await alertDialog.$("button=Delete");
+  const confirmBtn = await alertDialog.$(".//button[normalize-space(.)='Delete']");
   await confirmBtn.click();
   await waitForStable(500);
 }
@@ -176,7 +188,7 @@ export async function deleteProfile(name: string): Promise<void> {
 /** Handle the HostKey dialog if it appears (TOFU: click Trust) */
 export async function handleHostKeyDialog(): Promise<boolean> {
   try {
-    const trustBtn = await $("button=Trust");
+    const trustBtn = await $(btnByText("Trust"));
     const exists = await trustBtn.waitForExist({ timeout: 3000 });
     if (exists && (await trustBtn.isDisplayed())) {
       await trustBtn.click();
@@ -196,7 +208,7 @@ export async function handlePasswordDialog(password = TEST_SERVER.password): Pro
   await credInput.waitForDisplayed({ timeout: WAIT_TIMEOUT });
   await credInput.setValue(password);
 
-  const connectBtn = await $("button=Connect");
+  const connectBtn = await $(btnByText("Connect"));
   await connectBtn.click();
   await waitForStable(500);
 }
@@ -211,7 +223,7 @@ export async function handleConnectionDialogs(password = TEST_SERVER.password): 
   await waitForStable(1000);
 
   // Check which dialog appeared – HostKey or Password
-  const trustBtn = await $("button=Trust");
+  const trustBtn = await $(btnByText("Trust"));
   const credInput = await $("#credential");
 
   const hasTrust = await trustBtn.isExisting();
@@ -252,7 +264,7 @@ export async function fullConnectFlow(
 
 /** Navigate back to connections via the Back button */
 export async function disconnect(): Promise<void> {
-  const backBtn = await $("button=Back");
+  const backBtn = await $(btnByText("Back"));
   if (await backBtn.isExisting()) {
     await backBtn.click();
     await waitForConnectionsPage();
@@ -305,11 +317,10 @@ export async function openContextMenu(name: string): Promise<void> {
   await waitForStable(300);
 }
 
-/** Click an item in the currently-open context menu (partial match to handle shortcut text) */
+/** Click an item in the currently-open context menu */
 export async function clickContextMenuItem(label: string): Promise<void> {
-  // Use *= because menu items contain both the label and keyboard shortcut hints
-  // e.g. "Delete ⌘⌫", "Rename ⌘R", "New folder ⌘N"
-  const item = await $(`[role="menuitem"]*=${label}`);
+  // Use XPath contains for partial match (menu items may include shortcut hints)
+  const item = await $(`//div[@role='menuitem'][contains(., '${label}')]`);
   await item.waitForExist({ timeout: WAIT_TIMEOUT });
   await item.click();
   await waitForStable(300);
@@ -337,7 +348,7 @@ export async function createFolder(folderName: string): Promise<void> {
   await input.waitForExist({ timeout: WAIT_TIMEOUT });
   await input.setValue(folderName);
 
-  const createBtn = await $("button=Create");
+  const createBtn = await $(btnByText("Create"));
   await createBtn.click();
   await waitForStable(800);
 }
@@ -354,7 +365,7 @@ export async function renameFile(currentName: string, newName: string): Promise<
   await input.click({ clickCount: 3 });
   await input.setValue(newName);
 
-  const confirmBtn = await $("button=Confirm");
+  const confirmBtn = await $(btnByText("Confirm"));
   await confirmBtn.click();
   await waitForStable(800);
 }

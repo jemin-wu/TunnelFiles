@@ -50,7 +50,7 @@ export async function setTheme(theme: "dark" | "light"): Promise<void> {
 export async function navigateToConnections(): Promise<void> {
   await browser.url("/connections");
   await waitForStable();
-  const heading = await $("text=Connections");
+  const heading = await $("//span[text()='Connections']");
   await heading.waitForExist({ timeout: 10000 });
 }
 
@@ -60,7 +60,7 @@ export async function navigateToConnections(): Promise<void> {
 export async function navigateToSettings(): Promise<void> {
   await browser.url("/settings");
   await waitForStable();
-  const heading = await $("text=Settings");
+  const heading = await $("//span[text()='Settings']");
   await heading.waitForExist({ timeout: 10000 });
 }
 
@@ -74,7 +74,7 @@ export async function connectToTestServer(): Promise<void> {
   // Click add connection
   const addBtn = (await $('[data-testid="add-connection"]')).isExisting()
     ? await $('[data-testid="add-connection"]')
-    : await $("button*=Add");
+    : await $("//button[contains(., 'Add')]");
   await addBtn.click();
 
   // Fill in connection details
@@ -92,14 +92,14 @@ export async function connectToTestServer(): Promise<void> {
   await userInput.setValue("testuser");
 
   // Submit / save the profile
-  const saveBtn = await dialog.$("button*=Save");
+  const saveBtn = await dialog.$(".//button[contains(., 'Save')]");
   if (await saveBtn.isExisting()) {
     await saveBtn.click();
     await waitForStable();
   }
 
   // Connect (click the row or connect button)
-  const connectBtn = await $("button*=Connect");
+  const connectBtn = await $("//button[contains(., 'Connect')]");
   if (await connectBtn.isExisting()) {
     await connectBtn.click();
   }
@@ -109,7 +109,7 @@ export async function connectToTestServer(): Promise<void> {
   if (await passwordInput.isExisting()) {
     await passwordInput.waitForDisplayed({ timeout: 5000 });
     await passwordInput.setValue("testpass123");
-    const submitBtn = await $("button*=Connect");
+    const submitBtn = await $("//button[contains(., 'Connect')]");
     if (await submitBtn.isExisting()) {
       await submitBtn.click();
     }
