@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -452,18 +452,42 @@ impl SessionManager {
         let addr = format!("{}:{}", host, port);
         tracing::debug!(addr = %addr, "正在建立 TCP 连接");
 
-        let tcp = TcpStream::connect_timeout(
-            &addr.parse().map_err(|e| {
-                AppError::new(ErrorCode::InvalidArgument, format!("无效的地址: {}", e))
-            })?,
-            timeout,
-        )
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::TimedOut => AppError::timeout("连接超时"),
-            std::io::ErrorKind::ConnectionRefused => {
-                AppError::network_lost("连接被拒绝，请检查主机和端口")
+        // 支持主机名（例如 localhost）和 IP 地址。
+        let socket_addrs: Vec<_> = addr
+            .to_socket_addrs()
+            .map_err(|e| AppError::new(ErrorCode::InvalidArgument, format!("无效的地址: {}", e)))?
+            .collect();
+
+        if socket_addrs.is_empty() {
+            return Err(AppError::new(
+                ErrorCode::InvalidArgument,
+                format!("无效的地址: {}", addr),
+            ));
+        }
+
+        let mut last_error: Option<std::io::Error> = None;
+        let mut tcp: Option<TcpStream> = None;
+        for socket_addr in socket_addrs {
+            match TcpStream::connect_timeout(&socket_addr, timeout) {
+                Ok(stream) => {
+                    tcp = Some(stream);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e);
+                }
             }
-            _ => AppError::network_lost(format!("无法连接到服务器: {}", e)),
+        }
+
+        let tcp = tcp.ok_or_else(|| {
+            let e = last_error.unwrap_or_else(|| std::io::Error::other("无法连接到任何已解析地址"));
+            match e.kind() {
+                std::io::ErrorKind::TimedOut => AppError::timeout("连接超时"),
+                std::io::ErrorKind::ConnectionRefused => {
+                    AppError::network_lost("连接被拒绝，请检查主机和端口")
+                }
+                _ => AppError::network_lost(format!("无法连接到服务器: {}", e)),
+            }
         })?;
 
         tcp.set_read_timeout(Some(timeout))?;
