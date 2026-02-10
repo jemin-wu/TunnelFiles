@@ -62,6 +62,18 @@ export async function waitForStable(ms = 500): Promise<void> {
   await browser.pause(ms);
 }
 
+async function safeClick(element: WebdriverIO.Element, timeout = WAIT_TIMEOUT): Promise<void> {
+  await element.waitForExist({ timeout });
+  try {
+    await element.waitForClickable({ timeout: Math.min(timeout, 2500) });
+    await element.click();
+  } catch {
+    await browser.execute((el) => {
+      (el as HTMLElement).click();
+    }, element);
+  }
+}
+
 /**
  * Disable all CSS animations and transitions.
  * WebKitWebDriver considers elements mid-animation (opacity < 1) as not interactable,
@@ -140,8 +152,8 @@ export async function waitForFileBrowser(): Promise<void> {
 export async function openAddConnectionSheet(): Promise<void> {
   // Try the empty-state button first
   const emptyBtn = await $(btnByText("New connection"));
-  if (await emptyBtn.isExisting()) {
-    await emptyBtn.click();
+  if ((await emptyBtn.isExisting()) && (await emptyBtn.isDisplayed())) {
+    await safeClick(emptyBtn);
   } else {
     // Toolbar "+" button: it's NOT inside a [role="listitem"] (unlike row action buttons).
     // The action buttons inside ConnectionItem rows have "rounded-full" class.
@@ -150,7 +162,7 @@ export async function openAddConnectionSheet(): Promise<void> {
     for (const btn of allBtns) {
       const classes = (await btn.getAttribute("class")) ?? "";
       if (classes.includes("h-6") && classes.includes("w-6") && !classes.includes("rounded-full")) {
-        await btn.click();
+        await safeClick(btn);
         break;
       }
     }
@@ -168,8 +180,6 @@ export async function fillConnectionForm(opts: {
   host: string;
   port: string;
   username: string;
-  password?: string;
-  rememberPassword?: boolean;
 }): Promise<void> {
   const nameInput = await $('input[name="name"]');
   // Wait for the sheet animation to complete and inputs to be interactable
@@ -189,25 +199,6 @@ export async function fillConnectionForm(opts: {
   const usernameInput = await $('input[name="username"]');
   await usernameInput.clearValue();
   await usernameInput.setValue(opts.username);
-
-  if (opts.password !== undefined) {
-    const passwordInput = await $('input[placeholder="Enter SSH password"]');
-    await passwordInput.waitForExist({ timeout: WAIT_TIMEOUT });
-    await passwordInput.clearValue();
-    await passwordInput.setValue(opts.password);
-  }
-
-  if (opts.rememberPassword) {
-    const saveToKeychain = await $(
-      "//label[normalize-space(.)='Save to keychain']/preceding-sibling::*[@role='checkbox']"
-    );
-    if (await saveToKeychain.isExisting()) {
-      const state = await saveToKeychain.getAttribute("data-state");
-      if (state !== "checked") {
-        await saveToKeychain.click();
-      }
-    }
-  }
 }
 
 /** Click "Create" (or "Save") in the sheet footer */
@@ -215,10 +206,10 @@ export async function submitConnectionSheet(): Promise<void> {
   // In add mode the button says "Create", in edit mode "Save"
   const createBtn = await $(btnByText("Create"));
   if (await createBtn.isExisting()) {
-    await createBtn.click();
+    await safeClick(createBtn);
   } else {
     const saveBtn = await $(btnByText("Save"));
-    await saveBtn.click();
+    await safeClick(saveBtn);
   }
   await waitForStable(800);
 }
@@ -228,27 +219,24 @@ export async function submitConnectionSheet(): Promise<void> {
  * Returns once the sheet has closed.
  */
 export async function addConnectionProfile(
-  opts: {
-    name: string;
-    host: string;
-    port: string;
-    username: string;
-    password?: string;
-    rememberPassword?: boolean;
-  } = TEST_SERVER
+  opts: { name: string; host: string; port: string; username: string } = TEST_SERVER
 ): Promise<void> {
-  const profile = {
-    ...opts,
-    // Stabilize e2e connect flow by persisting credentials in keychain.
-    rememberPassword: opts.rememberPassword ?? true,
-  };
   await openAddConnectionSheet();
-  await fillConnectionForm(profile);
+  await fillConnectionForm(opts);
   await submitConnectionSheet();
-  await browser.waitUntil(() => profileExists(profile.name), {
-    timeout: CONNECT_TIMEOUT,
-    timeoutMsg: `Profile "${profile.name}" was not visible after creation`,
-  });
+  try {
+    await browser.waitUntil(() => profileExists(opts.name), {
+      timeout: CONNECT_TIMEOUT,
+      timeoutMsg: `Profile "${opts.name}" was not visible after creation`,
+    });
+  } catch {
+    const sheet = await $('[role="dialog"]');
+    const dialogText =
+      (await sheet.isExisting()) && (await sheet.isDisplayed())
+        ? (await sheet.getText()).replace(/\s+/g, " ").trim()
+        : "none";
+    throw new Error(`Profile "${opts.name}" was not visible after creation. Dialog: ${dialogText}`);
+  }
 }
 
 /** Get a profile row (listitem) by profile name */
