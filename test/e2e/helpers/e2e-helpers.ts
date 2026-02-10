@@ -38,13 +38,13 @@ export async function waitForStable(ms = 500): Promise<void> {
 export async function navigateToConnections(): Promise<void> {
   await browser.url("/connections");
   await waitForStable();
-  const heading = await $("text=SSH hosts");
+  const heading = await $("text=Connections");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });
 }
 
 /** Wait until the connections page is visible */
 export async function waitForConnectionsPage(): Promise<void> {
-  const heading = await $("text=SSH hosts");
+  const heading = await $("text=Connections");
   await heading.waitForExist({ timeout: WAIT_TIMEOUT });
 }
 
