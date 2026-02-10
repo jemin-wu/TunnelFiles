@@ -120,12 +120,21 @@ describe("File Operations", () => {
 
       const input = await $("#folder-name");
       await input.waitForExist({ timeout: 10_000 });
+      await input.clearValue();
+      await browser.waitUntil(async () => (await input.getValue()).trim() === "", {
+        timeout: 3_000,
+        timeoutMsg: "Expected folder name input to be empty",
+      });
 
       // Leave the name empty and try to submit
       const createBtn = await $(
         "//input[@id='folder-name']/ancestor::*[@role='dialog'][1]//button[normalize-space(.)='Create']"
       );
       await createBtn.waitForExist({ timeout: 10_000 });
+      await browser.waitUntil(async () => !(await createBtn.isEnabled()), {
+        timeout: 3_000,
+        timeoutMsg: "Create button should become disabled for empty folder name",
+      });
 
       // Create button should be disabled when input is empty
       expect(await createBtn.isEnabled()).toBe(false);
