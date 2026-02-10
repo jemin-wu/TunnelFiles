@@ -35,6 +35,24 @@ export function btnByText(text: string): string {
   return `//button[normalize-space(.)='${text}']`;
 }
 
+/** Escape string for safe use as an XPath string literal. */
+function xpathLiteral(value: string): string {
+  if (!value.includes("'")) {
+    return `'${value}'`;
+  }
+  if (!value.includes('"')) {
+    return `"${value}"`;
+  }
+  const parts = value.split("'");
+  return `concat(${parts.map((part) => `'${part}'`).join(`, "'", `)})`;
+}
+
+/** Stable selector for a profile row by exact profile name. */
+function profileRowSelector(name: string): string {
+  const nameLiteral = xpathLiteral(name);
+  return `//div[@role='listitem'][.//span[@title=${nameLiteral}] or contains(., ${nameLiteral})]`;
+}
+
 // ---------------------------------------------------------------------------
 // Generic helpers
 // ---------------------------------------------------------------------------
@@ -195,27 +213,27 @@ export async function addConnectionProfile(
   await fillConnectionForm(opts);
   await submitConnectionSheet();
   await browser.waitUntil(() => profileExists(opts.name), {
-    timeout: WAIT_TIMEOUT,
+    timeout: CONNECT_TIMEOUT,
     timeoutMsg: `Profile "${opts.name}" was not visible after creation`,
   });
 }
 
-/** Get a profile row (listitem) by profile name text (partial match) */
+/** Get a profile row (listitem) by profile name */
 export async function getProfileRow(name: string): Promise<WebdriverIO.Element> {
-  // Each ConnectionItem is role="listitem" containing name + username@host:port
-  // Use XPath contains for partial text match
-  const row = await $(`//div[@role='listitem'][contains(., '${name}')]`);
+  const row = await $(profileRowSelector(name));
+  await row.waitForExist({ timeout: WAIT_TIMEOUT });
   return row;
 }
 
 /** Check if a profile with the given name exists in the list */
 export async function profileExists(name: string): Promise<boolean> {
-  const items = await $$('[role="listitem"]');
-  for (const item of items) {
-    const text = await item.getText();
-    if (text.includes(name)) return true;
+  try {
+    const row = await $(profileRowSelector(name));
+    return await row.isExisting();
+  } catch {
+    // During list re-render WebDriver may surface stale element errors.
+    return false;
   }
-  return false;
 }
 
 /** Delete a profile by clicking its delete button and confirming */
