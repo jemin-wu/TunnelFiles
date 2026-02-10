@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cancelTransfer, retryTransfer, cleanupTransfers } from "@/lib/transfer";
 import {
@@ -99,21 +99,19 @@ export function TransferQueue({ className }: TransferQueueProps) {
             )}
           </div>
           {completedTasks.length > 0 && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 hover:bg-destructive/10 hover:text-destructive"
-                    onClick={handleClearCompleted}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent className="text-xs">Clear completed</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 hover:bg-destructive/10 hover:text-destructive"
+                  onClick={handleClearCompleted}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent className="text-xs">Clear completed</TooltipContent>
+            </Tooltip>
           )}
         </div>
       )}
@@ -170,7 +168,7 @@ function TransferItem({ task }: TransferItemProps) {
     <div
       className={cn(
         "px-3 py-2.5 space-y-2 transition-colors",
-        "hover:bg-muted/30",
+        "hover:bg-accent/50",
         status === "running" && "bg-primary/5"
       )}
     >
@@ -234,13 +232,19 @@ function TaskStatusInfo({ task }: { task: TransferTask }) {
       );
     case "failed":
       return (
-        <div
-          className="text-xs text-destructive flex items-center gap-1 truncate"
-          title={task.errorMessage}
-        >
-          <X className="h-3 w-3 shrink-0" />
-          <span className="truncate">{task.errorMessage || "Transfer failed"}</span>
-        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="text-xs text-destructive flex items-center gap-1 min-w-0">
+              <X className="h-3 w-3 shrink-0" />
+              <span className="truncate">{task.errorMessage || "Transfer failed"}</span>
+            </div>
+          </TooltipTrigger>
+          {task.errorMessage && (
+            <TooltipContent side="bottom" className="text-xs max-w-xs">
+              {task.errorMessage}
+            </TooltipContent>
+          )}
+        </Tooltip>
       );
     case "canceled":
       return <div className="text-xs text-muted-foreground">Canceled</div>;
@@ -286,34 +290,32 @@ function TaskActions({ status, retryable, onCancel, onRetry, onRemove }: TaskAct
   const isActive = ACTIVE_STATUSES.has(status);
 
   return (
-    <TooltipProvider delayDuration={200}>
-      <div className="flex items-center gap-0.5 shrink-0">
-        {isActive && (
-          <ActionButton
-            icon={X}
-            tooltip="Cancel"
-            onClick={onCancel}
-            className="hover:text-destructive"
-          />
-        )}
-        {status === "failed" && retryable && (
-          <ActionButton
-            icon={RotateCcw}
-            tooltip="Retry"
-            onClick={onRetry}
-            className="hover:text-warning"
-          />
-        )}
-        {!isActive && (
-          <ActionButton
-            icon={X}
-            tooltip="Remove"
-            onClick={onRemove}
-            className="hover:bg-destructive/10 hover:text-destructive"
-          />
-        )}
-      </div>
-    </TooltipProvider>
+    <div className="flex items-center gap-0.5 shrink-0">
+      {isActive && (
+        <ActionButton
+          icon={X}
+          tooltip="Cancel"
+          onClick={onCancel}
+          className="hover:text-destructive"
+        />
+      )}
+      {status === "failed" && retryable && (
+        <ActionButton
+          icon={RotateCcw}
+          tooltip="Retry"
+          onClick={onRetry}
+          className="hover:text-warning"
+        />
+      )}
+      {!isActive && (
+        <ActionButton
+          icon={X}
+          tooltip="Remove"
+          onClick={onRemove}
+          className="hover:bg-destructive/10 hover:text-destructive"
+        />
+      )}
+    </div>
   );
 }
 
@@ -331,8 +333,8 @@ function ActionButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost" size="icon" className={cn("h-5 w-5", className)} onClick={onClick}>
-          <Icon className="h-3 w-3" />
+        <Button variant="ghost" size="icon" className={cn("h-6 w-6", className)} onClick={onClick}>
+          <Icon className="h-3.5 w-3.5" />
         </Button>
       </TooltipTrigger>
       <TooltipContent className="text-xs">{tooltip}</TooltipContent>
