@@ -142,8 +142,7 @@ jobs:
 
       - name: Start frontend server
         run: |
-          pnpm exec vite preview --port 1420 --strictPort &
-          # Wait for server to be ready
+          pnpm exec vite preview --port 1420 --strictPort --host 0.0.0.0 &
           for i in $(seq 1 10); do
             if curl -s http://127.0.0.1:1420 > /dev/null 2>&1; then
               echo "Frontend server is ready"
