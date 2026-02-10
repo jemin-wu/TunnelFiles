@@ -117,8 +117,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Tauri app (debug)
-        run: pnpm tauri build --debug --no-bundle
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build Tauri binary (debug, HTTP frontend)
+        run: |
+          # Use HTTP URL for frontendDist so WebKitGTK loads via HTTP
+          # instead of tauri:// custom protocol (ES modules fail on custom protocols)
+          pnpm tauri build --debug --no-bundle \
+            --config '{"build":{"frontendDist":"http://127.0.0.1:1420","beforeBuildCommand":""}}'
 
       - name: Start SSH test servers
         run: |
@@ -133,10 +140,25 @@ jobs:
           eval $(dbus-launch --sh-syntax)
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> $GITHUB_ENV
 
+      - name: Start frontend server
+        run: |
+          pnpm exec vite preview --port 1420 --strictPort &
+          # Wait for server to be ready
+          for i in $(seq 1 10); do
+            if curl -s http://127.0.0.1:1420 > /dev/null 2>&1; then
+              echo "Frontend server is ready"
+              break
+            fi
+            if [ $i -eq 10 ]; then
+              echo "Error: Frontend server failed to start"
+              exit 1
+            fi
+            sleep 1
+          done
+
       - name: Start tauri-driver
         run: |
           ~/.cargo/bin/tauri-driver &
-          # Wait for tauri-driver to start listening
           for i in $(seq 1 10); do
             if curl -s http://127.0.0.1:4444/status > /dev/null 2>&1; then
               echo "tauri-driver is ready"
