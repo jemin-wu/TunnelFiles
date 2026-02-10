@@ -172,7 +172,15 @@ async function checkFullPageOrFallback(tag: string, tolerance: number): Promise<
 
   warnVisualFallback("visual-service commands are unavailable or timed out");
   ensureFallbackDir();
-  await browser.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
+  try {
+    await withCommandTimeout(
+      browser.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`)),
+      "saveScreenshot",
+      10_000
+    );
+  } catch (error) {
+    warnVisualFallback(`saveScreenshot failed: ${String(error)}`);
+  }
 }
 
 async function checkElementOrFallback(
@@ -202,7 +210,15 @@ async function checkElementOrFallback(
 
   warnVisualFallback("element visual command is unavailable or timed out");
   ensureFallbackDir();
-  await element.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`));
+  try {
+    await withCommandTimeout(
+      element.saveScreenshot(path.join(FALLBACK_SHOT_DIR, `${tag}.png`)),
+      "element.saveScreenshot",
+      10_000
+    );
+  } catch (error) {
+    warnVisualFallback(`element.saveScreenshot failed: ${String(error)}`);
+  }
 }
 
 /**
