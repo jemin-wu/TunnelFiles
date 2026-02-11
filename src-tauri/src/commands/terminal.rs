@@ -30,7 +30,7 @@ pub async fn terminal_open(
 ) -> AppResult<TerminalInfo> {
     terminal_manager.open(
         app,
-        &db,
+        db.inner().clone(),
         session_manager.inner().clone(),
         &input.session_id,
         input.cols,
@@ -79,6 +79,25 @@ pub async fn terminal_close(
     terminal_id: String,
 ) -> AppResult<()> {
     terminal_manager.close(&terminal_id)
+}
+
+#[tauri::command]
+pub async fn terminal_reconnect(
+    app: AppHandle,
+    db: State<'_, Arc<Database>>,
+    session_manager: State<'_, Arc<SessionManager>>,
+    terminal_manager: State<'_, Arc<TerminalManager>>,
+    terminal_id: String,
+) -> AppResult<()> {
+    let db = db.inner().clone();
+    let session_manager = session_manager.inner().clone();
+    let terminal_manager = terminal_manager.inner().clone();
+
+    tokio::task::spawn_blocking(move || {
+        terminal_manager.reconnect(app, db, session_manager, &terminal_id)
+    })
+    .await
+    .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]

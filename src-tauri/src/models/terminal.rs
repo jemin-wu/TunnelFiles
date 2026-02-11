@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub enum TerminalStatus {
     Connected,
     Disconnected,
+    Reconnecting,
     Error,
 }
 
@@ -36,4 +37,10 @@ pub struct TerminalStatusPayload {
     pub status: TerminalStatus,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// 当前重连尝试次数 (1-based)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reconnect_attempt: Option<u8>,
+    /// 最大重连尝试次数
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_reconnect_attempts: Option<u8>,
 }

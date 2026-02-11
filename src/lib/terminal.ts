@@ -30,6 +30,11 @@ export async function closeTerminal(terminalId: string): Promise<void> {
   return invoke("terminal_close", { terminalId });
 }
 
+/** 手动重连终端 */
+export async function reconnectTerminal(terminalId: string): Promise<void> {
+  return invoke("terminal_reconnect", { terminalId });
+}
+
 /** 通过 sessionId 获取终端 ID */
 export async function getTerminalBySession(sessionId: string): Promise<string | null> {
   return invoke("terminal_get_by_session", { sessionId });

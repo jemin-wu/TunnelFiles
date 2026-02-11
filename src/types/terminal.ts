@@ -3,7 +3,7 @@
  */
 
 /** 终端状态 */
-export type TerminalStatus = "connected" | "disconnected" | "error";
+export type TerminalStatus = "connected" | "disconnected" | "reconnecting" | "error";
 
 /** 终端信息 */
 export interface TerminalInfo {
@@ -23,6 +23,10 @@ export interface TerminalStatusPayload {
   terminalId: string;
   status: TerminalStatus;
   message?: string;
+  /** 当前重连尝试次数 (1-based)，仅在 status 为 "reconnecting" 时存在 */
+  reconnectAttempt?: number;
+  /** 最大重连尝试次数，仅在 status 为 "reconnecting" 时存在 */
+  maxReconnectAttempts?: number;
 }
 
 /** 打开终端输入 */

@@ -5,10 +5,11 @@ import {
   closeTerminal,
   writeTerminalInput,
   resizeTerminal,
+  reconnectTerminal,
   encodeTerminalData,
 } from "@/lib/terminal";
 import { showErrorToast } from "@/lib/error";
-import type { TerminalInfo, TerminalStatus } from "@/types/terminal";
+import type { TerminalInfo, TerminalStatus, TerminalStatusPayload } from "@/types/terminal";
 
 interface UseTerminalOptions {
   sessionId: string;
@@ -20,12 +21,16 @@ interface UseTerminalReturn {
   terminalInfo: TerminalInfo | null;
   status: TerminalStatus;
   isOpening: boolean;
+  isReconnecting: boolean;
+  reconnectAttempt: number | null;
+  maxReconnectAttempts: number | null;
   error: unknown;
   open: () => Promise<void>;
   close: () => Promise<void>;
+  reconnect: () => Promise<void>;
   writeInput: (data: string) => void;
   resize: (cols: number, rows: number) => Promise<void>;
-  setStatus: (status: TerminalStatus) => void;
+  setStatus: (payload: TerminalStatusPayload) => void;
 }
 
 export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
@@ -33,6 +38,9 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
   const [terminalInfo, setTerminalInfo] = useState<TerminalInfo | null>(null);
   const [status, setStatus] = useState<TerminalStatus>("disconnected");
   const [isOpening, setIsOpening] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectAttempt, setReconnectAttempt] = useState<number | null>(null);
+  const [maxReconnectAttempts, setMaxReconnectAttempts] = useState<number | null>(null);
   const [error, setError] = useState<unknown>(null);
 
   // Refs for cleanup and preventing concurrent opens
@@ -100,6 +108,27 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     [terminalInfo]
   );
 
+  const reconnect = useCallback(async () => {
+    if (!terminalInfo || isReconnecting) return;
+
+    setIsReconnecting(true);
+    setStatus("reconnecting");
+    setError(null);
+
+    try {
+      await reconnectTerminal(terminalInfo.terminalId);
+      setStatus("connected");
+    } catch (err) {
+      setError(err);
+      setStatus("disconnected");
+      showErrorToast(err);
+    } finally {
+      setIsReconnecting(false);
+      setReconnectAttempt(null);
+      setMaxReconnectAttempts(null);
+    }
+  }, [terminalInfo, isReconnecting]);
+
   const resize = useCallback(
     async (newCols: number, newRows: number) => {
       if (!terminalInfo) return;
@@ -132,15 +161,37 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
     };
   }, [sessionId]);
 
+  // 包装 setStatus 以同步更新重连相关状态（接收完整 payload 以提取重连进度）
+  const handleSetStatus = useCallback((payload: TerminalStatusPayload) => {
+    setStatus(payload.status);
+    if (payload.status === "reconnecting") {
+      setIsReconnecting(true);
+      if (payload.reconnectAttempt != null) {
+        setReconnectAttempt(payload.reconnectAttempt);
+      }
+      if (payload.maxReconnectAttempts != null) {
+        setMaxReconnectAttempts(payload.maxReconnectAttempts);
+      }
+    } else if (payload.status === "connected" || payload.status === "disconnected") {
+      setIsReconnecting(false);
+      setReconnectAttempt(null);
+      setMaxReconnectAttempts(null);
+    }
+  }, []);
+
   return {
     terminalInfo,
     status,
     isOpening,
+    isReconnecting,
+    reconnectAttempt,
+    maxReconnectAttempts,
     error,
     open,
     close,
+    reconnect,
     writeInput,
     resize,
-    setStatus,
+    setStatus: handleSetStatus,
   };
 }

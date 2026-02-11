@@ -107,6 +107,7 @@ pub fn run() {
             commands::terminal::terminal_input,
             commands::terminal::terminal_resize,
             commands::terminal::terminal_close,
+            commands::terminal::terminal_reconnect,
             commands::terminal::terminal_get_by_session,
         ])
         .run(tauri::generate_context!())

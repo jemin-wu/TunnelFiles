@@ -67,7 +67,11 @@ function PageToolbar({
   // Terminal mode props
   terminalStatus,
   isTerminalOpening,
+  isTerminalReconnecting,
+  reconnectAttempt,
+  maxReconnectAttempts,
   terminalInfo,
+  onReconnect,
 }: {
   activeTab: TabMode;
   onTabChange: (tab: TabMode) => void;
@@ -82,7 +86,11 @@ function PageToolbar({
   onCreateFolder: () => void;
   terminalStatus: string;
   isTerminalOpening: boolean;
+  isTerminalReconnecting: boolean;
+  reconnectAttempt: number | null;
+  maxReconnectAttempts: number | null;
   terminalInfo: { terminalId: string } | null;
+  onReconnect: () => void;
 }) {
   return (
     <div className="border-border bg-card/30 flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
@@ -170,8 +178,33 @@ function PageToolbar({
                 <span>Connecting...</span>
               </>
             )}
+            {isTerminalReconnecting && (
+              <>
+                <Loader2 className="text-warning size-3 animate-spin" />
+                <span>
+                  Reconnecting...
+                  {reconnectAttempt != null &&
+                    maxReconnectAttempts != null &&
+                    ` (${reconnectAttempt}/${maxReconnectAttempts})`}
+                </span>
+              </>
+            )}
             {terminalInfo && terminalStatus === "connected" && (
               <span className="font-mono text-xs">{terminalInfo.terminalId.slice(0, 8)}</span>
+            )}
+            {terminalInfo && terminalStatus === "disconnected" && (
+              <>
+                <span className="text-muted-foreground">Disconnected</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={onReconnect}
+                >
+                  <RefreshCw className="mr-1 size-3" />
+                  Reconnect
+                </Button>
+              </>
             )}
             {terminalStatus === "error" && (
               <span className="text-destructive">Connection error</span>
@@ -244,7 +277,11 @@ function MainContent({
   terminalInfo,
   terminalStatus,
   isTerminalOpening,
+  isTerminalReconnecting,
+  reconnectAttempt,
+  maxReconnectAttempts,
   openTerminal,
+  onReconnect,
   writeInput,
   resize,
   onTerminalStatusChange,
@@ -266,7 +303,11 @@ function MainContent({
   terminalInfo: { terminalId: string } | null;
   terminalStatus: string;
   isTerminalOpening: boolean;
+  isTerminalReconnecting: boolean;
+  reconnectAttempt: number | null;
+  maxReconnectAttempts: number | null;
   openTerminal: () => void;
+  onReconnect: () => void;
   writeInput: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   onTerminalStatusChange: (payload: TerminalStatusPayload) => void;
@@ -288,7 +329,11 @@ function MainContent({
         onCreateFolder={onCreateFolderRequest}
         terminalStatus={terminalStatus}
         isTerminalOpening={isTerminalOpening}
+        isTerminalReconnecting={isTerminalReconnecting}
+        reconnectAttempt={reconnectAttempt}
+        maxReconnectAttempts={maxReconnectAttempts}
         terminalInfo={terminalInfo}
+        onReconnect={onReconnect}
       />
 
       {/* Tab content */}
@@ -440,7 +485,11 @@ export function FileManagerPage() {
     terminalInfo,
     status: terminalStatus,
     isOpening: isTerminalOpening,
+    isReconnecting: isTerminalReconnecting,
+    reconnectAttempt,
+    maxReconnectAttempts,
     open: openTerminal,
+    reconnect: reconnectTerminal,
     writeInput,
     resize,
     setStatus: setTerminalStatus,
@@ -476,10 +525,10 @@ export function FileManagerPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [searchParams, setActiveTab]);
 
-  // Handle terminal status changes
+  // Handle terminal status changes (including reconnect attempt info)
   const handleTerminalStatusChange = useCallback(
     (payload: TerminalStatusPayload) => {
-      setTerminalStatus(payload.status);
+      setTerminalStatus(payload);
     },
     [setTerminalStatus]
   );
@@ -531,7 +580,11 @@ export function FileManagerPage() {
     terminalInfo,
     terminalStatus,
     isTerminalOpening,
+    isTerminalReconnecting,
+    reconnectAttempt,
+    maxReconnectAttempts,
     openTerminal,
+    onReconnect: reconnectTerminal,
     writeInput,
     resize,
     onTerminalStatusChange: handleTerminalStatusChange,
