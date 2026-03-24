@@ -45,7 +45,12 @@ export function Breadcrumb({ path, homePath, onNavigate, className }: Breadcrumb
               <ChevronRight className="text-muted-foreground/40 size-3 shrink-0" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-5 px-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 px-1.5"
+                    aria-label="Show collapsed path segments"
+                  >
                     <MoreHorizontal className="size-3.5" />
                   </Button>
                 </DropdownMenuTrigger>

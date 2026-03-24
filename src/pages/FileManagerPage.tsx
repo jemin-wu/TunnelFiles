@@ -93,7 +93,7 @@ function PageToolbar({
   onReconnect: () => void;
 }) {
   return (
-    <div className="border-border bg-card/30 flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+    <div className="border-border bg-card/30 flex h-9 shrink-0 items-center gap-1.5 border-b px-3">
       {activeTab === "files" ? (
         <>
           {/* Breadcrumb navigation */}
@@ -223,10 +223,7 @@ function PageToolbar({
             variant="ghost"
             size="icon"
             aria-label="Files"
-            className={cn(
-              "h-7 w-7",
-              activeTab === "files" && "bg-accent dark:bg-accent/50 text-accent-foreground"
-            )}
+            className={cn("h-7 w-7", activeTab === "files" && "bg-accent text-accent-foreground")}
             onClick={() => onTabChange("files")}
             aria-pressed={activeTab === "files"}
           >
@@ -244,7 +241,7 @@ function PageToolbar({
             aria-label="Terminal"
             className={cn(
               "h-7 w-7",
-              activeTab === "terminal" && "bg-accent dark:bg-accent/50 text-accent-foreground"
+              activeTab === "terminal" && "bg-accent text-accent-foreground"
             )}
             onClick={() => onTabChange("terminal")}
             aria-pressed={activeTab === "terminal"}
@@ -367,7 +364,7 @@ function MainContent({
           )}
         >
           {/* Terminal content */}
-          <div className="min-h-0 flex-1">
+          <div className="bg-background min-h-0 flex-1">
             {terminalInfo ? (
               <ErrorBoundary>
                 <Suspense
@@ -623,7 +620,7 @@ export function FileManagerPage() {
             <div className="border-sidebar-border bg-sidebar flex h-9 items-center justify-between border-b px-3">
               <div className="flex items-center gap-2">
                 <Activity className="text-primary size-3.5" />
-                <span className="text-sm font-medium">Transfer queue</span>
+                <span className="text-sm font-semibold">Transfer queue</span>
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>

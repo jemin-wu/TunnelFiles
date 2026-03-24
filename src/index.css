@@ -135,7 +135,7 @@
 
   /* Muted - Subtle backgrounds */
   --muted: oklch(0.18 0.005 260);
-  --muted-foreground: oklch(0.55 0.01 260);
+  --muted-foreground: oklch(0.63 0.01 260);
 
   /* Accent - Teal-blue */
   --accent: oklch(0.6 0.12 230);
@@ -176,12 +176,12 @@
   --selection-active: oklch(0.65 0.14 250 / 0.22);
 
   /* Terminal Colors (hex values for xterm.js compatibility) */
-  --terminal-background: #1a1a22;
+  --terminal-background: #1e1e24;
   --terminal-foreground: #d4d4d8;
   --terminal-cursor: #6b9eff;
-  --terminal-cursor-accent: #1a1a22;
+  --terminal-cursor-accent: #1e1e24;
   --terminal-selection: rgba(107, 158, 255, 0.25);
-  --terminal-black: #1a1a22;
+  --terminal-black: #1e1e24;
   --terminal-red: #e05566;
   --terminal-green: #4caf7a;
   --terminal-yellow: #d4a040;
@@ -234,7 +234,7 @@
   --secondary-foreground: oklch(0.35 0.01 260);
 
   --muted: oklch(0.95 0.003 260);
-  --muted-foreground: oklch(0.45 0.01 260);
+  --muted-foreground: oklch(0.4 0.01 260);
 
   --accent: oklch(0.48 0.12 230);
   --accent-foreground: oklch(0.99 0.002 260);
@@ -558,9 +558,8 @@
    ============================================ */
 
 .terminal-container {
-  padding: 4px 0 0 4px;
-  background: var(--terminal-background);
   box-sizing: border-box;
+  background: var(--background);
 }
 
 /* Ensure xterm fills container */
@@ -568,7 +567,6 @@
 .terminal-container .xterm-viewport,
 .terminal-container .xterm-screen {
   height: 100% !important;
-  background: var(--terminal-background) !important;
 }
 
 /* XTerm viewport scrollbar */
@@ -578,7 +576,6 @@
 
 .terminal-container .xterm-viewport::-webkit-scrollbar-track {
   background: transparent;
-  border-left: 1px solid color-mix(in oklch, var(--border) 30%, transparent);
 }
 
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {

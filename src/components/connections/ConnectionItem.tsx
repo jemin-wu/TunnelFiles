@@ -76,7 +76,7 @@ export function ConnectionItem({
       {/* Info */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium" title={profile.name}>
+          <span className="truncate text-sm font-semibold" title={profile.name}>
             {profile.name}
           </span>
           {profile.authType === "key" && (

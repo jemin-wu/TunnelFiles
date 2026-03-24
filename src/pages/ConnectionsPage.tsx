@@ -155,7 +155,7 @@ export function ConnectionsPage() {
                 variant="ghost"
                 onClick={handleAdd}
                 data-testid="add-connection-button"
-                className="border-border/60 text-muted-foreground hover:border-primary/40 h-10 w-full gap-2 border border-dashed text-xs"
+                className="border-border/60 text-muted-foreground hover:border-primary/40 mt-1 h-10 w-full gap-2 border border-dashed text-xs"
               >
                 <Plus className="h-3.5 w-3.5" />
                 New connection

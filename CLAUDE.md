@@ -56,3 +56,18 @@ cd src-tauri && cargo test --lib --bins  # Backend tests
 - Tauri `State<T>` type must exactly match `.manage()` registration
 - E2E: WebKitWebDriver doesn't support `text=`/`button=` selectors — use XPath (`//button[contains(., 'X')]`)
 - E2E: `browser.url("/")` is invalid for WebKitWebDriver — use absolute URLs via `browser.getUrl()`
+
+## Design Context
+
+See `.impeccable.md` for full design context. Key points:
+
+- **Personality**: Precise. Capable. Confident. Professional tool, not consumer app.
+- **Reference**: Ghostty (primary), VS Code, Warp, Linear
+- **Anti-references**: Generic dashboards, glassmorphism, gradient text, neon accents
+- **Theme**: Dark mode primary, light mode secondary
+- **Principles**:
+  1. Hierarchy through contrast, not decoration
+  2. Color is signal, not filler
+  3. Space has rhythm — tight clusters, generous gaps
+  4. Dense but breathable (IDE density)
+  5. Every detail is earned

@@ -30,6 +30,11 @@ export function DropZone({
     <div className={cn("relative", className)}>
       {children}
 
+      {/* Screen reader announcement for drag state */}
+      <div className="sr-only" aria-live="polite" role="status">
+        {isDragging ? `Drop zone active. Files will be uploaded to ${remotePath}` : ""}
+      </div>
+
       {/* 拖拽覆盖层 */}
       {isDragging && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center backdrop-blur-md">

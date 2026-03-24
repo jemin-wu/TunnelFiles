@@ -95,7 +95,7 @@ export function CreateFolderDialog({
           </DialogHeader>
 
           <div className="space-y-3 py-4">
-            <Label htmlFor="folder-name" className="text-muted-foreground text-sm">
+            <Label htmlFor="folder-name" className="text-sm">
               Enter folder name
             </Label>
             <Input

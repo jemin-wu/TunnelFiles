@@ -98,17 +98,37 @@ export function TransferQueue({ className }: TransferQueueProps) {
 
       {/* Task list */}
       <ScrollArea className="min-h-0 flex-1">
-        <div className="divide-border/30 divide-y">
-          {tasks.map((task, index) => (
-            <div
-              key={task.taskId}
-              className="animate-fade-in"
-              style={{ animationDelay: `${index * 30}ms` }}
-            >
-              <TransferItem task={task} />
+        {/* Active tasks */}
+        {activeTasks.length > 0 && (
+          <div className="divide-border/30 divide-y">
+            {activeTasks.map((task, index) => (
+              <div
+                key={task.taskId}
+                className="animate-fade-in"
+                style={{ animationDelay: `${index * 30}ms` }}
+              >
+                <TransferItem task={task} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Completed tasks - tighter spacing, reduced emphasis */}
+        {completedTasks.length > 0 && (
+          <div className={cn(activeTasks.length > 0 && "border-border/50 mt-1 border-t pt-1")}>
+            <div className="divide-border/20 divide-y">
+              {completedTasks.map((task, index) => (
+                <div
+                  key={task.taskId}
+                  className="animate-fade-in opacity-70"
+                  style={{ animationDelay: `${(activeTasks.length + index) * 30}ms` }}
+                >
+                  <TransferItem task={task} />
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </ScrollArea>
     </div>
   );
@@ -160,7 +180,7 @@ function TransferItem({ task }: TransferItemProps) {
     >
       <div className="flex min-w-0 items-center gap-2">
         <TaskIcon direction={task.direction} status={status} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium" title={task.fileName}>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={task.fileName}>
           {task.fileName}
         </span>
         <TaskActions

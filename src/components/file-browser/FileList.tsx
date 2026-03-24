@@ -73,6 +73,7 @@ function HeaderCell({ field, currentSort, onSort, children, className, style }: 
           isActive && "text-primary"
         )}
         onClick={() => onSort(field)}
+        aria-label={`Sort by ${field}`}
       >
         {children}
         {isActive ? (
@@ -93,15 +94,15 @@ function HeaderCell({ field, currentSort, onSort, children, className, style }: 
 interface FileRowProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onClick"> {
   file: FileEntry;
   isSelected: boolean;
-  onClick: (e: React.MouseEvent) => void;
-  onDoubleClick: () => void;
+  onFileClick: (file: FileEntry, modifiers: { metaKey: boolean; shiftKey: boolean }) => void;
+  onFileDblClick: (file: FileEntry) => void;
 }
 
 const FileRow = memo(function FileRow({
   file,
   isSelected,
-  onClick,
-  onDoubleClick,
+  onFileClick,
+  onFileDblClick,
   className,
   style,
   ...rest
@@ -121,10 +122,10 @@ const FileRow = memo(function FileRow({
         className
       )}
       style={{ ...style, height: ROW_HEIGHT }}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
+      onClick={(e) => onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })}
+      onDoubleClick={() => onFileDblClick(file)}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onDoubleClick();
+        if (e.key === "Enter") onFileDblClick(file);
       }}
       {...rest}
     >
@@ -316,8 +317,8 @@ export function FileList({
     return (
       <div className="text-muted-foreground animate-fade-in flex h-full flex-col items-center justify-center">
         <div className="border-border/50 flex flex-col items-center gap-3 rounded-lg border border-dashed px-8 py-6">
-          <div className="bg-muted/30 border-border/50 flex h-12 w-12 items-center justify-center rounded-lg border">
-            <FolderOpen className="text-muted-foreground/50 size-8" />
+          <div className="bg-muted/30 border-border/50 flex h-10 w-10 items-center justify-center rounded-lg border">
+            <FolderOpen className="text-muted-foreground/50 size-6" />
           </div>
           <p className="text-sm">Directory is empty</p>
           <div className="flex flex-col items-center gap-0.5">
@@ -374,6 +375,7 @@ export function FileList({
       <div
         ref={parentRef}
         role="rowgroup"
+        aria-label="File entries"
         className="flex-1 overflow-x-hidden overflow-y-auto"
         tabIndex={0}
         onClick={(e) => {
@@ -423,10 +425,8 @@ export function FileList({
                   <FileRow
                     file={file}
                     isSelected={isSelected(file.path)}
-                    onClick={(e: React.MouseEvent) =>
-                      onFileClick(file, { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey })
-                    }
-                    onDoubleClick={() => onFileDblClick(file)}
+                    onFileClick={onFileClick}
+                    onFileDblClick={onFileDblClick}
                   />
                 </FileContextMenu>
               </div>

@@ -193,7 +193,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="authType"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-sm">Auth method</FormLabel>
+                      <FormLabel className="text-sm">Auth method</FormLabel>
                       <FormControl>
                         <AuthTypeSelector
                           value={field.value}
@@ -212,7 +212,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-sm">Name</FormLabel>
+                      <FormLabel className="text-sm">Name</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="production-server"
@@ -232,7 +232,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                     name="host"
                     render={({ field }) => (
                       <FormItem className="col-span-3">
-                        <FormLabel className="text-muted-foreground text-sm">Host</FormLabel>
+                        <FormLabel className="text-sm">Host</FormLabel>
                         <FormControl>
                           <Input
                             placeholder="192.168.1.100"
@@ -250,7 +250,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                     name="port"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-muted-foreground text-sm">Port</FormLabel>
+                        <FormLabel className="text-sm">Port</FormLabel>
                         <FormControl>
                           <Input
                             type="number"
@@ -273,7 +273,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="username"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-sm">Username</FormLabel>
+                      <FormLabel className="text-sm">Username</FormLabel>
                       <FormControl>
                         <Input placeholder="root" {...field} disabled={upsertProfile.isPending} />
                       </FormControl>
@@ -290,7 +290,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-muted-foreground text-sm">
+                          <FormLabel className="text-sm">
                             Password
                             {isEditing && editProfile?.passwordRef && (
                               <span className="text-success ml-1.5 text-xs">
@@ -330,7 +330,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                               disabled={upsertProfile.isPending}
                             />
                           </FormControl>
-                          <FormLabel className="text-muted-foreground cursor-pointer text-sm font-normal">
+                          <FormLabel className="cursor-pointer text-sm font-normal">
                             Save to keychain
                           </FormLabel>
                         </FormItem>
@@ -347,9 +347,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="privateKeyPath"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-muted-foreground text-sm">
-                            Private key
-                          </FormLabel>
+                          <FormLabel className="text-sm">Private key</FormLabel>
                           <FormControl>
                             <div className="flex gap-2">
                               <Input
@@ -380,7 +378,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                       name="passphrase"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-muted-foreground text-sm">
+                          <FormLabel className="text-sm">
                             Passphrase
                             {isEditing && editProfile?.passphraseRef ? (
                               <span className="text-success ml-1.5 text-xs">
@@ -422,7 +420,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                               disabled={upsertProfile.isPending}
                             />
                           </FormControl>
-                          <FormLabel className="text-muted-foreground cursor-pointer text-sm font-normal">
+                          <FormLabel className="cursor-pointer text-sm font-normal">
                             Save to keychain
                           </FormLabel>
                         </FormItem>
@@ -437,7 +435,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                   name="initialPath"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="text-muted-foreground text-sm">
+                      <FormLabel className="text-sm">
                         Initial path
                         <span className="text-muted-foreground/60 ml-1.5">(optional)</span>
                       </FormLabel>

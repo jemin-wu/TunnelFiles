@@ -117,7 +117,7 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
   };
 
   return (
-    <div className="flex h-full flex-col items-center justify-center p-8">
+    <div className="flex h-full flex-col items-center justify-center p-8" role="alert">
       <AlertTriangle className="text-destructive mb-4 h-12 w-12" />
       <h2 className="mb-2 text-xl font-semibold">Something went wrong</h2>
       <p className="text-muted-foreground mb-4 max-w-md text-center">{message}</p>

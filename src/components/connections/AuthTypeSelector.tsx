@@ -28,7 +28,7 @@ export function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelector
         className={cn(
           "h-auto px-3 py-2 text-sm font-medium transition-colors duration-100",
           value === "password"
-            ? "bg-accent dark:bg-accent/50 text-accent-foreground shadow-sm"
+            ? "bg-accent text-accent-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >
@@ -45,7 +45,7 @@ export function AuthTypeSelector({ value, onChange, disabled }: AuthTypeSelector
         className={cn(
           "h-auto px-3 py-2 text-sm font-medium transition-colors duration-100",
           value === "key"
-            ? "bg-accent dark:bg-accent/50 text-accent-foreground shadow-sm"
+            ? "bg-accent text-accent-foreground shadow-sm"
             : "text-muted-foreground hover:text-foreground hover:bg-background/50"
         )}
       >

@@ -61,7 +61,7 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       className={cn(
         "group h-auto w-full justify-start gap-2.5 px-3 py-2.5 text-sm transition-colors duration-100",
         "hover:bg-accent/50",
-        active ? "bg-accent dark:bg-accent/50 text-accent-foreground" : "text-muted-foreground"
+        active ? "bg-accent text-accent-foreground" : "text-muted-foreground"
       )}
     >
       <span
@@ -74,7 +74,7 @@ function NavItem({ icon, label, active, onClick }: NavItemProps) {
       >
         {icon}
       </span>
-      <span className="font-medium">{label}</span>
+      <span className={active ? "font-semibold" : "font-medium"}>{label}</span>
     </Button>
   );
 }
@@ -87,11 +87,11 @@ interface SettingRowProps {
 
 function SettingRow({ label, description, children }: SettingRowProps) {
   return (
-    <div className="border-border/30 border-b py-4 last:border-0">
-      <div className="mb-1">
+    <div className="border-border/30 border-b py-3 first:pt-0 last:border-0 last:pb-0">
+      <div className="mb-0.5">
         <span className="text-foreground/90 text-sm font-medium">{label}</span>
       </div>
-      {description && <div className="text-muted-foreground mb-3 text-xs">{description}</div>}
+      {description && <div className="text-muted-foreground mb-2.5 text-xs">{description}</div>}
       <div>{children}</div>
     </div>
   );
@@ -179,7 +179,7 @@ export function SettingsPage() {
               {/* TRANSFER_CONFIG */}
               {activeSection === "transfer" && (
                 <section className="animate-fade-in">
-                  <h2 className="mb-1 text-base font-medium">Transfer settings</h2>
+                  <h2 className="mb-1 text-base font-semibold">Transfer settings</h2>
                   <p className="text-muted-foreground mb-6 text-xs">
                     File upload and download settings
                   </p>
@@ -279,7 +279,7 @@ export function SettingsPage() {
               {/* CONNECTION_CONFIG */}
               {activeSection === "connection" && (
                 <section className="animate-fade-in">
-                  <h2 className="mb-1 text-base font-medium">Connection settings</h2>
+                  <h2 className="mb-1 text-base font-semibold">Connection settings</h2>
                   <p className="text-muted-foreground mb-6 text-xs">SSH connection settings</p>
 
                   <div>
@@ -314,7 +314,7 @@ export function SettingsPage() {
               {/* LOGGING_CONFIG */}
               {activeSection === "logs" && (
                 <section className="animate-fade-in">
-                  <h2 className="mb-1 text-base font-medium">Logging settings</h2>
+                  <h2 className="mb-1 text-base font-semibold">Logging settings</h2>
                   <p className="text-muted-foreground mb-6 text-xs">Application log output</p>
 
                   <div>

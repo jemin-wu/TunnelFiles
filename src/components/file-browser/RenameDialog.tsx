@@ -106,7 +106,7 @@ export function RenameDialog({
               <span className="text-foreground truncate font-mono">{currentName}</span>
             </div>
 
-            <Label htmlFor="new-name" className="text-muted-foreground text-sm">
+            <Label htmlFor="new-name" className="text-sm">
               Enter new name
             </Label>
             <Input
