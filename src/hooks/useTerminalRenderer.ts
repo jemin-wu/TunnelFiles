@@ -271,6 +271,15 @@ export function useTerminalRenderer({
     fontSizeRef.current = settings.terminalFontSize;
   }, [settings.terminalFontSize]);
 
+  // 使用 ref 存储 updateSettings，避免每次渲染重新注册 keydown listener
+  const updateSettingsRef = useRef(updateSettings);
+  useEffect(() => {
+    updateSettingsRef.current = updateSettings;
+  }, [updateSettings]);
+
+  // Debounce 持久化，避免快速按键 spam DB writes
+  const persistTimerRef = useRef<number | null>(null);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -282,13 +291,10 @@ export function useTerminalRenderer({
       let newSize: number | null = null;
 
       if (e.key === "=" || e.key === "+") {
-        // Cmd+= / Cmd++ → increase
         newSize = Math.min(fontSizeRef.current + 1, TERMINAL_FONT_SIZE_MAX);
       } else if (e.key === "-") {
-        // Cmd+- → decrease
         newSize = Math.max(fontSizeRef.current - 1, TERMINAL_FONT_SIZE_MIN);
       } else if (e.key === "0") {
-        // Cmd+0 → reset to 14
         newSize = TERMINAL_FONT_SIZE_DEFAULT;
       }
 
@@ -302,18 +308,24 @@ export function useTerminalRenderer({
           xterm.options.fontSize = newSize;
           fitAddonRef.current?.fit();
         }
-        // Persist to settings (fire-and-forget)
-        updateSettings({ terminalFontSize: newSize });
+        // Debounced persist: only write to DB after 300ms of no more keypresses
+        if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+        const size = newSize;
+        persistTimerRef.current = window.setTimeout(() => {
+          updateSettingsRef.current({ terminalFontSize: size });
+        }, 300);
       } else if (newSize !== null) {
-        // At boundary — prevent WebView zoom
         e.preventDefault();
         e.stopPropagation();
       }
     };
 
     container.addEventListener("keydown", handleKeyDown);
-    return () => container.removeEventListener("keydown", handleKeyDown);
-  }, [containerRef, updateSettings]);
+    return () => {
+      container.removeEventListener("keydown", handleKeyDown);
+      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    };
+  }, [containerRef]); // stable deps only — updateSettings via ref
 
   const write = useCallback((data: Uint8Array) => {
     xtermRef.current?.write(data);

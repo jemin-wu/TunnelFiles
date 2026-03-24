@@ -28,14 +28,15 @@ pub async fn terminal_open(
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: TerminalOpenInput,
 ) -> AppResult<TerminalInfo> {
-    terminal_manager.open(
-        app,
-        db.inner().clone(),
-        session_manager.inner().clone(),
-        &input.session_id,
-        input.cols,
-        input.rows,
-    )
+    let db = db.inner().clone();
+    let sm = session_manager.inner().clone();
+    let tm = terminal_manager.inner().clone();
+    let session_id = input.session_id;
+    tokio::task::spawn_blocking(move || {
+        tm.open(app, db, sm, &session_id, input.cols, input.rows)
+    })
+    .await
+    .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
 }
 
 #[derive(Debug, Deserialize)]
