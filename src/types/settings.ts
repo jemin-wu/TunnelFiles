@@ -17,6 +17,10 @@ export interface Settings {
   transferRetryCount: number;
   /** 日志级别 */
   logLevel: LogLevel;
+  /** 终端字体大小 (10-24px) */
+  terminalFontSize: number;
+  /** 终端 scrollback 行数 (1000-50000) */
+  terminalScrollbackLines: number;
 }
 
 /**
@@ -33,4 +37,6 @@ export const DEFAULT_SETTINGS: Settings = {
   connectionTimeoutSecs: 30,
   transferRetryCount: 2,
   logLevel: "info",
+  terminalFontSize: 14,
+  terminalScrollbackLines: 5000,
 };

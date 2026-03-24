@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 2;
+const DB_VERSION: i32 = 3;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -107,6 +107,8 @@ impl Database {
                 connection_timeout_secs INTEGER NOT NULL DEFAULT 30,
                 transfer_retry_count INTEGER NOT NULL DEFAULT 2,
                 log_level TEXT NOT NULL DEFAULT 'info',
+                terminal_font_size INTEGER NOT NULL DEFAULT 14,
+                terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
                 updated_at INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO settings (id, updated_at) VALUES (1, 0);
@@ -207,6 +209,19 @@ impl Database {
         // 版本 1 -> 2: 迁移 settings.json 数据
         if current_version < 2 {
             self.migrate_settings_from_json(&conn)?;
+        }
+
+        // 添加终端设置字段（防御性：无论版本号如何，确保列存在）
+        // 使用 let _ = 忽略 "duplicate column" 错误
+        {
+            let _ = conn.execute(
+                "ALTER TABLE settings ADD COLUMN terminal_font_size INTEGER NOT NULL DEFAULT 14",
+                [],
+            );
+            let _ = conn.execute(
+                "ALTER TABLE settings ADD COLUMN terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000",
+                [],
+            );
         }
 
         // 更新版本号
@@ -648,6 +663,8 @@ impl Database {
                 connection_timeout_secs = ?,
                 transfer_retry_count = ?,
                 log_level = ?,
+                terminal_font_size = ?,
+                terminal_scrollback_lines = ?,
                 updated_at = ?
             WHERE id = 1
             "#,
@@ -657,6 +674,8 @@ impl Database {
                 settings.connection_timeout_secs,
                 settings.transfer_retry_count,
                 settings.log_level.as_str(),
+                settings.terminal_font_size,
+                settings.terminal_scrollback_lines,
                 now,
             ],
         )?;
@@ -671,6 +690,8 @@ impl Database {
             connection_timeout_secs: row.get(2)?,
             transfer_retry_count: row.get(3)?,
             log_level: parse_log_level(row.get::<_, String>(4)?),
+            terminal_font_size: row.get(5)?,
+            terminal_scrollback_lines: row.get(6)?,
         })
     }
 
@@ -720,7 +741,8 @@ impl Database {
         let settings = conn.query_row(
             r#"
             SELECT default_download_dir, max_concurrent_transfers,
-                   connection_timeout_secs, transfer_retry_count, log_level
+                   connection_timeout_secs, transfer_retry_count, log_level,
+                   terminal_font_size, terminal_scrollback_lines
             FROM settings WHERE id = 1
             "#,
             [],
@@ -740,7 +762,8 @@ impl Database {
         let mut settings: Settings = conn.query_row(
             r#"
             SELECT default_download_dir, max_concurrent_transfers,
-                   connection_timeout_secs, transfer_retry_count, log_level
+                   connection_timeout_secs, transfer_retry_count, log_level,
+                   terminal_font_size, terminal_scrollback_lines
             FROM settings WHERE id = 1
             "#,
             [],
@@ -761,6 +784,12 @@ impl Database {
         }
         if let Some(v) = &patch.log_level {
             settings.log_level = v.clone();
+        }
+        if let Some(v) = patch.terminal_font_size {
+            settings.terminal_font_size = v.clamp(10, 24);
+        }
+        if let Some(v) = patch.terminal_scrollback_lines {
+            settings.terminal_scrollback_lines = v.clamp(1000, 50000);
         }
 
         Self::save_settings_to_db(&conn, &settings)?;

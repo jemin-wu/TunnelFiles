@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, FolderOpen, Download, Zap, FileText } from "lucide-react";
+import { Loader2, FolderOpen, Download, Zap, FileText, TerminalSquare } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Button } from "@/components/ui/button";
@@ -40,10 +40,12 @@ const settingsSchema = z.object({
   connectionTimeoutSecs: z.number().min(1, "Minimum timeout is 1 second"),
   transferRetryCount: z.number().min(0).max(10),
   logLevel: z.enum(["error", "warn", "info", "debug"]),
+  terminalFontSize: z.number().min(10).max(24),
+  terminalScrollbackLines: z.number().min(1000).max(50000),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
-type SettingsSection = "transfer" | "connection" | "logs";
+type SettingsSection = "transfer" | "connection" | "terminal" | "logs";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -110,6 +112,8 @@ export function SettingsPage() {
       connectionTimeoutSecs: settings.connectionTimeoutSecs,
       transferRetryCount: settings.transferRetryCount,
       logLevel: settings.logLevel,
+      terminalFontSize: settings.terminalFontSize,
+      terminalScrollbackLines: settings.terminalScrollbackLines,
     },
   });
 
@@ -120,6 +124,8 @@ export function SettingsPage() {
       connectionTimeoutSecs: values.connectionTimeoutSecs,
       transferRetryCount: values.transferRetryCount,
       logLevel: values.logLevel,
+      terminalFontSize: values.terminalFontSize,
+      terminalScrollbackLines: values.terminalScrollbackLines,
     });
     navigate(-1);
   };
@@ -161,6 +167,12 @@ export function SettingsPage() {
             label="Connection"
             active={activeSection === "connection"}
             onClick={() => setActiveSection("connection")}
+          />
+          <NavItem
+            icon={<TerminalSquare className="size-3.5" />}
+            label="Terminal"
+            active={activeSection === "terminal"}
+            onClick={() => setActiveSection("terminal")}
           />
           <NavItem
             icon={<FileText className="size-3.5" />}
@@ -301,6 +313,81 @@ export function SettingsPage() {
                                 />
                               </FormControl>
                               <span className="text-muted-foreground text-xs">seconds</span>
+                            </div>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        </SettingRow>
+                      )}
+                    />
+                  </div>
+                </section>
+              )}
+
+              {/* TERMINAL_CONFIG */}
+              {activeSection === "terminal" && (
+                <section className="animate-fade-in">
+                  <h2 className="mb-1 text-base font-semibold">Terminal settings</h2>
+                  <p className="text-muted-foreground mb-6 text-xs">
+                    Terminal appearance and behavior
+                  </p>
+
+                  <div>
+                    <FormField
+                      control={form.control}
+                      name="terminalFontSize"
+                      render={({ field }) => (
+                        <SettingRow label="Font size" description="Terminal font size (10-24px)">
+                          <FormItem className="space-y-0">
+                            <div className="flex items-center gap-4">
+                              <FormControl>
+                                <Slider
+                                  min={10}
+                                  max={24}
+                                  step={1}
+                                  value={[field.value]}
+                                  onValueChange={(vals) => field.onChange(vals[0])}
+                                  disabled={isUpdating}
+                                  className="flex-1"
+                                />
+                              </FormControl>
+                              <div className="bg-muted/50 border-border/50 flex h-9 w-12 items-center justify-center rounded border">
+                                <span className="text-foreground text-sm font-medium">
+                                  {field.value}px
+                                </span>
+                              </div>
+                            </div>
+                            <FormMessage className="text-xs" />
+                          </FormItem>
+                        </SettingRow>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="terminalScrollbackLines"
+                      render={({ field }) => (
+                        <SettingRow
+                          label="Scrollback buffer"
+                          description="Maximum lines kept in terminal history"
+                        >
+                          <FormItem className="space-y-0">
+                            <div className="flex items-center gap-4">
+                              <FormControl>
+                                <Slider
+                                  min={1000}
+                                  max={50000}
+                                  step={1000}
+                                  value={[field.value]}
+                                  onValueChange={(vals) => field.onChange(vals[0])}
+                                  disabled={isUpdating}
+                                  className="flex-1"
+                                />
+                              </FormControl>
+                              <div className="bg-muted/50 border-border/50 flex h-9 w-16 items-center justify-center rounded border">
+                                <span className="text-foreground text-sm font-medium">
+                                  {(field.value / 1000).toFixed(0)}k
+                                </span>
+                              </div>
                             </div>
                             <FormMessage className="text-xs" />
                           </FormItem>

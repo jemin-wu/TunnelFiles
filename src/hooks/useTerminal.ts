@@ -8,6 +8,7 @@ import {
   reconnectTerminal,
   encodeTerminalData,
 } from "@/lib/terminal";
+import { measureInputStart, measureInputEnd } from "@/lib/terminal-perf";
 import { showErrorToast } from "@/lib/error";
 import type { TerminalInfo, TerminalStatus, TerminalStatusPayload } from "@/types/terminal";
 
@@ -92,18 +93,21 @@ export function useTerminal(options: UseTerminalOptions): UseTerminalReturn {
       if (!terminalInfo) return;
 
       const base64 = encodeTerminalData(data);
+      const t = measureInputStart();
       // Fire-and-forget 模式：不等待响应，依赖 PTY 回显
       writeTerminalInput({
         terminalId: terminalInfo.terminalId,
         data: base64,
-      }).catch((err) => {
-        // 仅在首次失败时显示 toast，避免快速输入时弹出多个错误
-        if (!hasShownWriteErrorRef.current) {
-          hasShownWriteErrorRef.current = true;
-          setStatus("error");
-          showErrorToast(err);
-        }
-      });
+      })
+        .then(() => measureInputEnd(t))
+        .catch((err) => {
+          // 仅在首次失败时显示 toast，避免快速输入时弹出多个错误
+          if (!hasShownWriteErrorRef.current) {
+            hasShownWriteErrorRef.current = true;
+            setStatus("error");
+            showErrorToast(err);
+          }
+        });
     },
     [terminalInfo]
   );

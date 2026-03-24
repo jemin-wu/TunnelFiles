@@ -54,7 +54,11 @@ pub async fn terminal_input(
         .decode(&input.data)
         .map_err(|e| AppError::invalid_argument(format!("Base64 解码失败: {}", e)))?;
 
-    terminal_manager.write_input(&input.terminal_id, &data)
+    let tm = terminal_manager.inner().clone();
+    let terminal_id = input.terminal_id;
+    tokio::task::spawn_blocking(move || tm.write_input(&terminal_id, &data))
+        .await
+        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,7 +74,10 @@ pub async fn terminal_resize(
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: TerminalResizeInput,
 ) -> AppResult<()> {
-    terminal_manager.resize(&input.terminal_id, input.cols, input.rows)
+    let tm = terminal_manager.inner().clone();
+    tokio::task::spawn_blocking(move || tm.resize(&input.terminal_id, input.cols, input.rows))
+        .await
+        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]
@@ -78,7 +85,10 @@ pub async fn terminal_close(
     terminal_manager: State<'_, Arc<TerminalManager>>,
     terminal_id: String,
 ) -> AppResult<()> {
-    terminal_manager.close(&terminal_id)
+    let tm = terminal_manager.inner().clone();
+    tokio::task::spawn_blocking(move || tm.close(&terminal_id))
+        .await
+        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
 }
 
 #[tauri::command]

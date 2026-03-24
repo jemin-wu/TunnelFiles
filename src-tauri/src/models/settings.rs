@@ -46,6 +46,10 @@ pub struct Settings {
     pub transfer_retry_count: u8,
     /// 日志级别
     pub log_level: LogLevel,
+    /// 终端字体大小 (10-24px)
+    pub terminal_font_size: u8,
+    /// 终端 scrollback 行数 (1000-50000)
+    pub terminal_scrollback_lines: u32,
 }
 
 impl Default for Settings {
@@ -56,6 +60,8 @@ impl Default for Settings {
             connection_timeout_secs: 30,
             transfer_retry_count: 2,
             log_level: LogLevel::Info,
+            terminal_font_size: 14,
+            terminal_scrollback_lines: 5000,
         }
     }
 }
@@ -74,4 +80,36 @@ pub struct SettingsPatch {
     pub transfer_retry_count: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub log_level: Option<LogLevel>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_font_size: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_scrollback_lines: Option<u32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_default_terminal_fields() {
+        let settings = Settings::default();
+        assert_eq!(settings.terminal_font_size, 14);
+        assert_eq!(settings.terminal_scrollback_lines, 5000);
+    }
+
+    #[test]
+    fn test_settings_serialization_includes_terminal_fields() {
+        let settings = Settings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"terminalFontSize\":14"));
+        assert!(json.contains("\"terminalScrollbackLines\":5000"));
+    }
+
+    #[test]
+    fn test_settings_patch_deserialize_terminal_fields() {
+        let json = r#"{"terminalFontSize":16,"terminalScrollbackLines":10000}"#;
+        let patch: SettingsPatch = serde_json::from_str(json).unwrap();
+        assert_eq!(patch.terminal_font_size, Some(16));
+        assert_eq!(patch.terminal_scrollback_lines, Some(10000));
+    }
 }

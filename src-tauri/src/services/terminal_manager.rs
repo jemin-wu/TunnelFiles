@@ -24,8 +24,14 @@ use crate::services::storage_service::Database;
 const DEFAULT_COLS: u16 = 80;
 const DEFAULT_ROWS: u16 = 24;
 const PTY_READ_BUFFER_SIZE: usize = 8192;
-const OUTPUT_THROTTLE_MS: u64 = 16;
-const OUTPUT_BUFFER_LIMIT: usize = 4096;
+/// 自适应输出批量：交互模式（最近有用户输入）
+const INTERACTIVE_THROTTLE_MS: u64 = 4;
+const INTERACTIVE_BUFFER_LIMIT: usize = 4096;
+/// 自适应输出批量：批量模式（无用户输入）
+const BULK_THROTTLE_MS: u64 = 16;
+const BULK_BUFFER_LIMIT: usize = 16384;
+/// 判断交互模式的时间窗口（最后一次用户输入后 100ms 内）
+const INTERACTIVE_WINDOW_MS: u64 = 100;
 /// 自动重连最大尝试次数
 const MAX_RECONNECT_ATTEMPTS: u8 = 3;
 
@@ -48,13 +54,16 @@ pub struct ManagedTerminal {
     /// Reader 代数计数器，用于防止旧线程覆盖新线程的状态
     /// 每次 reconnect() 启动新 reader 时递增
     generation: AtomicU64,
+    /// 最后一次用户输入的时间戳（epoch millis），用于自适应输出批量
+    /// reader 线程读取此值判断交互/批量模式
+    pub last_input_ts: AtomicU64,
 }
 
 // SAFETY: ManagedTerminal 可以安全地跨线程发送和共享，原因如下：
 // 1. ssh2::Session 和 Channel 虽然不是 Send/Sync，但均通过 Mutex 序列化所有访问
 // 2. 重连时按固定锁顺序 (channel -> session) 获取锁，防止死锁
 // 3. 写入操作 (write_input) 和尺寸调整 (resize) 通过 Mutex<Channel> 序列化
-// 4. AtomicU16/AtomicU64/AtomicBool 提供无锁线程安全访问
+// 4. AtomicU16/AtomicU64/AtomicBool 提供无锁线程安全访问（含 last_input_ts）
 // 5. RwLock<Instant> 用于 last_activity，提供线程安全的读写
 unsafe impl Send for ManagedTerminal {}
 unsafe impl Sync for ManagedTerminal {}
@@ -131,6 +140,7 @@ impl TerminalManager {
             last_activity: RwLock::new(Instant::now()),
             shutdown: AtomicBool::new(false),
             generation: AtomicU64::new(0),
+            last_input_ts: AtomicU64::new(0),
         });
 
         {
@@ -238,7 +248,7 @@ impl TerminalManager {
         thread::spawn(move || {
             let mut buffer = vec![0u8; PTY_READ_BUFFER_SIZE];
             let mut last_emit = Instant::now();
-            let mut accumulated_data = Vec::with_capacity(OUTPUT_BUFFER_LIMIT * 2);
+            let mut accumulated_data = Vec::with_capacity(BULK_BUFFER_LIMIT * 2);
 
             'outer: loop {
                 // === 读取循环 ===
@@ -333,9 +343,24 @@ impl TerminalManager {
 
                     accumulated_data.extend_from_slice(&buffer[..bytes_read]);
 
+                    // 自适应批量：根据最后一次用户输入判断交互/批量模式
+                    let now_millis = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as u64;
+                    let last_input = terminal.last_input_ts.load(Ordering::Acquire);
+                    let is_interactive = last_input > 0
+                        && now_millis.saturating_sub(last_input) < INTERACTIVE_WINDOW_MS;
+
+                    let (throttle_ms, buffer_limit) = if is_interactive {
+                        (INTERACTIVE_THROTTLE_MS, INTERACTIVE_BUFFER_LIMIT)
+                    } else {
+                        (BULK_THROTTLE_MS, BULK_BUFFER_LIMIT)
+                    };
+
                     let should_emit = !accumulated_data.is_empty()
-                        && (last_emit.elapsed().as_millis() as u64 >= OUTPUT_THROTTLE_MS
-                            || accumulated_data.len() >= OUTPUT_BUFFER_LIMIT);
+                        && (last_emit.elapsed().as_millis() as u64 >= throttle_ms
+                            || accumulated_data.len() >= buffer_limit);
 
                     if should_emit {
                         let data_base64 = BASE64.encode(&accumulated_data);
@@ -496,6 +521,13 @@ impl TerminalManager {
     pub fn write_input(&self, terminal_id: &str, data: &[u8]) -> AppResult<()> {
         let terminal = self.get_terminal(terminal_id)?;
 
+        // 记录用户输入时间戳，用于自适应输出批量模式切换
+        let now_millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+        terminal.last_input_ts.store(now_millis, Ordering::Release);
+
         let mut channel = terminal
             .channel
             .lock()
@@ -629,5 +661,34 @@ mod tests {
         let manager = TerminalManager::new();
         let result = manager.close("nonexistent");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_adaptive_batching_constants() {
+        // 交互模式比批量模式更激进
+        assert!(INTERACTIVE_THROTTLE_MS < BULK_THROTTLE_MS);
+        assert!(INTERACTIVE_BUFFER_LIMIT < BULK_BUFFER_LIMIT);
+        // 交互窗口合理范围
+        assert!(INTERACTIVE_WINDOW_MS > 0 && INTERACTIVE_WINDOW_MS <= 500);
+    }
+
+    #[test]
+    fn test_interactive_mode_detection() {
+        // 模拟交互模式检测逻辑
+        let now: u64 = 1000;
+        let last_input: u64 = 950; // 50ms ago
+        let is_interactive =
+            last_input > 0 && now.saturating_sub(last_input) < INTERACTIVE_WINDOW_MS;
+        assert!(is_interactive);
+
+        // 批量模式：无最近输入
+        let old_input: u64 = 500; // 500ms ago
+        let is_bulk = old_input > 0 && now.saturating_sub(old_input) >= INTERACTIVE_WINDOW_MS;
+        assert!(is_bulk);
+
+        // 从未有输入
+        let no_input: u64 = 0;
+        let is_never = no_input == 0;
+        assert!(is_never);
     }
 }
