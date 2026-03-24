@@ -64,6 +64,8 @@ export const mockSettings: Settings = {
   connectionTimeoutSecs: 30,
   transferRetryCount: 2,
   logLevel: "info",
+  terminalFontSize: 14,
+  terminalScrollbackLines: 5000,
 };
 
 // IPC command mock handlers
@@ -87,9 +89,7 @@ const defaultHandlers: Record<string, InvokeHandler> = {
 };
 
 // Create invoke mock with custom handlers
-export function createInvokeMock(
-  customHandlers: Partial<Record<string, InvokeHandler>> = {}
-) {
+export function createInvokeMock(customHandlers: Partial<Record<string, InvokeHandler>> = {}) {
   const handlers = { ...defaultHandlers, ...customHandlers };
 
   return vi.fn((cmd: string, args?: Record<string, unknown>) => {
@@ -105,25 +105,23 @@ export function createInvokeMock(
 export function createListenMock() {
   const listeners = new Map<string, ((payload: unknown) => void)[]>();
 
-  const listen = vi.fn(
-    (event: string, handler: (payload: unknown) => void) => {
-      if (!listeners.has(event)) {
-        listeners.set(event, []);
-      }
-      listeners.get(event)!.push(handler);
-
-      // Return unlisten function
-      return Promise.resolve(() => {
-        const eventListeners = listeners.get(event);
-        if (eventListeners) {
-          const index = eventListeners.indexOf(handler);
-          if (index > -1) {
-            eventListeners.splice(index, 1);
-          }
-        }
-      });
+  const listen = vi.fn((event: string, handler: (payload: unknown) => void) => {
+    if (!listeners.has(event)) {
+      listeners.set(event, []);
     }
-  );
+    listeners.get(event)!.push(handler);
+
+    // Return unlisten function
+    return Promise.resolve(() => {
+      const eventListeners = listeners.get(event);
+      if (eventListeners) {
+        const index = eventListeners.indexOf(handler);
+        if (index > -1) {
+          eventListeners.splice(index, 1);
+        }
+      }
+    });
+  });
 
   const emit = (event: string, payload: unknown) => {
     const eventListeners = listeners.get(event);
