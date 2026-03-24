@@ -212,16 +212,20 @@ impl Database {
         }
 
         // 添加终端设置字段（防御性：无论版本号如何，确保列存在）
-        // 使用 let _ = 忽略 "duplicate column" 错误
-        {
-            let _ = conn.execute(
-                "ALTER TABLE settings ADD COLUMN terminal_font_size INTEGER NOT NULL DEFAULT 14",
-                [],
-            );
-            let _ = conn.execute(
-                "ALTER TABLE settings ADD COLUMN terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000",
-                [],
-            );
+        // 仅忽略 "duplicate column" 错误，其他错误正常传播
+        for col_sql in [
+            "ALTER TABLE settings ADD COLUMN terminal_font_size INTEGER NOT NULL DEFAULT 14",
+            "ALTER TABLE settings ADD COLUMN terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000",
+        ] {
+            if let Err(e) = conn.execute(col_sql, []) {
+                let msg = e.to_string();
+                if !msg.contains("duplicate column") {
+                    return Err(AppError::new(
+                        ErrorCode::LocalIoError,
+                        format!("迁移失败: {}", msg),
+                    ));
+                }
+            }
         }
 
         // 更新版本号

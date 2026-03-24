@@ -528,18 +528,42 @@ impl TerminalManager {
             .as_millis() as u64;
         terminal.last_input_ts.store(now_millis, Ordering::Release);
 
-        let mut channel = terminal
-            .channel
-            .lock()
-            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
+        // 临时切换到阻塞模式进行写入，避免 non-blocking channel 上
+        // write_all 遇到 WouldBlock 导致部分写入或数据丢失
+        {
+            let session_guard = terminal
+                .ssh_session
+                .lock()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 session 锁"))?;
+            session_guard.set_blocking(true);
+        }
 
-        channel
-            .write_all(data)
-            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("写入失败: {}", e)))?;
+        let write_result = (|| -> AppResult<()> {
+            let mut channel = terminal
+                .channel
+                .lock()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
 
-        channel
-            .flush()
-            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
+            channel
+                .write_all(data)
+                .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("写入失败: {}", e)))?;
+
+            channel
+                .flush()
+                .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
+            Ok(())
+        })();
+
+        // 恢复 non-blocking 模式（无论写入是否成功）
+        {
+            let session_guard = terminal
+                .ssh_session
+                .lock()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 session 锁"))?;
+            session_guard.set_blocking(false);
+        }
+
+        write_result?;
 
         terminal.touch();
         Ok(())

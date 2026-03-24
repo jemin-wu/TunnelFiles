@@ -143,9 +143,11 @@ export function useTerminalRenderer({
 
     // WebGL → Canvas → DOM fallback chain (must load AFTER xterm.open)
     let rendererAddon: WebglAddon | CanvasAddon | null = null;
+    let disposed = false;
     try {
       const webgl = new WebglAddon();
       webgl.onContextLoss(() => {
+        if (disposed) return; // guard: xterm may already be disposed after unmount
         console.warn("[terminal] WebGL context lost, falling back to Canvas");
         webgl.dispose();
         try {
@@ -233,6 +235,7 @@ export function useTerminalRenderer({
     xterm.focus();
 
     return () => {
+      disposed = true;
       themeObserver.disconnect();
       resizeObserver.disconnect();
       window.removeEventListener("resize", debouncedFit);
