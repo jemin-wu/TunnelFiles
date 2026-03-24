@@ -26,6 +26,12 @@ import { cn } from "@/lib/utils";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
 import type { LogLevel } from "@/types/settings";
+import {
+  TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_SCROLLBACK_MIN,
+  TERMINAL_SCROLLBACK_MAX,
+} from "@/types/settings";
 
 const LOG_LEVELS: { value: LogLevel; label: string }[] = [
   { value: "error", label: "Error" },
@@ -40,8 +46,8 @@ const settingsSchema = z.object({
   connectionTimeoutSecs: z.number().min(1, "Minimum timeout is 1 second"),
   transferRetryCount: z.number().min(0).max(10),
   logLevel: z.enum(["error", "warn", "info", "debug"]),
-  terminalFontSize: z.number().min(10).max(24),
-  terminalScrollbackLines: z.number().min(1000).max(50000),
+  terminalFontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX),
+  terminalScrollbackLines: z.number().min(TERMINAL_SCROLLBACK_MIN).max(TERMINAL_SCROLLBACK_MAX),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -341,8 +347,8 @@ export function SettingsPage() {
                             <div className="flex items-center gap-4">
                               <FormControl>
                                 <Slider
-                                  min={10}
-                                  max={24}
+                                  min={TERMINAL_FONT_SIZE_MIN}
+                                  max={TERMINAL_FONT_SIZE_MAX}
                                   step={1}
                                   value={[field.value]}
                                   onValueChange={(vals) => field.onChange(vals[0])}
@@ -374,8 +380,8 @@ export function SettingsPage() {
                             <div className="flex items-center gap-4">
                               <FormControl>
                                 <Slider
-                                  min={1000}
-                                  max={50000}
+                                  min={TERMINAL_SCROLLBACK_MIN}
+                                  max={TERMINAL_SCROLLBACK_MAX}
                                   step={1000}
                                   value={[field.value]}
                                   onValueChange={(vals) => field.onChange(vals[0])}

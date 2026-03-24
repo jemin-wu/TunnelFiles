@@ -28,6 +28,16 @@ export interface Settings {
  */
 export type SettingsPatch = Partial<Settings>;
 
+/** 终端字体大小边界 */
+export const TERMINAL_FONT_SIZE_MIN = 10;
+export const TERMINAL_FONT_SIZE_MAX = 24;
+export const TERMINAL_FONT_SIZE_DEFAULT = 14;
+
+/** 终端 scrollback 边界 */
+export const TERMINAL_SCROLLBACK_MIN = 1000;
+export const TERMINAL_SCROLLBACK_MAX = 50000;
+export const TERMINAL_SCROLLBACK_DEFAULT = 5000;
+
 /**
  * 默认设置
  */
@@ -37,6 +47,6 @@ export const DEFAULT_SETTINGS: Settings = {
   connectionTimeoutSecs: 30,
   transferRetryCount: 2,
   logLevel: "info",
-  terminalFontSize: 14,
-  terminalScrollbackLines: 5000,
+  terminalFontSize: TERMINAL_FONT_SIZE_DEFAULT,
+  terminalScrollbackLines: TERMINAL_SCROLLBACK_DEFAULT,
 };

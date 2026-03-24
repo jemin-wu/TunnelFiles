@@ -1,5 +1,12 @@
 use serde::{Deserialize, Serialize};
 
+/// 终端字体大小边界
+pub const TERMINAL_FONT_SIZE_MIN: u8 = 10;
+pub const TERMINAL_FONT_SIZE_MAX: u8 = 24;
+/// 终端 scrollback 边界
+pub const TERMINAL_SCROLLBACK_MIN: u32 = 1000;
+pub const TERMINAL_SCROLLBACK_MAX: u32 = 50000;
+
 /// 日志级别
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]

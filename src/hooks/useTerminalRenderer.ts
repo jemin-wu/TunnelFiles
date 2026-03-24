@@ -12,6 +12,11 @@ import "@xterm/xterm/css/xterm.css";
 
 import { useSettings } from "@/hooks/useSettings";
 import { useTheme } from "@/lib/theme";
+import {
+  TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_DEFAULT,
+} from "@/types/settings";
 
 /** 终端主题颜色映射 — 与 index.css 中的 --terminal-* 变量保持同步 */
 const TERMINAL_THEMES: Record<"dark" | "light", ITheme> = {
@@ -104,7 +109,7 @@ export function useTerminalRenderer({
 }: UseTerminalRendererOptions): UseTerminalRendererReturn {
   useTheme(); // 保持 context 订阅以触发重渲染
 
-  const { settings } = useSettings();
+  const { settings, updateSettings } = useSettings();
 
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -258,7 +263,6 @@ export function useTerminalRenderer({
   }, [settings.terminalFontSize, settings.terminalScrollbackLines]);
 
   // Cmd+/Cmd-/Cmd+0 字体大小快捷键（仅在终端容器聚焦时生效）
-  const { updateSettings } = useSettings();
   const fontSizeRef = useRef(settings.terminalFontSize);
   useEffect(() => {
     fontSizeRef.current = settings.terminalFontSize;
@@ -276,13 +280,13 @@ export function useTerminalRenderer({
 
       if (e.key === "=" || e.key === "+") {
         // Cmd+= / Cmd++ → increase
-        newSize = Math.min(fontSizeRef.current + 1, 24);
+        newSize = Math.min(fontSizeRef.current + 1, TERMINAL_FONT_SIZE_MAX);
       } else if (e.key === "-") {
         // Cmd+- → decrease
-        newSize = Math.max(fontSizeRef.current - 1, 10);
+        newSize = Math.max(fontSizeRef.current - 1, TERMINAL_FONT_SIZE_MIN);
       } else if (e.key === "0") {
         // Cmd+0 → reset to 14
-        newSize = 14;
+        newSize = TERMINAL_FONT_SIZE_DEFAULT;
       }
 
       if (newSize !== null && newSize !== fontSizeRef.current) {

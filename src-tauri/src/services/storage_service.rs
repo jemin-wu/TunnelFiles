@@ -786,10 +786,16 @@ impl Database {
             settings.log_level = v.clone();
         }
         if let Some(v) = patch.terminal_font_size {
-            settings.terminal_font_size = v.clamp(10, 24);
+            settings.terminal_font_size = v.clamp(
+                crate::models::settings::TERMINAL_FONT_SIZE_MIN,
+                crate::models::settings::TERMINAL_FONT_SIZE_MAX,
+            );
         }
         if let Some(v) = patch.terminal_scrollback_lines {
-            settings.terminal_scrollback_lines = v.clamp(1000, 50000);
+            settings.terminal_scrollback_lines = v.clamp(
+                crate::models::settings::TERMINAL_SCROLLBACK_MIN,
+                crate::models::settings::TERMINAL_SCROLLBACK_MAX,
+            );
         }
 
         Self::save_settings_to_db(&conn, &settings)?;
