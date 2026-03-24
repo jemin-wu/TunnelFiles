@@ -4,26 +4,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TunnelFiles - Cross-platform desktop SSH/SFTP visual file manager
-
-**Tech Stack:**
-
-- Frontend: React 19 + TypeScript + TailwindCSS 4 + shadcn/ui
-- Backend: Rust + Tauri 2 + ssh2 + tokio
-- State: TanStack Query (server) + Zustand (real-time)
-- Testing: Vitest (frontend) + cargo test (backend)
+TunnelFiles — Cross-platform desktop SSH/SFTP visual file manager built with Tauri 2 (Rust) + React 19 + TypeScript + TailwindCSS 4 + shadcn/ui.
 
 ## Development Workflow
-
-Use skills to drive development:
 
 | Task             | Skill               | Description                                             |
 | ---------------- | ------------------- | ------------------------------------------------------- |
 | New feature      | `/feature-dev`      | Six-phase TDD workflow with acceptance                  |
-| Bug fix          | `/bug-fix`          | Four-phase: Reproduce -> Investigate -> Fix -> Validate |
-| Quality check    | `/acceptance`       | Multi-mode: Code review + UX review + Tests + Contract  |
-| Product planning | `/product-planning` | Competitive analysis -> Feature roadmap                 |
-| Auto-repair      | `/self-heal`        | Run tests -> Diagnose -> Fix -> Verify                  |
+| Bug fix          | `/bug-fix`          | Four-phase: Reproduce → Investigate → Fix → Validate    |
+| Quality check    | `/acceptance`       | Code review + UX review + Tests + Contract verification |
+| Product planning | `/product-planning` | Competitive analysis → Feature roadmap                  |
+| Auto-repair      | `/self-heal`        | Run tests → Diagnose → Fix → Verify                     |
+| CI checks        | `/ci`               | Run all lint/format/test checks locally                 |
+| Release          | `/release`          | Version bump + CHANGELOG + git tag                      |
 
 ## Agents
 
@@ -40,45 +33,26 @@ Use skills to drive development:
 ## Quick Commands
 
 ```bash
-pnpm tauri dev      # Full development environment
-pnpm tauri build    # Production build
-pnpm lint           # ESLint check
-pnpm format         # Prettier format
-pnpm test:run       # Frontend tests
-cd src-tauri && cargo test  # Backend tests
+pnpm tauri dev                        # Full dev environment
+pnpm lint && pnpm format:check        # Frontend lint + format check
+pnpm test:run                         # Frontend tests (Vitest)
+cd src-tauri && cargo test --lib --bins  # Backend tests
 ```
 
 ## Critical Rules
 
-1. **Security**: Use system keychain for credentials, never plaintext
-2. **IPC**: Always use lib/ wrappers, never direct invoke() in components
-3. **State**: Query for server data, Zustand for real-time events
-4. **Rust**: Never use unwrap() in production, use spawn_blocking for CPU work
-5. **TDD**: Write tests BEFORE implementation when using feature-dev skill
+1. **Security** — System keychain only for credentials, never plaintext. Never log passwords.
+2. **IPC** — Always use `src/lib/` wrappers, never `invoke()` directly in components.
+3. **State** — TanStack Query for server data, Zustand for real-time events only.
+4. **Rust** — No `unwrap()` in production. Use `spawn_blocking` for CPU work and `ssh2` ops.
+5. **TDD** — Write tests BEFORE implementation when using `/feature-dev`.
+6. **Full-stack order** — Types → Rust commands → lib/ wrappers → hooks → UI components.
 
 ## Key Gotchas
 
-- `ssh2::Sftp` is not Send/Sync - use spawn_blocking with Arc<Session>
-- Terminal and SFTP need separate sessions
-- Event listeners need StrictMode-safe cleanup pattern
-- Tauri State type must exactly match .manage() registration
-
-## Configuration Structure
-
-```
-.claude/
-├── agents/          # 7 specialized agents
-├── hooks/           # Formatting scripts (prettier, rustfmt)
-├── rules/           # Coding rules by domain
-│   ├── rust/        # Rust backend rules
-│   ├── react/       # React frontend rules
-│   ├── shared/      # Cross-cutting rules
-│   └── workflow/    # Development process rules
-├── settings.json    # Project-level hook configuration
-└── skills/          # 5 development workflow skills
-    ├── feature-dev/ # TDD feature development
-    ├── bug-fix/     # Bug diagnosis and fix
-    ├── acceptance/  # Quality verification
-    ├── product-planning/  # Competitive analysis
-    └── self-heal/   # Auto test and repair
-```
+- `ssh2::Sftp` is not Send/Sync — must use `spawn_blocking` with `Arc<Session>`
+- Terminal and SFTP require separate SSH sessions (cannot share one Session)
+- Event listeners need React StrictMode-safe cleanup pattern
+- Tauri `State<T>` type must exactly match `.manage()` registration
+- E2E: WebKitWebDriver doesn't support `text=`/`button=` selectors — use XPath (`//button[contains(., 'X')]`)
+- E2E: `browser.url("/")` is invalid for WebKitWebDriver — use absolute URLs via `browser.getUrl()`
