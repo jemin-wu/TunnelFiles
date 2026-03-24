@@ -35,6 +35,14 @@ const INTERACTIVE_WINDOW_MS: u64 = 100;
 /// 自动重连最大尝试次数
 const MAX_RECONNECT_ATTEMPTS: u8 = 3;
 
+/// 获取当前 epoch 毫秒时间戳
+fn epoch_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
 /// 托管的终端实例（包含独立的非阻塞 SSH session）
 pub struct ManagedTerminal {
     pub terminal_id: String,
@@ -344,10 +352,7 @@ impl TerminalManager {
                     accumulated_data.extend_from_slice(&buffer[..bytes_read]);
 
                     // 自适应批量：根据最后一次用户输入判断交互/批量模式
-                    let now_millis = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as u64;
+                    let now_millis = epoch_millis();
                     let last_input = terminal.last_input_ts.load(Ordering::Acquire);
                     let is_interactive = last_input > 0
                         && now_millis.saturating_sub(last_input) < INTERACTIVE_WINDOW_MS;
@@ -521,50 +526,45 @@ impl TerminalManager {
     pub fn write_input(&self, terminal_id: &str, data: &[u8]) -> AppResult<()> {
         let terminal = self.get_terminal(terminal_id)?;
 
-        // 记录用户输入时间戳，用于自适应输出批量模式切换
-        let now_millis = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
-        terminal.last_input_ts.store(now_millis, Ordering::Release);
+        terminal
+            .last_input_ts
+            .store(epoch_millis(), Ordering::Release);
 
-        // 临时切换到阻塞模式进行写入，避免 non-blocking channel 上
-        // write_all 遇到 WouldBlock 导致部分写入或数据丢失
-        {
-            let session_guard = terminal
-                .ssh_session
-                .lock()
-                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 session 锁"))?;
-            session_guard.set_blocking(true);
+        // 在 non-blocking channel 上写入：手动重试 WouldBlock，避免 write_all 中途失败
+        // 不切换 blocking mode，防止锁顺序违反和 reader 线程阻塞
+        let mut channel = terminal
+            .channel
+            .lock()
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
+
+        let mut written = 0;
+        while written < data.len() {
+            match channel.write(&data[written..]) {
+                Ok(0) => {
+                    return Err(AppError::new(
+                        ErrorCode::RemoteIoError,
+                        "写入返回 0 字节，连接可能已断开",
+                    ));
+                }
+                Ok(n) => written += n,
+                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                Err(e) => {
+                    return Err(AppError::new(
+                        ErrorCode::RemoteIoError,
+                        format!("写入失败: {}", e),
+                    ));
+                }
+            }
         }
 
-        let write_result = (|| -> AppResult<()> {
-            let mut channel = terminal
-                .channel
-                .lock()
-                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
+        channel
+            .flush()
+            .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
 
-            channel
-                .write_all(data)
-                .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("写入失败: {}", e)))?;
-
-            channel
-                .flush()
-                .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
-            Ok(())
-        })();
-
-        // 恢复 non-blocking 模式（无论写入是否成功）
-        {
-            let session_guard = terminal
-                .ssh_session
-                .lock()
-                .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 session 锁"))?;
-            session_guard.set_blocking(false);
-        }
-
-        write_result?;
-
+        drop(channel);
         terminal.touch();
         Ok(())
     }

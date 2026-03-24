@@ -12,6 +12,10 @@ use crate::services::session_manager::SessionManager;
 use crate::services::storage_service::Database;
 use crate::services::terminal_manager::TerminalManager;
 
+fn join_err(e: tokio::task::JoinError) -> AppError {
+    AppError::remote_io_error(format!("Task join error: {}", e))
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalOpenInput {
@@ -36,7 +40,7 @@ pub async fn terminal_open(
         tm.open(app, db, sm, &session_id, input.cols, input.rows)
     })
     .await
-    .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
+    .map_err(join_err)?
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,7 +63,7 @@ pub async fn terminal_input(
     let terminal_id = input.terminal_id;
     tokio::task::spawn_blocking(move || tm.write_input(&terminal_id, &data))
         .await
-        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
+        .map_err(join_err)?
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,7 +82,7 @@ pub async fn terminal_resize(
     let tm = terminal_manager.inner().clone();
     tokio::task::spawn_blocking(move || tm.resize(&input.terminal_id, input.cols, input.rows))
         .await
-        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
+        .map_err(join_err)?
 }
 
 #[tauri::command]
@@ -89,7 +93,7 @@ pub async fn terminal_close(
     let tm = terminal_manager.inner().clone();
     tokio::task::spawn_blocking(move || tm.close(&terminal_id))
         .await
-        .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
+        .map_err(join_err)?
 }
 
 #[tauri::command]
@@ -108,7 +112,7 @@ pub async fn terminal_reconnect(
         terminal_manager.reconnect(app, db, session_manager, &terminal_id)
     })
     .await
-    .map_err(|e| AppError::remote_io_error(format!("Task join error: {}", e)))?
+    .map_err(join_err)?
 }
 
 #[tauri::command]

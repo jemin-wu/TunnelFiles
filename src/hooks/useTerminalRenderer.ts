@@ -69,10 +69,10 @@ const TERMINAL_THEMES: Record<"dark" | "light", ITheme> = {
 };
 
 /** 将任意 CSS 颜色值（rgb、oklch 等）转换为 #rrggbb hex */
+const _colorCtx = document.createElement("canvas").getContext("2d")!;
 function cssColorToHex(color: string): string {
-  const ctx = document.createElement("canvas").getContext("2d")!;
-  ctx.fillStyle = color;
-  return ctx.fillStyle;
+  _colorCtx.fillStyle = color;
+  return _colorCtx.fillStyle;
 }
 
 /** 从 <html> class 判断当前主题 */

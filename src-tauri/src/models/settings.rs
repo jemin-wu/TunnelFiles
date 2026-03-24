@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 /// 终端字体大小边界
 pub const TERMINAL_FONT_SIZE_MIN: u8 = 10;
 pub const TERMINAL_FONT_SIZE_MAX: u8 = 24;
+pub const TERMINAL_FONT_SIZE_DEFAULT: u8 = 14;
 /// 终端 scrollback 边界
 pub const TERMINAL_SCROLLBACK_MIN: u32 = 1000;
 pub const TERMINAL_SCROLLBACK_MAX: u32 = 50000;
+pub const TERMINAL_SCROLLBACK_DEFAULT: u32 = 5000;
 
 /// 日志级别
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -67,8 +69,8 @@ impl Default for Settings {
             connection_timeout_secs: 30,
             transfer_retry_count: 2,
             log_level: LogLevel::Info,
-            terminal_font_size: 14,
-            terminal_scrollback_lines: 5000,
+            terminal_font_size: TERMINAL_FONT_SIZE_DEFAULT,
+            terminal_scrollback_lines: TERMINAL_SCROLLBACK_DEFAULT,
         }
     }
 }
