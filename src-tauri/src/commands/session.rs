@@ -7,6 +7,8 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
+#[cfg(test)]
+use ts_rs::TS;
 
 use crate::models::error::{AppError, AppResult};
 use crate::models::profile::RecentConnection;
@@ -15,7 +17,9 @@ use crate::services::storage_service::Database;
 use crate::services::terminal_manager::TerminalManager;
 
 /// 连接输入参数
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectInput {
     /// Profile ID
@@ -30,23 +34,28 @@ pub struct ConnectInput {
 
 /// 连接结果
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct SessionConnectResult {
     /// 会话 ID（连接成功时返回）
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
     /// 远程 home 目录
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub home_path: Option<String>,
     /// 服务器指纹
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub server_fingerprint: Option<String>,
+    /// 服务器密钥类型（如 ssh-ed25519, ssh-rsa）
+    pub server_key_type: Option<String>,
     /// 是否需要确认 HostKey
     pub need_host_key_confirm: bool,
+    /// HostKey 是否为不匹配（服务器密钥已变更，非首次连接）
+    pub host_key_mismatch: bool,
 }
 
 /// 会话状态事件 payload
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct SessionStatusPayload {
     pub session_id: String,
@@ -101,7 +110,9 @@ fn build_connected_result(result: ConnectResult) -> SessionConnectResult {
         session_id: Some(result.session_id),
         home_path: Some(result.home_path),
         server_fingerprint: Some(result.fingerprint),
+        server_key_type: None,
         need_host_key_confirm: false,
+        host_key_mismatch: false,
     }
 }
 
@@ -161,7 +172,9 @@ pub async fn session_connect(
                 session_id: None,
                 home_path: None,
                 server_fingerprint: Some(pending.fingerprint),
+                server_key_type: Some(pending.key_type),
                 need_host_key_confirm: true,
+                host_key_mismatch: pending.is_mismatch,
             })
         }
         ConnectStatus::Connected(result) => {
@@ -263,6 +276,8 @@ pub async fn session_info(
 
 /// 会话信息
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct SessionInfo {
     pub session_id: String,
@@ -277,4 +292,193 @@ pub async fn session_list(
     session_manager: State<'_, Arc<SessionManager>>,
 ) -> AppResult<Vec<String>> {
     session_manager.list_sessions()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── ConnectInput deserialization ──
+
+    #[test]
+    fn connect_input_deserializes_camel_case() {
+        let json = r#"{
+            "profileId": "abc-123",
+            "password": "secret",
+            "passphrase": "phrase"
+        }"#;
+        let input: ConnectInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.profile_id, "abc-123");
+        assert_eq!(input.password.as_deref(), Some("secret"));
+        assert_eq!(input.passphrase.as_deref(), Some("phrase"));
+    }
+
+    #[test]
+    fn connect_input_optional_fields_default_to_none() {
+        let json = r#"{"profileId": "abc-123"}"#;
+        let input: ConnectInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.profile_id, "abc-123");
+        assert!(input.password.is_none());
+        assert!(input.passphrase.is_none());
+    }
+
+    #[test]
+    fn connect_input_rejects_snake_case_profile_id() {
+        let json = r#"{"profile_id": "abc-123"}"#;
+        let result = serde_json::from_str::<ConnectInput>(json);
+        assert!(result.is_err(), "snake_case profileId should be rejected");
+    }
+
+    // ── SessionConnectResult serialization ──
+
+    #[test]
+    fn session_connect_result_serializes_camel_case() {
+        let result = SessionConnectResult {
+            session_id: Some("sess-1".to_string()),
+            home_path: Some("/home/user".to_string()),
+            server_fingerprint: Some("SHA256:abc".to_string()),
+            server_key_type: Some("ssh-ed25519".to_string()),
+            need_host_key_confirm: false,
+            host_key_mismatch: false,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+
+        assert_eq!(json["sessionId"], "sess-1");
+        assert_eq!(json["homePath"], "/home/user");
+        assert_eq!(json["serverFingerprint"], "SHA256:abc");
+        assert_eq!(json["serverKeyType"], "ssh-ed25519");
+        assert_eq!(json["needHostKeyConfirm"], false);
+        assert_eq!(json["hostKeyMismatch"], false);
+        // Ensure snake_case keys are absent
+        assert!(json.get("session_id").is_none());
+        assert!(json.get("home_path").is_none());
+        assert!(json.get("server_fingerprint").is_none());
+        assert!(json.get("host_key_mismatch").is_none());
+    }
+
+    #[test]
+    fn session_connect_result_serializes_none_as_null() {
+        let result = SessionConnectResult {
+            session_id: None,
+            home_path: None,
+            server_fingerprint: Some("SHA256:xyz".to_string()),
+            server_key_type: Some("ssh-rsa".to_string()),
+            need_host_key_confirm: true,
+            host_key_mismatch: false,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+
+        // None fields serialize as null (not omitted) for Zod nullable() compatibility
+        assert_eq!(json["sessionId"], serde_json::Value::Null);
+        assert_eq!(json["homePath"], serde_json::Value::Null);
+        // Present fields remain
+        assert_eq!(json["serverFingerprint"], "SHA256:xyz");
+        assert_eq!(json["needHostKeyConfirm"], true);
+        assert_eq!(json["hostKeyMismatch"], false);
+    }
+
+    #[test]
+    fn session_connect_result_host_key_confirm_first_connection() {
+        // Simulates the TOFU flow: no session yet, need user confirmation
+        let result = SessionConnectResult {
+            session_id: None,
+            home_path: None,
+            server_fingerprint: Some("SHA256:fingerprint".to_string()),
+            server_key_type: Some("ssh-ed25519".to_string()),
+            need_host_key_confirm: true,
+            host_key_mismatch: false,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+
+        assert_eq!(json["needHostKeyConfirm"], true);
+        assert_eq!(json["hostKeyMismatch"], false);
+        assert_eq!(json["sessionId"], serde_json::Value::Null);
+        assert_eq!(json["serverFingerprint"], "SHA256:fingerprint");
+    }
+
+    #[test]
+    fn session_connect_result_host_key_mismatch_scenario() {
+        // Simulates server key change: need user confirmation with mismatch warning
+        let result = SessionConnectResult {
+            session_id: None,
+            home_path: None,
+            server_fingerprint: Some("SHA256:new_fingerprint".to_string()),
+            server_key_type: Some("ssh-ed25519".to_string()),
+            need_host_key_confirm: true,
+            host_key_mismatch: true,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+
+        assert_eq!(json["needHostKeyConfirm"], true);
+        assert_eq!(json["hostKeyMismatch"], true);
+        assert_eq!(json["serverFingerprint"], "SHA256:new_fingerprint");
+    }
+
+    // ── SessionStatusPayload serialization ──
+
+    #[test]
+    fn session_status_payload_serializes_camel_case() {
+        let payload = SessionStatusPayload {
+            session_id: "sess-1".to_string(),
+            status: "connected".to_string(),
+            message: None,
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+
+        assert_eq!(json["sessionId"], "sess-1");
+        assert_eq!(json["status"], "connected");
+        assert!(json.get("session_id").is_none());
+        assert!(json.get("message").is_none()); // skip_serializing_if
+    }
+
+    #[test]
+    fn session_status_payload_includes_message_when_present() {
+        let payload = SessionStatusPayload {
+            session_id: "sess-2".to_string(),
+            status: "error".to_string(),
+            message: Some("connection refused".to_string()),
+        };
+        let json = serde_json::to_value(&payload).unwrap();
+
+        assert_eq!(json["message"], "connection refused");
+    }
+
+    // ── SessionInfo serialization ──
+
+    #[test]
+    fn session_info_serializes_camel_case() {
+        let info = SessionInfo {
+            session_id: "sess-1".to_string(),
+            profile_id: "prof-1".to_string(),
+            home_path: "/home/user".to_string(),
+            fingerprint: "SHA256:abc".to_string(),
+        };
+        let json = serde_json::to_value(&info).unwrap();
+
+        assert_eq!(json["sessionId"], "sess-1");
+        assert_eq!(json["profileId"], "prof-1");
+        assert_eq!(json["homePath"], "/home/user");
+        assert_eq!(json["fingerprint"], "SHA256:abc");
+        assert!(json.get("session_id").is_none());
+        assert!(json.get("profile_id").is_none());
+    }
+
+    // ── build_connected_result helper ──
+
+    #[test]
+    fn build_connected_result_maps_fields_correctly() {
+        let connect_result = ConnectResult {
+            session_id: "sess-99".to_string(),
+            home_path: "/root".to_string(),
+            fingerprint: "SHA256:test".to_string(),
+        };
+        let result = build_connected_result(connect_result);
+
+        assert_eq!(result.session_id.as_deref(), Some("sess-99"));
+        assert_eq!(result.home_path.as_deref(), Some("/root"));
+        assert_eq!(result.server_fingerprint.as_deref(), Some("SHA256:test"));
+        assert!(result.server_key_type.is_none());
+        assert!(!result.need_host_key_confirm);
+        assert!(!result.host_key_mismatch);
+    }
 }

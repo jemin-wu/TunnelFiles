@@ -1,8 +1,12 @@
 /**
- * 终端 IPC 调用封装
+ * Terminal IPC wrapper
+ *
+ * All terminal-related Tauri IPC call wrappers with Zod validation
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { z } from "zod";
+import { parseInvokeResult } from "./error";
 import type {
   TerminalInfo,
   TerminalOpenInput,
@@ -10,34 +14,49 @@ import type {
   TerminalResizeInput,
 } from "@/types/terminal";
 
+// ============================================================================
+// Schemas
+// ============================================================================
+
+const TerminalInfoSchema = z.object({
+  terminalId: z.string(),
+  sessionId: z.string(),
+});
+
+// ============================================================================
+// Terminal Operations
+// ============================================================================
+
 /** 打开终端 */
 export async function openTerminal(input: TerminalOpenInput): Promise<TerminalInfo> {
-  return invoke("terminal_open", { input });
+  const result = await invoke("terminal_open", { input });
+  return parseInvokeResult(TerminalInfoSchema, result, "terminal_open");
 }
 
 /** 写入终端输入 */
 export async function writeTerminalInput(input: TerminalInputData): Promise<void> {
-  return invoke("terminal_input", { input });
+  await invoke("terminal_input", { input });
 }
 
 /** 调整终端尺寸 */
 export async function resizeTerminal(input: TerminalResizeInput): Promise<void> {
-  return invoke("terminal_resize", { input });
+  await invoke("terminal_resize", { input });
 }
 
 /** 关闭终端 */
 export async function closeTerminal(terminalId: string): Promise<void> {
-  return invoke("terminal_close", { terminalId });
+  await invoke("terminal_close", { terminalId });
 }
 
 /** 手动重连终端 */
 export async function reconnectTerminal(terminalId: string): Promise<void> {
-  return invoke("terminal_reconnect", { terminalId });
+  await invoke("terminal_reconnect", { terminalId });
 }
 
 /** 通过 sessionId 获取终端 ID */
 export async function getTerminalBySession(sessionId: string): Promise<string | null> {
-  return invoke("terminal_get_by_session", { sessionId });
+  const result = await invoke("terminal_get_by_session", { sessionId });
+  return parseInvokeResult(z.string().nullable(), result, "terminal_get_by_session");
 }
 
 /** Base64 编码（用于发送输入，支持 UTF-8） */

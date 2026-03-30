@@ -1,8 +1,12 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 错误码枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum ErrorCode {
     AuthFailed,
@@ -22,6 +26,8 @@ pub enum ErrorCode {
 
 /// 统一错误模型
 #[derive(Debug, Clone, Serialize, Deserialize, Error)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[error("{message}")]
 pub struct AppError {
     pub code: ErrorCode,
@@ -215,5 +221,189 @@ mod tests {
         let code = ErrorCode::HostkeyMismatch;
         let json = serde_json::to_string(&code).unwrap();
         assert_eq!(json, "\"HOSTKEY_MISMATCH\"");
+    }
+
+    // --- From trait conversion tests ---
+
+    #[test]
+    fn test_from_ssh2_error_auth_failed() {
+        // LIBSSH2_ERROR_AUTHENTICATION_FAILED = -18
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::Session(-18), "auth failed");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::AuthFailed);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_ssh2_error_timeout() {
+        // LIBSSH2_ERROR_TIMEOUT = -43
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::Session(-43), "timed out");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::Timeout);
+        assert!(!app_err.message.is_empty());
+        assert_eq!(app_err.retryable, Some(true));
+    }
+
+    #[test]
+    fn test_from_ssh2_error_sftp_no_such_file() {
+        // LIBSSH2_FX_NO_SUCH_FILE = 2
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::SFTP(2), "no such file");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::NotFound);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_ssh2_error_sftp_permission_denied() {
+        // LIBSSH2_FX_PERMISSION_DENIED = 3
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::SFTP(3), "permission denied");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::PermissionDenied);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_ssh2_error_sftp_failure() {
+        // LIBSSH2_FX_FAILURE = 4 (mapped to dir_not_empty)
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::SFTP(4), "failure");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::DirNotEmpty);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_ssh2_error_sftp_already_exists() {
+        // LIBSSH2_FX_FILE_ALREADY_EXISTS = 11
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::SFTP(11), "file already exists");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::AlreadyExists);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_ssh2_error_unknown_code() {
+        let ssh_err = ssh2::Error::new(ssh2::ErrorCode::Session(-999), "unknown error");
+        let app_err = AppError::from(ssh_err);
+        assert_eq!(app_err.code, ErrorCode::RemoteIoError);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_io_error_not_found() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::NotFound);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_io_error_permission_denied() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::PermissionDenied);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_io_error_timed_out() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::TimedOut, "connection timed out");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::Timeout);
+        assert!(!app_err.message.is_empty());
+        assert_eq!(app_err.retryable, Some(true));
+    }
+
+    #[test]
+    fn test_from_io_error_connection_reset() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::ConnectionReset, "connection reset");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::NetworkLost);
+        assert!(!app_err.message.is_empty());
+        assert_eq!(app_err.retryable, Some(true));
+    }
+
+    #[test]
+    fn test_from_io_error_connection_aborted() {
+        let io_err =
+            std::io::Error::new(std::io::ErrorKind::ConnectionAborted, "connection aborted");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::NetworkLost);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_io_error_other() {
+        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "something else");
+        let app_err = AppError::from(io_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+        assert_eq!(app_err.retryable, Some(true));
+    }
+
+    #[test]
+    fn test_from_rusqlite_error() {
+        let sql_err = rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT),
+            Some("UNIQUE constraint failed".to_string()),
+        );
+        let app_err = AppError::from(sql_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+        assert!(app_err.message.contains("数据库错误"));
+    }
+
+    #[test]
+    fn test_from_rusqlite_error_query_returned_no_rows() {
+        let sql_err = rusqlite::Error::QueryReturnedNoRows;
+        let app_err = AppError::from(sql_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_serde_json_error() {
+        let json_err = serde_json::from_str::<serde_json::Value>("not valid json").unwrap_err();
+        let app_err = AppError::from(json_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+        assert!(app_err.message.contains("JSON"));
+    }
+
+    #[test]
+    fn test_from_keyring_error_no_entry() {
+        let kr_err = keyring::Error::NoEntry;
+        let app_err = AppError::from(kr_err);
+        assert_eq!(app_err.code, ErrorCode::NotFound);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_keyring_error_too_long() {
+        let kr_err = keyring::Error::TooLong("service".to_string(), 255);
+        let app_err = AppError::from(kr_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_keyring_error_invalid() {
+        let kr_err = keyring::Error::Invalid("attr".to_string(), "bad value".to_string());
+        let app_err = AppError::from(kr_err);
+        assert_eq!(app_err.code, ErrorCode::LocalIoError);
+        assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_from_string() {
+        let app_err = AppError::from("custom error message".to_string());
+        assert_eq!(app_err.code, ErrorCode::Unknown);
+        assert_eq!(app_err.message, "custom error message");
+    }
+
+    #[test]
+    fn test_from_str() {
+        let app_err = AppError::from("static error message");
+        assert_eq!(app_err.code, ErrorCode::Unknown);
+        assert_eq!(app_err.message, "static error message");
     }
 }

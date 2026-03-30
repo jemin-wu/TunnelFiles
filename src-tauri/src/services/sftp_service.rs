@@ -11,6 +11,7 @@ use std::path::Path;
 use ssh2::Sftp;
 
 use crate::models::error::{AppError, AppResult};
+use crate::utils::path_security;
 
 // Unix 文件类型常量
 const S_IFMT: u32 = 0o170000; // 文件类型掩码
@@ -67,15 +68,12 @@ impl SftpService {
 
     /// 验证路径安全性
     ///
-    /// 确保路径不会导致路径遍历攻击
+    /// 委托给 `path_security::validate_remote_path`，统一检测：
+    /// - 路径遍历（`..`）
+    /// - URL 编码遍历（`%2e`, `%2f`, `%5c`）
+    /// - 空字节注入
     pub fn validate_path(path: &str) -> AppResult<()> {
-        let normalized = Self::normalize_path(path);
-
-        // 相对路径中包含 .. 是不安全的
-        if normalized.starts_with("..") || normalized.contains("/..") {
-            return Err(AppError::invalid_argument("不允许访问父目录之上的路径"));
-        }
-
+        path_security::validate_remote_path(path)?;
         Ok(())
     }
 
@@ -896,6 +894,7 @@ mod tests {
         assert!(SftpService::validate_path("/home/user").is_ok());
         assert!(SftpService::validate_path("/etc/passwd").is_ok());
         assert!(SftpService::validate_path("/").is_ok());
+        assert!(SftpService::validate_path("relative/path").is_ok());
     }
 
     #[test]
@@ -903,6 +902,20 @@ mod tests {
         // 相对路径尝试向上遍历
         assert!(SftpService::validate_path("../etc/passwd").is_err());
         assert!(SftpService::validate_path("../../root").is_err());
+        assert!(SftpService::validate_path("/home/../etc/passwd").is_err());
+        assert!(SftpService::validate_path("/home/user/../../etc").is_err());
+    }
+
+    #[test]
+    fn test_validate_path_encoded_traversal() {
+        // URL 编码遍历
+        assert!(SftpService::validate_path("/home/%2e%2e/etc").is_err());
+        assert!(SftpService::validate_path("/home/%2E%2E/etc").is_err());
+    }
+
+    #[test]
+    fn test_validate_path_null_byte() {
+        assert!(SftpService::validate_path("/home/user\0/file").is_err());
     }
 
     #[test]

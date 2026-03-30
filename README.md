@@ -104,13 +104,6 @@ E2E_FORCE=1 pnpm run test:e2e -- --spec test/e2e/specs/smoke.test.ts
 pnpm run e2e:env:down
 ```
 
-## IDE 配置
-
-推荐使用 [VS Code](https://code.visualstudio.com/) 并安装以下插件：
-
-- [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-
 ## 许可证
 
 [MIT](LICENSE)

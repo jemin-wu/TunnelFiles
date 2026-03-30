@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 文件条目
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {
     pub name: String,
@@ -19,6 +23,8 @@ pub struct FileEntry {
 
 /// 排序字段
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum SortField {
     #[default]
@@ -29,6 +35,8 @@ pub enum SortField {
 
 /// 排序顺序
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrder {
     #[default]
@@ -38,6 +46,8 @@ pub enum SortOrder {
 
 /// 排序规格
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 pub struct SortSpec {
     pub field: SortField,
     pub order: SortOrder,

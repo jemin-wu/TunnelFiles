@@ -64,6 +64,10 @@ export interface SessionConnectResult {
   needHostKeyConfirm: boolean;
   /** 服务器指纹 */
   serverFingerprint: string | null;
+  /** 服务器密钥类型（如 ssh-ed25519, ssh-rsa） */
+  serverKeyType: string | null;
+  /** HostKey 是否为不匹配（服务器密钥已变更，非首次连接） */
+  hostKeyMismatch: boolean;
 }
 
 /**

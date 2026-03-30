@@ -1,9 +1,13 @@
 //! 终端相关数据模型
 
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 终端状态
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum TerminalStatus {
     Connected,
@@ -14,6 +18,8 @@ pub enum TerminalStatus {
 
 /// 终端信息（返回给前端）
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalInfo {
     pub terminal_id: String,
@@ -22,6 +28,8 @@ pub struct TerminalInfo {
 
 /// 终端输出事件 payload
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalOutputPayload {
     pub terminal_id: String,
@@ -31,6 +39,8 @@ pub struct TerminalOutputPayload {
 
 /// 终端状态事件 payload
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalStatusPayload {
     pub terminal_id: String,

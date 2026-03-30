@@ -1,73 +1,84 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+TunnelFiles — Cross-platform desktop SSH/SFTP file manager.
+Tauri 2 (Rust) · React 19 · TypeScript · TailwindCSS 4 · shadcn/ui · TanStack Query · Zustand · xterm.js
 
-## Project Overview
-
-TunnelFiles — Cross-platform desktop SSH/SFTP visual file manager built with Tauri 2 (Rust) + React 19 + TypeScript + TailwindCSS 4 + shadcn/ui.
-
-## Development Workflow
-
-| Task             | Skill               | Description                                             |
-| ---------------- | ------------------- | ------------------------------------------------------- |
-| New feature      | `/feature-dev`      | Six-phase TDD workflow with acceptance                  |
-| Bug fix          | `/bug-fix`          | Four-phase: Reproduce → Investigate → Fix → Validate    |
-| Quality check    | `/acceptance`       | Code review + UX review + Tests + Contract verification |
-| Product planning | `/product-planning` | Competitive analysis → Feature roadmap                  |
-| Auto-repair      | `/self-heal`        | Run tests → Diagnose → Fix → Verify                     |
-| CI checks        | `/ci`               | Run all lint/format/test checks locally                 |
-| Release          | `/release`          | Version bump + CHANGELOG + git tag                      |
-
-## Agents
-
-| Agent                | Purpose                                                       |
-| -------------------- | ------------------------------------------------------------- |
-| `code-explorer`      | Deep codebase analysis, execution path tracing                |
-| `code-architect`     | Architecture design, implementation blueprints                |
-| `code-reviewer`      | Code review, security audit, convention compliance            |
-| `contract-verifier`  | IPC contract alignment between Rust commands and TS types/Zod |
-| `competitor-analyst` | Market research, competitive feature analysis                 |
-| `ux-reviewer`        | UI/UX consistency, accessibility, design system audit         |
-| `test-runner`        | Test execution, failure collection, result reporting          |
-
-## Quick Commands
+## Commands
 
 ```bash
-pnpm tauri dev                        # Full dev environment
-pnpm lint && pnpm format:check        # Frontend lint + format check
-pnpm test:run                         # Frontend tests (Vitest)
-cd src-tauri && cargo test --lib --bins  # Backend tests
+pnpm tauri dev                           # Full dev environment
+pnpm lint && pnpm format:check           # Frontend quality check
+pnpm test:run                            # Frontend tests (Vitest)
+cd src-tauri && cargo test --lib --bins   # Backend tests
+pnpm generate:types                      # Regenerate TS bindings from Rust (ts-rs)
 ```
 
-## Critical Rules
+Before committing: `pnpm lint && pnpm format:check && pnpm test:run`
 
-1. **Security** — System keychain only for credentials, never plaintext. Never log passwords.
-2. **IPC** — Always use `src/lib/` wrappers, never `invoke()` directly in components.
-3. **State** — TanStack Query for server data, Zustand for real-time events only.
-4. **Rust** — No `unwrap()` in production. Use `spawn_blocking` for CPU work and `ssh2` ops.
-5. **TDD** — Write tests BEFORE implementation when using `/feature-dev`.
-6. **Full-stack order** — Types → Rust commands → lib/ wrappers → hooks → UI components.
+Commit format: `type(scope): description` — types: feat|fix|refactor|style|docs|test|chore
 
-## Key Gotchas
+## Architecture
 
-- `ssh2::Sftp` is not Send/Sync — must use `spawn_blocking` with `Arc<Session>`
-- Terminal and SFTP require separate SSH sessions (cannot share one Session)
-- Event listeners need React StrictMode-safe cleanup pattern
-- Tauri `State<T>` type must exactly match `.manage()` registration
-- E2E: WebKitWebDriver doesn't support `text=`/`button=` selectors — use XPath (`//button[contains(., 'X')]`)
-- E2E: `browser.url("/")` is invalid for WebKitWebDriver — use absolute URLs via `browser.getUrl()`
+```mermaid
+graph LR
+  UI[UI Components] --> Hooks --> Lib["lib/*.ts<br/>(Zod + invoke)"]
+  Lib -->|Tauri IPC| Cmd["commands/*.rs"]
+  Cmd --> Svc["services/*.rs"]
+  Svc --> DB[SQLite]
+  Svc --> SSH[SSH/SFTP]
+```
 
-## Design Context
+New feature build order: Types → Rust commands → lib/ wrappers → hooks → UI components
 
-See `.impeccable.md` for full design context. Key points:
+### Routes
 
-- **Personality**: Precise. Capable. Confident. Professional tool, not consumer app.
-- **Reference**: Ghostty (primary), VS Code, Warp, Linear
-- **Anti-references**: Generic dashboards, glassmorphism, gradient text, neon accents
-- **Theme**: Dark mode primary, light mode secondary
-- **Principles**:
-  1. Hierarchy through contrast, not decoration
-  2. Color is signal, not filler
-  3. Space has rhythm — tight clusters, generous gaps
-  4. Dense but breathable (IDE density)
-  5. Every detail is earned
+| Path                | Page            | Purpose                                   |
+| ------------------- | --------------- | ----------------------------------------- |
+| `/connections`      | ConnectionsPage | Profile list, create/edit/delete, connect |
+| `/files/:sessionId` | FileManagerPage | File browser + terminal (tabbed)          |
+| `/settings`         | SettingsPage    | App configuration                         |
+
+### Frontend (`src/`)
+
+| Directory               | Role                                                        |
+| ----------------------- | ----------------------------------------------------------- |
+| `pages/`                | Route-level components (lazy loaded)                        |
+| `components/{feature}/` | Colocated feature components                                |
+| `components/ui/`        | shadcn/ui primitives only                                   |
+| `hooks/`                | Shared React hooks                                          |
+| `stores/`               | Zustand stores (useTransferStore)                           |
+| `lib/`                  | IPC wrappers — all `invoke()` goes through here             |
+| `types/`                | Hand-written types + `bindings/` (auto-generated via ts-rs) |
+
+### Backend (`src-tauri/src/`)
+
+| Directory   | Role                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------- |
+| `commands/` | IPC entry points (`#[tauri::command]`)                                                   |
+| `services/` | Business logic — SessionManager, SftpService, TerminalManager, TransferManager, Database |
+| `models/`   | Data structs — Profile, FileEntry, Settings, TransferTask, AppError                      |
+| `utils/`    | path_security, logging                                                                   |
+
+## Key Patterns
+
+- **IPC contract**: All frontend calls go through `src/lib/*.ts` wrappers — direct `invoke()` forbidden. Rust commands return `AppResult<T>`.
+- **State management**: TanStack Query for server data (files, profiles, settings) · Zustand for real-time UI (transfer progress) · useState for component-local state.
+- **Type safety**: Rust structs generate `src/types/bindings/` via ts-rs (`pnpm generate:types`). `binding-checks.ts` validates hand-written types against generated ones at `tsc --noEmit` time.
+- **Error handling**: Structured `AppError` + `ErrorCode` enum. Frontend dispatches recovery via `handleErrorByCode()`.
+- **SSH isolation**: SFTP uses the main session's channel. Each terminal instance creates a separate SSH session.
+
+## Quality Gates
+
+- New functions, hooks, or components: implementation plan MUST include a test plan section.
+- Bug fixes: MUST include a regression test covering the fixed scenario.
+
+## CI
+
+- **Frontend**: lint → format → tsc --noEmit → vitest (coverage)
+- **Backend**: cargo fmt → clippy → cargo test
+- **E2E**: WebKitWebDriver + Docker SSH test servers + visual regression
+- **Security**: dependency audit
+
+## Design
+
+@.impeccable.md

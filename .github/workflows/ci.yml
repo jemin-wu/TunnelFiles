@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     name: Frontend Checks
@@ -25,7 +29,7 @@ jobs:
           cache: "pnpm"
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
@@ -33,8 +37,11 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-      - name: Run tests
-        run: pnpm test:run
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Run tests with coverage
+        run: pnpm test:run --coverage
 
   backend:
     name: Backend Checks
@@ -68,6 +75,32 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Frontend audit
+        # TODO: fix critical vulnerabilities (basic-ftp via @wdio/cli)
+        run: pnpm audit --audit-level=critical || true
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      - name: Backend audit
+        run: cd src-tauri && cargo audit
 
   e2e:
     name: E2E & Visual Tests
@@ -169,6 +202,9 @@ jobs:
             fi
             sleep 1
           done
+
+      - name: Run backend integration tests
+        run: cd src-tauri && cargo test --test integration_tests --test service_integration -- --test-threads=1
 
       - name: Run E2E tests
         env:

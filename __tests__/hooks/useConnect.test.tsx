@@ -3,6 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useConnect } from "@/hooks/useConnect";
 import * as sessionLib from "@/lib/session";
 import * as errorLib from "@/lib/error";
+import { ErrorCode } from "@/types/error";
 import type { Profile } from "@/types/profile";
 import type { SessionConnectResult } from "@/types/events";
 
@@ -19,10 +20,14 @@ vi.mock("@/lib/session", () => ({
   reconnectWithTrustedKey: vi.fn(),
 }));
 
-// Mock error lib
-vi.mock("@/lib/error", () => ({
-  showErrorToast: vi.fn(),
-}));
+// Mock error lib (keep isAppError real, mock toast functions)
+vi.mock("@/lib/error", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/error")>();
+  return {
+    ...actual,
+    showErrorToast: vi.fn(),
+  };
+});
 
 const mockProfile: Profile = {
   id: "profile-1",
@@ -50,6 +55,8 @@ const createConnectResult = (
   homePath: null,
   needHostKeyConfirm: false,
   serverFingerprint: null,
+  serverKeyType: null,
+  hostKeyMismatch: false,
   ...overrides,
 });
 
@@ -100,10 +107,11 @@ describe("useConnect", () => {
       expect(sessionLib.connect).not.toHaveBeenCalled();
     });
 
-    it("should set hostKeyPayload when host key confirmation needed", async () => {
+    it("should set hostKeyPayload with status unknown for first connection", async () => {
       const connectResult = createConnectResult({
         needHostKeyConfirm: true,
         serverFingerprint: "SHA256:abc123",
+        hostKeyMismatch: false,
       });
       vi.mocked(sessionLib.connect).mockResolvedValueOnce(connectResult);
 
@@ -117,14 +125,41 @@ describe("useConnect", () => {
         profileId: "profile-1",
         host: "192.168.1.100",
         fingerprint: "SHA256:abc123",
+        status: "unknown",
+      });
+      expect(result.current.isConnecting).toBe(false);
+    });
+
+    it("should set hostKeyPayload with status mismatch when server key changed", async () => {
+      const connectResult = createConnectResult({
+        needHostKeyConfirm: true,
+        serverFingerprint: "SHA256:newkey456",
+        serverKeyType: "ssh-ed25519",
+        hostKeyMismatch: true,
+      });
+      vi.mocked(sessionLib.connect).mockResolvedValueOnce(connectResult);
+
+      const { result } = renderHook(() => useConnect());
+
+      await act(async () => {
+        await result.current.startConnect(mockProfile);
+      });
+
+      expect(result.current.hostKeyPayload).toMatchObject({
+        profileId: "profile-1",
+        host: "192.168.1.100",
+        fingerprint: "SHA256:newkey456",
+        keyType: "ssh-ed25519",
+        status: "mismatch",
       });
       expect(result.current.isConnecting).toBe(false);
     });
 
     it("should handle AUTH_FAILED error for password auth", async () => {
-      vi.mocked(sessionLib.connect).mockRejectedValueOnce(
-        new Error("AUTH_FAILED: password required")
-      );
+      vi.mocked(sessionLib.connect).mockRejectedValueOnce({
+        code: ErrorCode.AUTH_FAILED,
+        message: "认证失败，请检查用户名和密码",
+      });
 
       const { result } = renderHook(() => useConnect());
 

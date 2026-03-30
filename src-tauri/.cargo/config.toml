@@ -1,0 +1,5 @@
+[env]
+# ts-rs: export generated TypeScript bindings to src/types/bindings/
+TS_RS_EXPORT_DIR = { value = "../src/types/bindings", relative = true }
+# Use "number" for u64/i64 (frontend uses number, not bigint)
+TS_RS_LARGE_INT = "number"

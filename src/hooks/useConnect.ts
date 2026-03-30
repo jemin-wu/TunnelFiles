@@ -6,7 +6,8 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { connect, trustHostKey, reconnectWithTrustedKey } from "@/lib/session";
-import { showErrorToast } from "@/lib/error";
+import { isAppError, showErrorToast } from "@/lib/error";
+import { ErrorCode } from "@/types/error";
 import type { Profile } from "@/types/profile";
 import type { HostKeyPayload, SessionConnectResult } from "@/types/events";
 
@@ -57,7 +58,7 @@ export function useConnect(): UseConnectReturn {
   const handleConnectResult = useCallback(
     (result: SessionConnectResult, profile: Profile) => {
       if (result.needHostKeyConfirm && result.serverFingerprint) {
-        // 需要确认 HostKey
+        // 需要确认 HostKey（首次连接或密钥变更）
         setState((prev) => ({
           ...prev,
           isConnecting: false,
@@ -66,8 +67,8 @@ export function useConnect(): UseConnectReturn {
             host: profile.host,
             port: profile.port,
             fingerprint: result.serverFingerprint!,
-            keyType: "ssh-rsa", // 后端应该返回实际类型
-            status: "unknown",
+            keyType: result.serverKeyType ?? "ssh-rsa",
+            status: result.hostKeyMismatch ? "mismatch" : "unknown",
           },
         }));
       } else if (result.sessionId) {
@@ -111,9 +112,8 @@ export function useConnect(): UseConnectReturn {
         const result = await connect({ profileId: profile.id });
         handleConnectResult(result, profile);
       } catch (error) {
-        // 检查是否是需要密码的错误
-        const errorStr = String(error);
-        if (errorStr.includes("password required") || errorStr.includes("AUTH_FAILED")) {
+        // 检查是否是认证失败错误（需要密码/passphrase）
+        if (isAppError(error) && error.code === ErrorCode.AUTH_FAILED) {
           setState((prev) => ({
             ...prev,
             isConnecting: false,

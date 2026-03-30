@@ -135,6 +135,8 @@ pub struct HostKeyPending {
     pub fingerprint: String,
     /// 密钥类型
     pub key_type: String,
+    /// 是否为密钥不匹配（服务器密钥已变更）
+    pub is_mismatch: bool,
 }
 
 /// 连接状态
@@ -220,15 +222,25 @@ impl SessionManager {
                     port: profile.port,
                     fingerprint,
                     key_type,
+                    is_mismatch: false,
                 }));
             }
             HostKeyVerifyResult::Mismatch { stored, received } => {
-                return Err(AppError::new(ErrorCode::HostkeyMismatch, "服务器主机密钥已更改")
-                    .with_detail(format!(
-                        "存储的指纹: {}\n接收的指纹: {}\n\n这可能表示服务器已重新配置，或存在中间人攻击的风险。",
-                        stored, received
-                    ))
-                    .with_retryable(false));
+                tracing::warn!(
+                    host = %profile.host,
+                    port = profile.port,
+                    stored = %stored,
+                    received = %received,
+                    "HostKey 不匹配，需要用户确认是否信任新密钥"
+                );
+                return Ok(ConnectStatus::NeedHostKeyConfirm(HostKeyPending {
+                    profile_id: profile.id.clone(),
+                    host: profile.host.clone(),
+                    port: profile.port,
+                    fingerprint,
+                    key_type,
+                    is_mismatch: true,
+                }));
             }
             HostKeyVerifyResult::Matched => {
                 tracing::debug!("HostKey 验证通过");

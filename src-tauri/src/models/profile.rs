@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 认证方式
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum AuthType {
     Password,
@@ -10,6 +14,8 @@ pub enum AuthType {
 
 /// 连接配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub id: String,
@@ -37,7 +43,9 @@ pub struct Profile {
 }
 
 /// 创建/更新连接配置的输入
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct ProfileInput {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,6 +114,8 @@ impl ProfileInput {
 
 /// 最近连接记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct RecentConnection {
     pub id: String,

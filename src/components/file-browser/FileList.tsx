@@ -110,6 +110,7 @@ const FileRow = memo(function FileRow({
   return (
     <div
       role="row"
+      aria-selected={isSelected}
       tabIndex={0}
       data-file-name={file.name}
       data-file-path={file.path}

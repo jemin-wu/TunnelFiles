@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 终端字体大小边界
 pub const TERMINAL_FONT_SIZE_MIN: u8 = 10;
@@ -11,6 +13,8 @@ pub const TERMINAL_SCROLLBACK_DEFAULT: u32 = 5000;
 
 /// 日志级别
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Error,
@@ -42,6 +46,8 @@ impl LogLevel {
 
 /// 应用设置
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     /// 默认下载目录
@@ -76,7 +82,9 @@ impl Default for Settings {
 }
 
 /// 设置更新补丁
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct SettingsPatch {
     #[serde(skip_serializing_if = "Option::is_none")]

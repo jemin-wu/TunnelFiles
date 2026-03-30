@@ -1,9 +1,44 @@
 /**
- * 传输相关 API 函数
+ * Transfer IPC wrapper
+ *
+ * All transfer-related Tauri IPC call wrappers with Zod validation
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { z } from "zod";
+import { parseInvokeResult } from "./error";
 import type { TransferTask } from "@/types/transfer";
+
+// ============================================================================
+// Schemas
+// ============================================================================
+
+const TransferDirectionSchema = z.enum(["upload", "download"]);
+
+const TransferStatusSchema = z.enum(["waiting", "running", "success", "failed", "canceled"]);
+
+const TransferTaskSchema = z.object({
+  taskId: z.string(),
+  sessionId: z.string(),
+  direction: TransferDirectionSchema,
+  localPath: z.string(),
+  remotePath: z.string(),
+  fileName: z.string(),
+  status: TransferStatusSchema,
+  transferred: z.number(),
+  total: z.number().optional(),
+  speed: z.number().optional(),
+  percent: z.number().optional(),
+  errorMessage: z.string().optional(),
+  errorCode: z.string().optional(),
+  retryable: z.boolean().optional(),
+  createdAt: z.number(),
+  completedAt: z.number().optional(),
+});
+
+// ============================================================================
+// Transfer Operations
+// ============================================================================
 
 /**
  * 上传文件
@@ -13,7 +48,8 @@ export async function uploadFile(
   localPath: string,
   remoteDir: string
 ): Promise<string> {
-  return invoke<string>("transfer_upload", { sessionId, localPath, remoteDir });
+  const result = await invoke("transfer_upload", { sessionId, localPath, remoteDir });
+  return parseInvokeResult(z.string(), result, "transfer_upload");
 }
 
 /**
@@ -24,7 +60,8 @@ export async function downloadFile(
   remotePath: string,
   localDir: string
 ): Promise<string> {
-  return invoke<string>("transfer_download", { sessionId, remotePath, localDir });
+  const result = await invoke("transfer_download", { sessionId, remotePath, localDir });
+  return parseInvokeResult(z.string(), result, "transfer_download");
 }
 
 /**
@@ -35,7 +72,8 @@ export async function uploadDirectory(
   localPath: string,
   remoteDir: string
 ): Promise<string[]> {
-  return invoke<string[]>("transfer_upload_dir", { sessionId, localPath, remoteDir });
+  const result = await invoke("transfer_upload_dir", { sessionId, localPath, remoteDir });
+  return parseInvokeResult(z.array(z.string()), result, "transfer_upload_dir");
 }
 
 /**
@@ -46,40 +84,44 @@ export async function downloadDirectory(
   remotePath: string,
   localDir: string
 ): Promise<string[]> {
-  return invoke<string[]>("transfer_download_dir", { sessionId, remotePath, localDir });
+  const result = await invoke("transfer_download_dir", { sessionId, remotePath, localDir });
+  return parseInvokeResult(z.array(z.string()), result, "transfer_download_dir");
 }
 
 /**
  * 取消传输
  */
 export async function cancelTransfer(taskId: string): Promise<void> {
-  return invoke("transfer_cancel", { taskId });
+  await invoke("transfer_cancel", { taskId });
 }
 
 /**
  * 重试传输
  */
 export async function retryTransfer(taskId: string): Promise<string> {
-  return invoke<string>("transfer_retry", { taskId });
+  const result = await invoke("transfer_retry", { taskId });
+  return parseInvokeResult(z.string(), result, "transfer_retry");
 }
 
 /**
  * 获取任务列表
  */
 export async function listTransfers(): Promise<TransferTask[]> {
-  return invoke<TransferTask[]>("transfer_list");
+  const result = await invoke("transfer_list");
+  return parseInvokeResult(z.array(TransferTaskSchema), result, "transfer_list");
 }
 
 /**
  * 获取单个任务
  */
 export async function getTransfer(taskId: string): Promise<TransferTask | null> {
-  return invoke<TransferTask | null>("transfer_get", { taskId });
+  const result = await invoke("transfer_get", { taskId });
+  return parseInvokeResult(TransferTaskSchema.nullable(), result, "transfer_get");
 }
 
 /**
  * 清理已完成的任务
  */
 export async function cleanupTransfers(): Promise<void> {
-  return invoke("transfer_cleanup");
+  await invoke("transfer_cleanup");
 }

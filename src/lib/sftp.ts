@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
 import { ChmodResultSchema } from "./file";
+import { parseInvokeResult } from "./error";
 import type { FileEntry } from "@/types";
 import type { ChmodResult, DirectoryStats, RecursiveDeleteResult } from "@/types/file";
 
@@ -35,7 +36,7 @@ const FileListSchema = z.array(FileEntrySchema);
  */
 export async function listDir(sessionId: string, path: string): Promise<FileEntry[]> {
   const result = await invoke("sftp_list_dir", { sessionId, path });
-  return FileListSchema.parse(result);
+  return parseInvokeResult(FileListSchema, result, "sftp_list_dir");
 }
 
 /**
@@ -46,7 +47,7 @@ export async function stat(sessionId: string, path: string): Promise<FileEntry> 
     sessionId,
     path,
   });
-  return FileEntrySchema.parse(result);
+  return parseInvokeResult(FileEntrySchema, result, "sftp_stat");
 }
 
 /**
@@ -92,7 +93,7 @@ export async function chmod(
   const result = await invoke("sftp_chmod", {
     input: { sessionId, paths, mode },
   });
-  return ChmodResultSchema.parse(result);
+  return parseInvokeResult(ChmodResultSchema, result, "sftp_chmod");
 }
 
 // ============================================================================
@@ -137,7 +138,7 @@ export async function getDirStats(sessionId: string, path: string): Promise<Dire
     sessionId,
     path,
   });
-  return DirectoryStatsSchema.parse(result);
+  return parseInvokeResult(DirectoryStatsSchema, result, "sftp_get_dir_stats");
 }
 
 /**
@@ -152,5 +153,5 @@ export async function deleteRecursive(
   const result = await invoke("sftp_delete_recursive", {
     input: { sessionId, path },
   });
-  return RecursiveDeleteResultSchema.parse(result);
+  return parseInvokeResult(RecursiveDeleteResultSchema, result, "sftp_delete_recursive");
 }

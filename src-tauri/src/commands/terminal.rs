@@ -3,8 +3,10 @@
 use std::sync::Arc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
+#[cfg(test)]
+use ts_rs::TS;
 
 use crate::models::error::{AppError, AppResult};
 use crate::models::terminal::TerminalInfo;
@@ -16,7 +18,9 @@ fn join_err(e: tokio::task::JoinError) -> AppError {
     AppError::remote_io_error(format!("Task join error: {}", e))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalOpenInput {
     pub session_id: String,
@@ -41,7 +45,9 @@ pub async fn terminal_open(
         .map_err(join_err)?
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalInputData {
     pub terminal_id: String,
@@ -64,7 +70,9 @@ pub async fn terminal_input(
         .map_err(join_err)?
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalResizeInput {
     pub terminal_id: String,
@@ -119,4 +127,131 @@ pub async fn terminal_get_by_session(
     session_id: String,
 ) -> AppResult<Option<String>> {
     Ok(terminal_manager.get_terminal_by_session(&session_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── join_err helper ──
+
+    #[test]
+    fn join_err_produces_remote_io_error() {
+        // Create a JoinError by cancelling a spawned task
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let err = rt.block_on(async {
+            let handle = tokio::spawn(async {
+                // This will be cancelled before completing
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                42
+            });
+            handle.abort();
+            handle.await.unwrap_err()
+        });
+
+        let app_err = join_err(err);
+        assert!(
+            app_err.message.contains("Task join error"),
+            "Error message should contain 'Task join error', got: {}",
+            app_err.message
+        );
+    }
+
+    // ── TerminalOpenInput deserialization ──
+
+    #[test]
+    fn terminal_open_input_deserializes_camel_case() {
+        let json = r#"{
+            "sessionId": "sess-1",
+            "cols": 120,
+            "rows": 40
+        }"#;
+        let input: TerminalOpenInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.session_id, "sess-1");
+        assert_eq!(input.cols, Some(120));
+        assert_eq!(input.rows, Some(40));
+    }
+
+    #[test]
+    fn terminal_open_input_optional_cols_rows() {
+        let json = r#"{"sessionId": "sess-1"}"#;
+        let input: TerminalOpenInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.session_id, "sess-1");
+        assert!(input.cols.is_none());
+        assert!(input.rows.is_none());
+    }
+
+    #[test]
+    fn terminal_open_input_rejects_snake_case() {
+        let json = r#"{"session_id": "sess-1"}"#;
+        let result = serde_json::from_str::<TerminalOpenInput>(json);
+        assert!(result.is_err());
+    }
+
+    // ── TerminalInputData deserialization ──
+
+    #[test]
+    fn terminal_input_data_deserializes_camel_case() {
+        let json = r#"{
+            "terminalId": "term-1",
+            "data": "aGVsbG8="
+        }"#;
+        let input: TerminalInputData = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.terminal_id, "term-1");
+        assert_eq!(input.data, "aGVsbG8=");
+    }
+
+    #[test]
+    fn terminal_input_data_rejects_snake_case() {
+        let json = r#"{"terminal_id": "term-1", "data": "aGVsbG8="}"#;
+        let result = serde_json::from_str::<TerminalInputData>(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn terminal_input_data_base64_decode_round_trip() {
+        let original = b"hello world";
+        let encoded = BASE64.encode(original);
+
+        let json = format!(r#"{{"terminalId": "t1", "data": "{}"}}"#, encoded);
+        let input: TerminalInputData = serde_json::from_str(&json).unwrap();
+
+        let decoded = BASE64.decode(&input.data).unwrap();
+        assert_eq!(decoded, original);
+    }
+
+    // ── TerminalResizeInput deserialization ──
+
+    #[test]
+    fn terminal_resize_input_deserializes_camel_case() {
+        let json = r#"{
+            "terminalId": "term-1",
+            "cols": 200,
+            "rows": 50
+        }"#;
+        let input: TerminalResizeInput = serde_json::from_str(json).unwrap();
+
+        assert_eq!(input.terminal_id, "term-1");
+        assert_eq!(input.cols, 200);
+        assert_eq!(input.rows, 50);
+    }
+
+    #[test]
+    fn terminal_resize_input_rejects_snake_case() {
+        let json = r#"{"terminal_id": "term-1", "cols": 80, "rows": 24}"#;
+        let result = serde_json::from_str::<TerminalResizeInput>(json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn terminal_resize_input_boundary_values() {
+        // u16::MAX for cols and rows
+        let json = r#"{"terminalId": "t1", "cols": 65535, "rows": 65535}"#;
+        let input: TerminalResizeInput = serde_json::from_str(json).unwrap();
+        assert_eq!(input.cols, u16::MAX);
+        assert_eq!(input.rows, u16::MAX);
+    }
 }

@@ -5,6 +5,7 @@
  */
 
 import { toast } from "sonner";
+import { ZodError, type z } from "zod";
 import { type AppError, ErrorCode, ERROR_MESSAGES } from "@/types";
 
 /**
@@ -70,6 +71,32 @@ export function getErrorCode(error: unknown): ErrorCode {
     return error.code;
   }
   return ErrorCode.UNKNOWN;
+}
+
+// ============================================
+// IPC Response Validation
+// ============================================
+
+/**
+ * Parse and validate IPC invoke result with Zod schema.
+ *
+ * Converts ZodError into AppError so the UI can display a
+ * structured "validation failed" message instead of a raw Zod stack trace.
+ */
+export function parseInvokeResult<T>(schema: z.ZodType<T>, data: unknown, command: string): T {
+  try {
+    return schema.parse(data);
+  } catch (e) {
+    if (e instanceof ZodError) {
+      throw {
+        code: "UNKNOWN",
+        message: `IPC response validation failed for "${command}"`,
+        detail: e.issues.map((err) => `${err.path.join(".")}: ${err.message}`).join("; "),
+        retryable: false,
+      } as AppError;
+    }
+    throw e;
+  }
 }
 
 // ============================================

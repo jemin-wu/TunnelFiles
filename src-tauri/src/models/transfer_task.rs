@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
+use ts_rs::TS;
 
 /// 传输方向
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum TransferDirection {
     Upload,
@@ -10,6 +14,8 @@ pub enum TransferDirection {
 
 /// 传输状态
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "lowercase")]
 pub enum TransferStatus {
     Waiting,
@@ -21,6 +27,8 @@ pub enum TransferStatus {
 
 /// 传输任务
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TransferTask {
     pub task_id: String,
@@ -59,6 +67,8 @@ pub struct TransferTask {
 
 /// 传输进度事件 payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TransferProgressPayload {
     pub task_id: String,
@@ -70,6 +80,8 @@ pub struct TransferProgressPayload {
 
 /// 传输状态事件 payload
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
 #[serde(rename_all = "camelCase")]
 pub struct TransferStatusPayload {
     pub task_id: String,

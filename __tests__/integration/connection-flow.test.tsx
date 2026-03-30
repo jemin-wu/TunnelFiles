@@ -50,6 +50,8 @@ const connectedResult: SessionConnectResult = {
   homePath: "/home/deploy",
   needHostKeyConfirm: false,
   serverFingerprint: null,
+  serverKeyType: null,
+  hostKeyMismatch: false,
 };
 
 const hostKeyResult: SessionConnectResult = {
@@ -57,6 +59,8 @@ const hostKeyResult: SessionConnectResult = {
   homePath: null,
   needHostKeyConfirm: true,
   serverFingerprint: "SHA256:xyzHostFingerprint123",
+  serverKeyType: "ssh-ed25519",
+  hostKeyMismatch: false,
 };
 
 describe("Connection flow integration", () => {

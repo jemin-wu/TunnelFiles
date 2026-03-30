@@ -1,7 +1,7 @@
 {
   "name": "tunnelfiles",
   "private": true,
-  "version": "2.2.0",
+  "version": "2.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -27,7 +27,8 @@
     "test:visual:with-env": "pnpm run e2e:env:up && pnpm run test:visual:run",
     "test:visual:update": "wdio run ./test/e2e/wdio.visual.conf.ts --update-visual-baseline",
     "e2e:env:up": "cd docker && ./setup-test-env.sh",
-    "e2e:env:down": "cd docker && docker compose down"
+    "e2e:env:down": "cd docker && docker compose down",
+    "generate:types": "cd src-tauri && cargo test export_bindings -- --nocapture"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -8,10 +8,14 @@ import { mockSettings } from "../mocks/tauri";
 import { DEFAULT_SETTINGS } from "@/types/settings";
 
 // Mock toast functions
-vi.mock("@/lib/error", () => ({
-  showSuccessToast: vi.fn(),
-  showErrorToast: vi.fn(),
-}));
+vi.mock("@/lib/error", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/error")>();
+  return {
+    ...actual,
+    showSuccessToast: vi.fn(),
+    showErrorToast: vi.fn(),
+  };
+});
 
 import { showSuccessToast, showErrorToast } from "@/lib/error";
 
@@ -75,9 +79,7 @@ describe("useSettings", () => {
         ...mockSettings,
         maxConcurrentTransfers: 5,
       };
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockResolvedValueOnce(updatedSettings);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockResolvedValueOnce(updatedSettings);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -101,9 +103,7 @@ describe("useSettings", () => {
 
     it("should show error toast on update failure", async () => {
       const error = new Error("Update failed");
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockRejectedValueOnce(error);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockRejectedValueOnce(error);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -164,9 +164,7 @@ describe("useSettings", () => {
         ...mockSettings,
         logLevel: "debug" as const,
       };
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockResolvedValueOnce(updatedSettings);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockResolvedValueOnce(updatedSettings);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -190,9 +188,7 @@ describe("useSettings", () => {
         ...mockSettings,
         connectionTimeoutSecs: 60,
       };
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockResolvedValueOnce(newSettings);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockResolvedValueOnce(newSettings);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -216,9 +212,7 @@ describe("useSettings", () => {
         ...mockSettings,
         defaultDownloadDir: "/new/path",
       };
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockResolvedValueOnce(updatedSettings);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockResolvedValueOnce(updatedSettings);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -243,9 +237,7 @@ describe("useSettings", () => {
         maxConcurrentTransfers: 6,
         transferRetryCount: 5,
       };
-      vi.mocked(invoke)
-        .mockResolvedValueOnce(mockSettings)
-        .mockResolvedValueOnce(updatedSettings);
+      vi.mocked(invoke).mockResolvedValueOnce(mockSettings).mockResolvedValueOnce(updatedSettings);
 
       const { result } = renderHook(() => useSettings(), { wrapper });
 

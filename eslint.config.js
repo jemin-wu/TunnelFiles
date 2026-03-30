@@ -97,6 +97,6 @@ export default [
   },
   prettier,
   {
-    ignores: ["node_modules/", "dist/", "src-tauri/target/"],
+    ignores: ["node_modules/", "dist/", "src-tauri/target/", "src/types/bindings/"],
   },
 ];
