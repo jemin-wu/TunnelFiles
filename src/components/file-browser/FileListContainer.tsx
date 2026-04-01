@@ -9,6 +9,7 @@ import { FileList } from "./FileList";
 import { CreateFolderDialog } from "./CreateFolderDialog";
 import { RenameDialog } from "./RenameDialog";
 import { ChmodDialog } from "./ChmodDialog";
+import { PreviewDialog } from "./PreviewDialog";
 import { useFileList } from "@/hooks/useFileList";
 import { useFileSelection } from "@/hooks/useFileSelection";
 import { useFileOperations } from "@/hooks/useFileOperations";
@@ -53,7 +54,10 @@ export function FileListContainer({
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [chmodOpen, setChmodOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileEntry | null>(null);
   const [targetFile, setTargetFile] = useState<FileEntry | null>(null);
+  const [filterQuery, setFilterQuery] = useState("");
 
   const { files: rawFiles, isLoading } = useFileList({
     sessionId,
@@ -61,16 +65,23 @@ export function FileListContainer({
     enabled: !!sessionId,
   });
 
-  const { createFolder, rename, deleteItem, deleteRecursive, chmod } = useFileOperations({
-    sessionId,
-    currentPath,
-  });
+  const { createFolder, rename, deleteItem, deleteRecursive, batchDelete, chmod } =
+    useFileOperations({
+      sessionId,
+      currentPath,
+    });
 
   const { settings } = useSettings();
   const addTask = useTransferStore((s) => s.addTask);
 
   const files = useMemo(() => {
-    const filtered = showHidden ? rawFiles : rawFiles.filter((f) => !f.name.startsWith("."));
+    let filtered = showHidden ? rawFiles : rawFiles.filter((f) => !f.name.startsWith("."));
+
+    // Apply filter query
+    if (filterQuery) {
+      const q = filterQuery.toLowerCase();
+      filtered = filtered.filter((f) => f.name.toLowerCase().includes(q));
+    }
 
     if (!sort) return filtered;
 
@@ -97,7 +108,7 @@ export function FileListContainer({
 
       return sort.order === "desc" ? -cmp : cmp;
     });
-  }, [rawFiles, showHidden, sort]);
+  }, [rawFiles, showHidden, sort, filterQuery]);
 
   const { selectedFiles, selectFile, selectAll, clearSelection, isSelected, selectionCount } =
     useFileSelection(files);
@@ -105,6 +116,7 @@ export function FileListContainer({
   const navigateTo = useCallback(
     (path: string) => {
       clearSelection();
+      setFilterQuery("");
       onPathChange(path);
     },
     [clearSelection, onPathChange]
@@ -160,14 +172,22 @@ export function FileListContainer({
   );
 
   const handleDelete = useCallback(
-    (file: FileEntry) => {
-      if (file.isDir) {
-        deleteRecursive.mutate({ path: file.path });
+    (files: FileEntry | FileEntry[]) => {
+      const items = Array.isArray(files) ? files : [files];
+      if (items.length === 0) return;
+
+      if (items.length === 1) {
+        const file = items[0];
+        if (file.isDir) {
+          deleteRecursive.mutate({ path: file.path });
+        } else {
+          deleteItem.mutate({ path: file.path, isDir: false });
+        }
       } else {
-        deleteItem.mutate({ path: file.path, isDir: false });
+        batchDelete.mutate(items.map((f) => ({ path: f.path, isDir: f.isDir })));
       }
     },
-    [deleteItem, deleteRecursive]
+    [deleteItem, deleteRecursive, batchDelete]
   );
 
   const handleChmod = useCallback((file: FileEntry) => {
@@ -258,15 +278,22 @@ export function FileListContainer({
           onSortChange={handleSortChange}
           onDownload={handleDownload}
           onRename={handleRename}
-          onDelete={handleDelete}
+          onDelete={(file) => {
+            // When multi-select is active, delete all selected files
+            if (selectedFiles.length > 1 && isSelected(file.path)) {
+              handleDelete(selectedFiles);
+            } else {
+              handleDelete(file);
+            }
+          }}
           onChmod={handleChmod}
           onKeyAction={(action) => {
             if (action === "selectAll") {
               selectAll();
             } else if (action === "clearSelection") {
               clearSelection();
-            } else if (action === "delete" && selectedFiles.length === 1) {
-              handleDelete(selectedFiles[0]);
+            } else if (action === "delete" && selectedFiles.length > 0) {
+              handleDelete(selectedFiles);
             } else if (action === "newFolder") {
               setCreateFolderOpen(true);
             } else if (action === "preview" && selectedFiles.length === 1) {
@@ -274,7 +301,8 @@ export function FileListContainer({
               if (file.isDir) {
                 navigateTo(file.path);
               } else {
-                handleDownload(file);
+                setPreviewFile(file);
+                setPreviewOpen(true);
               }
             } else if (action === "parentDir") {
               if (currentPath !== "/") {
@@ -286,6 +314,8 @@ export function FileListContainer({
             }
           }}
           isLoading={isLoading}
+          filterQuery={filterQuery}
+          onFilterChange={setFilterQuery}
         />
       </div>
 
@@ -319,6 +349,18 @@ export function FileListContainer({
         files={selectedFiles.length > 0 ? selectedFiles : targetFile ? [targetFile] : []}
         onSubmit={handleChmodSubmit}
         isPending={chmod.isPending}
+      />
+
+      {/* File preview dialog */}
+      <PreviewDialog
+        open={previewOpen}
+        onOpenChange={(open) => {
+          setPreviewOpen(open);
+          if (!open) setPreviewFile(null);
+        }}
+        file={previewFile}
+        sessionId={sessionId}
+        onDownload={handleDownload}
       />
     </div>
   );

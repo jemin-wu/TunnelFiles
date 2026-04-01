@@ -4,7 +4,7 @@
 
 import { useRef, useCallback, useEffect, memo } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronUp, ChevronDown, FolderOpen } from "lucide-react";
+import { ChevronUp, ChevronDown, FolderOpen, Search, X } from "lucide-react";
 
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { FileIcon } from "./FileIcon";
@@ -42,6 +42,9 @@ interface FileListProps {
       | "rename"
   ) => void;
   isLoading?: boolean;
+  /** Directory filter */
+  filterQuery?: string;
+  onFilterChange?: (query: string) => void;
 }
 
 const ROW_HEIGHT = 36;
@@ -177,6 +180,24 @@ const FileRow = memo(function FileRow({
   );
 });
 
+function FilterBar({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="border-border bg-muted/30 flex h-7 items-center gap-1.5 border-b px-3">
+      <Search className="text-muted-foreground size-3" />
+      <span className="text-xs">
+        Filter: <span className="text-foreground font-medium">{query}</span>
+      </span>
+      <button
+        onClick={onClear}
+        className="text-muted-foreground hover:text-foreground ml-auto"
+        aria-label="Clear filter"
+      >
+        <X className="size-3" />
+      </button>
+    </div>
+  );
+}
+
 export function FileList({
   files,
   isSelected,
@@ -191,6 +212,8 @@ export function FileList({
   onChmod,
   onKeyAction,
   isLoading,
+  filterQuery = "",
+  onFilterChange,
 }: FileListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -219,10 +242,14 @@ export function FileList({
       const currentIndex = getFirstSelectedIndex();
       const modifiers = { metaKey: e.metaKey || e.ctrlKey, shiftKey: e.shiftKey };
 
-      // Escape: clear selection
+      // Escape: clear filter first, then clear selection
       if (e.key === "Escape") {
         e.preventDefault();
-        onKeyAction?.("clearSelection");
+        if (filterQuery) {
+          onFilterChange?.("");
+        } else {
+          onKeyAction?.("clearSelection");
+        }
         return;
       }
 
@@ -249,10 +276,12 @@ export function FileList({
         return;
       }
 
-      // Space: quick preview (Quick Look)
+      // Space: filter character when filter active, otherwise preview
       if (e.key === " " && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
         e.preventDefault();
-        if (selectionCount === 1 && currentIndex >= 0) {
+        if (filterQuery) {
+          onFilterChange?.(filterQuery + " ");
+        } else if (selectionCount === 1 && currentIndex >= 0) {
           onKeyAction?.("preview");
         }
         return;
@@ -271,6 +300,20 @@ export function FileList({
         if (selectionCount === 1) {
           onKeyAction?.("rename");
         }
+        return;
+      }
+
+      // Backspace: remove last filter character
+      if (e.key === "Backspace" && filterQuery && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        onFilterChange?.(filterQuery.slice(0, -1));
+        return;
+      }
+
+      // Alphanumeric typing: activate/extend filter
+      if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && /^[a-zA-Z0-9._-]$/.test(e.key)) {
+        e.preventDefault();
+        onFilterChange?.((filterQuery ?? "") + e.key);
         return;
       }
 
@@ -296,6 +339,8 @@ export function FileList({
       onFileDblClick,
       onKeyAction,
       virtualizer,
+      filterQuery,
+      onFilterChange,
     ]
   );
 
@@ -309,6 +354,21 @@ export function FileList({
     return (
       <div className="flex h-full items-center justify-center">
         <LoadingSpinner size="sm" />
+      </div>
+    );
+  }
+
+  // Filter no-match state
+  if (!isLoading && files.length === 0 && filterQuery) {
+    return (
+      <div className="flex h-full flex-col">
+        <FilterBar query={filterQuery} onClear={() => onFilterChange?.("")} />
+        <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2">
+          <p className="text-sm">No matches for &quot;{filterQuery}&quot;</p>
+          <Button variant="ghost" size="sm" onClick={() => onFilterChange?.("")}>
+            Clear filter
+          </Button>
+        </div>
       </div>
     );
   }
@@ -337,6 +397,9 @@ export function FileList({
 
   return (
     <div className="flex h-full flex-col" role="grid" aria-label="File list">
+      {/* Filter bar */}
+      {filterQuery && <FilterBar query={filterQuery} onClear={() => onFilterChange?.("")} />}
+
       {/* Header */}
       <div
         role="row"
@@ -416,6 +479,7 @@ export function FileList({
                 <FileContextMenu
                   file={file}
                   selectionCount={selectionCount}
+                  isFileInSelection={isSelected(file.path)}
                   onEnterDir={file.isDir ? () => onFileDblClick(file) : undefined}
                   onDownload={onDownload ? () => onDownload(file) : undefined}
                   onRename={onRename ? () => onRename(file) : undefined}

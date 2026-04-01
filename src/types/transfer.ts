@@ -40,6 +40,22 @@ export interface TransferTask {
 }
 
 /**
+ * 传输历史条目（来自数据库持久化）
+ */
+export interface TransferHistoryEntry {
+  id: string;
+  sessionId: string;
+  direction: TransferDirection;
+  localPath: string;
+  remotePath: string;
+  fileSize: number;
+  status: "running" | "success" | "failed" | "canceled";
+  errorMessage: string | null;
+  startedAt: number;
+  finishedAt: number | null;
+}
+
+/**
  * 格式化传输速度
  */
 export function formatSpeed(bytesPerSecond?: number): string {

@@ -23,6 +23,17 @@ export interface Profile {
   updatedAt: number;
 }
 
+/** Recent connection record */
+export interface RecentConnection {
+  id: string;
+  profileId: string;
+  profileName: string;
+  host: string;
+  username: string;
+  /** Connected timestamp (Unix ms) */
+  connectedAt: number;
+}
+
 /** Input for creating/updating a connection profile */
 export interface ProfileInput {
   id?: string;

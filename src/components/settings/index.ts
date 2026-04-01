@@ -1,1 +1,1 @@
-// Settings exports - to be implemented
+export { KnownHostsList } from "./KnownHostsList";

@@ -49,7 +49,10 @@ pub fn run() {
     let session_manager = Arc::new(SessionManager::new());
 
     // 4. 初始化传输管理器
-    let transfer_manager = Arc::new(TransferManager::new(settings.max_concurrent_transfers));
+    let transfer_manager = Arc::new(TransferManager::new(
+        settings.max_concurrent_transfers,
+        db.clone(),
+    ));
 
     // 5. 初始化终端管理器
     let terminal_manager = Arc::new(TerminalManager::new());
@@ -69,6 +72,7 @@ pub fn run() {
             commands::profile::profile_get,
             commands::profile::profile_upsert,
             commands::profile::profile_delete,
+            commands::profile::profile_recent_connections,
             // Session 命令
             commands::session::session_connect,
             commands::session::session_connect_after_trust,
@@ -79,6 +83,7 @@ pub fn run() {
             commands::security::security_trust_hostkey,
             commands::security::security_remove_hostkey,
             commands::security::security_check_hostkey,
+            commands::security::security_list_known_hosts,
             // Settings 命令
             commands::settings::settings_get,
             commands::settings::settings_set,
@@ -89,9 +94,11 @@ pub fn run() {
             commands::sftp::sftp_mkdir,
             commands::sftp::sftp_rename,
             commands::sftp::sftp_delete,
+            commands::sftp::sftp_batch_delete,
             commands::sftp::sftp_chmod,
             commands::sftp::sftp_get_dir_stats,
             commands::sftp::sftp_delete_recursive,
+            commands::sftp::sftp_read_file,
             // Transfer 命令
             commands::transfer::transfer_upload,
             commands::transfer::transfer_upload_dir,
@@ -102,6 +109,8 @@ pub fn run() {
             commands::transfer::transfer_list,
             commands::transfer::transfer_get,
             commands::transfer::transfer_cleanup,
+            commands::transfer::transfer_history_list,
+            commands::transfer::transfer_history_clear,
             // Terminal 命令
             commands::terminal::terminal_open,
             commands::terminal::terminal_input,

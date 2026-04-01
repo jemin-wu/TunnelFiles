@@ -121,9 +121,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    // Click the connection item to connect
-    const items = screen.getAllByRole("listitem");
-    await user.click(items[0]);
+    // Click the "Production Server" connection item to connect
+    const prodItem = screen.getByText("Production Server").closest("[role='listitem']")!;
+    await user.click(prodItem);
 
     // Should navigate to /files/session-abc which shows file browser
     await waitFor(() => {
@@ -144,8 +144,8 @@ describe("Connection flow integration", () => {
     });
 
     // Click on "Dev Server" item (no passwordRef => needs password)
-    const items = screen.getAllByRole("listitem");
-    await user.click(items[1]);
+    const devItem = screen.getByText("Dev Server").closest("[role='listitem']")!;
+    await user.click(devItem);
 
     // Password dialog should appear
     await waitFor(() => {
@@ -176,8 +176,8 @@ describe("Connection flow integration", () => {
     });
 
     // Click on Dev Server (no passwordRef)
-    const items = screen.getAllByRole("listitem");
-    await user.click(items[1]);
+    const devItem = screen.getByText("Dev Server").closest("[role='listitem']")!;
+    await user.click(devItem);
 
     // Wait for password dialog
     await waitFor(() => {
@@ -223,9 +223,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    // Connect via click
-    const items = screen.getAllByRole("listitem");
-    await user.click(items[0]);
+    // Connect via click on Production Server
+    const prodItem = screen.getByText("Production Server").closest("[role='listitem']")!;
+    await user.click(prodItem);
 
     // Host key dialog should appear
     await waitFor(() => {
@@ -261,9 +261,9 @@ describe("Connection flow integration", () => {
       expect(screen.getByText("Production Server")).toBeInTheDocument();
     });
 
-    // Connect via click
-    const items = screen.getAllByRole("listitem");
-    await user.click(items[0]);
+    // Connect via click on Production Server
+    const prodItem = screen.getByText("Production Server").closest("[role='listitem']")!;
+    await user.click(prodItem);
 
     // Error toast should be shown
     await waitFor(() => {

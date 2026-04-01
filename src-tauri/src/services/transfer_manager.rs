@@ -23,6 +23,7 @@ use crate::models::transfer_task::{
     TransferDirection, TransferProgressPayload, TransferStatus, TransferStatusPayload, TransferTask,
 };
 use crate::services::session_manager::{ManagedSession, SessionManager};
+use crate::services::storage_service::{Database, TransferHistoryRecord};
 
 /// 传输块大小 (64KB)
 const CHUNK_SIZE: usize = 64 * 1024;
@@ -127,18 +128,21 @@ pub struct TransferManager {
     tasks: RwLock<HashMap<String, InternalTask>>,
     /// 并发控制信号量
     semaphore: Arc<Semaphore>,
+    /// 数据库（用于持久化传输历史）
+    db: Arc<Database>,
 }
 
 impl TransferManager {
     /// 创建新的传输管理器
     ///
     /// max_concurrent: 最大并发传输数 (1-6)
-    pub fn new(max_concurrent: u8) -> Self {
+    pub fn new(max_concurrent: u8, db: Arc<Database>) -> Self {
         let max_concurrent = max_concurrent.clamp(1, 6);
 
         Self {
             tasks: RwLock::new(HashMap::new()),
             semaphore: Arc::new(Semaphore::new(max_concurrent as usize)),
+            db,
         }
     }
 
@@ -703,6 +707,11 @@ impl TransferManager {
             self.update_status(&task_id, TransferStatus::Running).await;
             self.emit_status(&app, &task_id, TransferStatus::Running, None);
 
+            // 记录传输历史（仅首次，重试时不重复记录）
+            if retry_count == 0 {
+                self.record_history_start(&task_clone);
+            }
+
             // 执行传输（在阻塞线程中，使用独立的 SFTP 通道）
             let result = tokio::task::spawn_blocking({
                 let app = app.clone();
@@ -724,12 +733,14 @@ impl TransferManager {
                 Ok(()) => {
                     self.update_status(&task_id, TransferStatus::Success).await;
                     self.emit_status(&app, &task_id, TransferStatus::Success, None);
+                    self.record_history_finish(&task_id, TransferStatus::Success, None);
                     tracing::info!(task_id = %task_id, "传输成功");
                     return Ok(());
                 }
                 Err(e) if e.code == ErrorCode::Canceled => {
                     self.update_status(&task_id, TransferStatus::Canceled).await;
                     self.emit_status(&app, &task_id, TransferStatus::Canceled, None);
+                    self.record_history_finish(&task_id, TransferStatus::Canceled, None);
                     tracing::info!(task_id = %task_id, "传输已取消");
                     return Ok(());
                 }
@@ -764,6 +775,7 @@ impl TransferManager {
                     // 最终失败
                     self.update_error(&task_id, &e).await;
                     self.emit_status(&app, &task_id, TransferStatus::Failed, Some(&e));
+                    self.record_history_finish(&task_id, TransferStatus::Failed, Some(&e.message));
                     tracing::error!(task_id = %task_id, error = %e.message, "传输失败");
                     return Ok(());
                 }
@@ -1031,13 +1043,55 @@ impl TransferManager {
         };
         app.emit("transfer:status", &payload).ok();
     }
-}
 
-impl Default for TransferManager {
-    fn default() -> Self {
-        Self::new(3) // 默认最大并发数
+    /// 记录传输历史（任务开始时调用）
+    fn record_history_start(&self, task: &TransferTask) {
+        let direction = match task.direction {
+            TransferDirection::Upload => "upload",
+            TransferDirection::Download => "download",
+        };
+        let record = TransferHistoryRecord {
+            id: task.task_id.clone(),
+            session_id: task.session_id.clone(),
+            direction: direction.to_string(),
+            local_path: task.local_path.clone(),
+            remote_path: task.remote_path.clone(),
+            file_size: task.total.unwrap_or(0) as i64,
+            status: "running".to_string(),
+            error_message: None,
+            started_at: task.created_at,
+            finished_at: None,
+        };
+        if let Err(e) = self.db.transfer_history_add(&record) {
+            tracing::warn!(task_id = %task.task_id, error = %e, "记录传输历史失败");
+        }
+    }
+
+    /// 更新传输历史状态
+    fn record_history_finish(
+        &self,
+        task_id: &str,
+        status: TransferStatus,
+        error_message: Option<&str>,
+    ) {
+        let status_str = match status {
+            TransferStatus::Success => "success",
+            TransferStatus::Failed => "failed",
+            TransferStatus::Canceled => "canceled",
+            TransferStatus::Running => "running",
+            TransferStatus::Waiting => "waiting",
+        };
+        let finished_at = Some(chrono::Utc::now().timestamp_millis());
+        if let Err(e) =
+            self.db
+                .transfer_history_update_status(task_id, status_str, error_message, finished_at)
+        {
+            tracing::warn!(task_id = %task_id, error = %e, "更新传输历史状态失败");
+        }
     }
 }
+
+// TransferManager no longer implements Default because it requires an Arc<Database>.
 
 // TransferManager 的所有字段（RwLock<HashMap> 和 Arc<Semaphore>）
 // 天然满足 Send + Sync，无需 unsafe impl。
@@ -1051,6 +1105,16 @@ mod tests {
     use tokio::time::Duration;
 
     // ========== 辅助函数 ==========
+
+    /// 创建测试用的 TransferManager（带临时数据库）
+    fn create_test_manager(max_concurrent: u8) -> TransferManager {
+        let temp_dir =
+            std::env::temp_dir().join(format!("tunnelfiles_tm_test_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+        let db = Arc::new(Database::init_with_path(&db_path).unwrap());
+        TransferManager::new(max_concurrent, db)
+    }
 
     /// 创建临时测试文件
     fn create_temp_file(content: &[u8]) -> NamedTempFile {
@@ -1116,14 +1180,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_transfer_manager_creation() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let tasks = manager.list_tasks().await;
         assert!(tasks.is_empty());
     }
 
     #[tokio::test]
     async fn test_create_upload_nonexistent_file() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let result = manager
             .create_upload(
                 "session_id".to_string(),
@@ -1137,7 +1201,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_upload_success() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"hello world");
 
         let result = manager
@@ -1163,7 +1227,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_upload_directory_rejected() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_dir = tempfile::tempdir().unwrap();
 
         let result = manager
@@ -1182,7 +1246,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_download_invalid_local_dir() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
 
         let result = manager
             .create_download(
@@ -1198,7 +1262,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_download_local_path_is_file() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"test");
 
         let result = manager
@@ -1215,7 +1279,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_path_construction_root() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1233,7 +1297,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_path_construction_with_trailing_slash() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1254,14 +1318,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_tasks_empty() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let tasks = manager.list_tasks().await;
         assert_eq!(tasks.len(), 0);
     }
 
     #[tokio::test]
     async fn test_list_tasks_multiple() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp1 = create_temp_file(b"test1");
         let temp2 = create_temp_file(b"test2");
 
@@ -1288,14 +1352,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_task_nonexistent() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let task = manager.get_task("nonexistent-id").await;
         assert!(task.is_none());
     }
 
     #[tokio::test]
     async fn test_get_task_exists() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1316,7 +1380,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_status_to_running() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1339,7 +1403,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_status_to_success_sets_completed_at() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1366,7 +1430,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_error_sets_all_fields() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1393,7 +1457,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_nonexistent_task() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let result = manager.cancel_task(None, "nonexistent").await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code, ErrorCode::NotFound);
@@ -1401,7 +1465,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_waiting_task_sets_token_and_status() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1433,7 +1497,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cancel_completed_task_is_idempotent() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1463,7 +1527,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_removes_success_and_canceled() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp1 = create_temp_file(b"data1");
         let temp2 = create_temp_file(b"data2");
 
@@ -1497,7 +1561,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cleanup_keeps_waiting_running_failed() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp1 = create_temp_file(b"data1");
         let temp2 = create_temp_file(b"data2");
         let temp3 = create_temp_file(b"data3");
@@ -1540,7 +1604,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_failed_task_creates_new_task() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1568,7 +1632,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_preserves_paths() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1597,7 +1661,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_only_works_on_failed_tasks() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1617,7 +1681,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_nonexistent_task() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let result = manager.retry_task("nonexistent").await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().code, ErrorCode::NotFound);
@@ -1627,7 +1691,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_task_creation() {
-        let manager = Arc::new(TransferManager::new(3));
+        let manager = Arc::new(create_test_manager(3));
         let mut handles = vec![];
 
         // 并发创建 10 个任务
@@ -1665,7 +1729,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_concurrent_reads_and_writes() {
-        let manager = Arc::new(TransferManager::new(3));
+        let manager = Arc::new(create_test_manager(3));
         let temp_file = create_temp_file(b"data");
 
         let task_id = manager
@@ -1719,7 +1783,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_semaphore_available_permits() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         // 默认是 3（从 settings）
         let available = manager.semaphore.available_permits();
         assert!(available >= 1 && available <= 6); // Settings 范围 1-6
@@ -1727,7 +1791,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_semaphore_acquire_release() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let initial = manager.semaphore.available_permits();
 
         // 获取一个许可
@@ -1745,7 +1809,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_semaphore_blocks_when_exhausted() {
-        let manager = TransferManager::new(3);
+        let manager = create_test_manager(3);
         let max_permits = manager.semaphore.available_permits();
 
         // 获取所有许可
@@ -1780,7 +1844,7 @@ mod tests {
     async fn test_concurrent_semaphore_limit_enforcement() {
         use std::sync::atomic::{AtomicU32, Ordering};
 
-        let manager = Arc::new(TransferManager::new(3));
+        let manager = Arc::new(create_test_manager(3));
         let max_permits = manager.semaphore.available_permits();
         let counter = Arc::new(AtomicU32::new(0));
 

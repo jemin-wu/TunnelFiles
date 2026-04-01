@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Loader2, FolderOpen, Download, Zap, FileText, TerminalSquare } from "lucide-react";
+import { Loader2, FolderOpen, Download, Zap, FileText, TerminalSquare, Shield } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { cn } from "@/lib/utils";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
+import { KnownHostsList } from "@/components/settings/KnownHostsList";
 import type { LogLevel } from "@/types/settings";
 import {
   TERMINAL_FONT_SIZE_MIN,
@@ -51,7 +52,7 @@ const settingsSchema = z.object({
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
-type SettingsSection = "transfer" | "connection" | "terminal" | "logs";
+type SettingsSection = "transfer" | "connection" | "terminal" | "security" | "logs";
 
 interface NavItemProps {
   icon: React.ReactNode;
@@ -179,6 +180,12 @@ export function SettingsPage() {
             label="Terminal"
             active={activeSection === "terminal"}
             onClick={() => setActiveSection("terminal")}
+          />
+          <NavItem
+            icon={<Shield className="size-3.5" />}
+            label="Security"
+            active={activeSection === "security"}
+            onClick={() => setActiveSection("security")}
           />
           <NavItem
             icon={<FileText className="size-3.5" />}
@@ -445,29 +452,40 @@ export function SettingsPage() {
               )}
 
               {/* ACTIONS */}
-              <div className="border-border/50 mt-8 flex justify-end gap-3 border-t pt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCancel}
-                  disabled={isUpdating}
-                  className="h-9 px-4"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={isUpdating || !isDirty}
-                  className="h-9 gap-2 px-5"
-                >
-                  {isUpdating && <Loader2 className="size-3.5 animate-spin" />}
-                  <span>Save</span>
-                </Button>
-              </div>
+              {activeSection !== "security" && (
+                <div className="border-border/50 mt-8 flex justify-end gap-3 border-t pt-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={isUpdating}
+                    className="h-9 px-4"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isUpdating || !isDirty}
+                    className="h-9 gap-2 px-5"
+                  >
+                    {isUpdating && <Loader2 className="size-3.5 animate-spin" />}
+                    <span>Save</span>
+                  </Button>
+                </div>
+              )}
             </form>
           </Form>
+
+          {/* SECURITY - outside form, has its own data lifecycle */}
+          {activeSection === "security" && (
+            <section className="animate-fade-in">
+              <h2 className="mb-1 text-base font-semibold">Security</h2>
+              <p className="text-muted-foreground mb-6 text-xs">Trusted SSH host keys (TOFU)</p>
+              <KnownHostsList />
+            </section>
+          )}
         </div>
       </div>
     </div>

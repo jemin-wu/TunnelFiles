@@ -77,6 +77,36 @@ pub async fn security_check_hostkey(
     Ok(fingerprint)
 }
 
+/// Known Host 信息（返回给前端）
+#[derive(Debug, serde::Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct KnownHost {
+    pub host: String,
+    pub port: u16,
+    pub key_type: String,
+    pub fingerprint: String,
+    pub trusted_at: i64,
+}
+
+/// 列出所有已信任的 Known Hosts
+#[tauri::command]
+pub async fn security_list_known_hosts(db: State<'_, Arc<Database>>) -> AppResult<Vec<KnownHost>> {
+    let rows = db.known_hosts_list()?;
+    let hosts = rows
+        .into_iter()
+        .map(|r| KnownHost {
+            host: r.host,
+            port: r.port,
+            key_type: r.key_type,
+            fingerprint: r.fingerprint,
+            trusted_at: r.trusted_at,
+        })
+        .collect();
+    Ok(hosts)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -60,6 +60,32 @@ pub struct RecursiveDeleteInput {
     pub path: String,
 }
 
+/// 批量删除单项
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchDeleteItem {
+    pub path: String,
+    pub is_dir: bool,
+}
+
+/// 批量删除输入参数
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchDeleteInput {
+    pub session_id: String,
+    pub items: Vec<BatchDeleteItem>,
+}
+
+/// 批量删除结果
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct BatchDeleteResult {
+    pub deleted_count: usize,
+    pub failures: Vec<DeleteFailure>,
+}
+
 /// 递归删除进度事件
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(test, derive(TS))]
@@ -98,6 +124,81 @@ pub struct RecursiveDeleteResult {
     pub deleted_dirs: u64,
     /// 删除失败的项
     pub failures: Vec<DeleteFailure>,
+}
+
+/// 文件预览输入参数
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadFileInput {
+    /// 会话 ID
+    pub session_id: String,
+    /// 远程文件路径
+    pub path: String,
+    /// 最大读取字节数（默认 256KB）
+    pub max_bytes: Option<u64>,
+}
+
+/// 文件预览结果
+#[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct ReadPreviewResult {
+    /// 内容类型: "text" 或 "binary"
+    pub content_type: String,
+    /// 文本内容（text 类型为 UTF-8 字符串，binary 类型为 None）
+    pub content: Option<String>,
+    /// 实际文件大小（字节）
+    pub size: u64,
+    /// 内容是否被截断
+    pub truncated: bool,
+    /// 根据扩展名猜测的 MIME 类型
+    pub mime_guess: Option<String>,
+}
+
+/// 读取远程文件预览
+///
+/// 安全规则:
+/// - 使用 lstat 检查文件类型（拒绝符号链接和目录）
+/// - 强制 max_bytes 限制（默认 256KB）
+/// - 路径安全验证
+#[tauri::command]
+pub async fn sftp_read_file(
+    session_manager: State<'_, Arc<SessionManager>>,
+    input: ReadFileInput,
+) -> Result<ReadPreviewResult, AppError> {
+    if input.session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("会话 ID 不能为空"));
+    }
+
+    if input.path.trim().is_empty() {
+        return Err(AppError::invalid_argument("路径不能为空"));
+    }
+
+    tracing::debug!(
+        session_id = %input.session_id,
+        path = %input.path,
+        max_bytes = ?input.max_bytes,
+        "读取文件预览"
+    );
+
+    let session = session_manager.get_session(&input.session_id)?;
+    let path = input.path.clone();
+    let max_bytes = input.max_bytes;
+
+    let result =
+        spawn_sftp(move || SftpService::read_file_preview(&session.sftp, &path, max_bytes)).await?;
+
+    tracing::debug!(
+        session_id = %input.session_id,
+        path = %input.path,
+        content_type = %result.content_type,
+        size = result.size,
+        truncated = result.truncated,
+        "文件预览完成"
+    );
+
+    Ok(result)
 }
 
 /// 列出远程目录内容
@@ -254,6 +355,123 @@ pub async fn sftp_delete(
     );
 
     Ok(())
+}
+
+/// 批量删除文件和目录
+///
+/// 支持混合文件/目录删除，自动进行父子路径去重（父目录在列表中时跳过子路径），
+/// 目录使用递归删除，返回聚合结果
+#[tauri::command]
+pub async fn sftp_batch_delete(
+    app: AppHandle,
+    session_manager: State<'_, Arc<SessionManager>>,
+    input: BatchDeleteInput,
+) -> Result<BatchDeleteResult, AppError> {
+    if input.session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("会话 ID 不能为空"));
+    }
+    if input.items.is_empty() {
+        return Err(AppError::invalid_argument("删除列表不能为空"));
+    }
+
+    tracing::debug!(
+        session_id = %input.session_id,
+        count = input.items.len(),
+        "批量删除"
+    );
+
+    let session = session_manager.get_session(&input.session_id)?;
+    let session_id = input.session_id.clone();
+
+    let result = spawn_sftp(move || {
+        // Canonicalize: sort paths, skip children when parent dir is in the list
+        let mut dir_paths: Vec<String> = input
+            .items
+            .iter()
+            .filter(|i| i.is_dir)
+            .map(|i| {
+                let p = i.path.clone();
+                if p.ends_with('/') {
+                    p
+                } else {
+                    format!("{}/", p)
+                }
+            })
+            .collect();
+        dir_paths.sort();
+
+        let is_child_of_selected_dir = |path: &str| -> bool {
+            for dp in &dir_paths {
+                if path.starts_with(dp.as_str()) && path != dp.trim_end_matches('/') {
+                    return true;
+                }
+            }
+            false
+        };
+
+        let mut deleted_count = 0usize;
+        let mut failures = Vec::new();
+
+        for item in &input.items {
+            // Skip children of already-selected parent directories
+            if is_child_of_selected_dir(&item.path) {
+                continue;
+            }
+
+            if item.is_dir {
+                // Use recursive delete for directories
+                let app_clone = app.clone();
+                let progress_callback: Box<dyn Fn(DeleteProgress) + Send> =
+                    Box::new(move |progress| {
+                        let _ = app_clone.emit("delete:progress", &progress);
+                    });
+
+                match SftpService::delete_recursive(
+                    &session.sftp,
+                    &item.path,
+                    Some(progress_callback),
+                ) {
+                    Ok(r) => {
+                        deleted_count += (r.deleted_files + r.deleted_dirs) as usize;
+                        failures.extend(r.failures);
+                    }
+                    Err(e) => {
+                        failures.push(DeleteFailure {
+                            path: item.path.clone(),
+                            error: e.message.clone(),
+                        });
+                    }
+                }
+            } else {
+                match SftpService::delete(&session.sftp, &item.path, false) {
+                    Ok(()) => {
+                        deleted_count += 1;
+                    }
+                    Err(e) => {
+                        failures.push(DeleteFailure {
+                            path: item.path.clone(),
+                            error: e.message.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(BatchDeleteResult {
+            deleted_count,
+            failures,
+        })
+    })
+    .await?;
+
+    tracing::info!(
+        session_id = %session_id,
+        deleted = result.deleted_count,
+        failures = result.failures.len(),
+        "批量删除完成"
+    );
+
+    Ok(result)
 }
 
 /// chmod 结果

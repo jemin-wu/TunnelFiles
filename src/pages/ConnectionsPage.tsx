@@ -3,12 +3,20 @@
  * Card-based connection list with single-click connect
  */
 
-import { useCallback, useState } from "react";
-import { Plus, Loader2, Server } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Plus, Loader2, Server, Search, X, Clock, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,11 +40,23 @@ import { ConnectionSheet } from "@/components/connections/ConnectionSheet";
 import { PasswordDialog } from "@/components/connections/PasswordDialog";
 import { HostKeyDialog } from "@/components/connections/HostKeyDialog";
 import { useProfiles, useDeleteProfile } from "@/hooks/useProfiles";
+import { useRecentConnections } from "@/hooks/useRecentConnections";
 import { useConnect } from "@/hooks/useConnect";
+import { useSearchFilter } from "@/hooks/useSearchFilter";
 import type { Profile } from "@/types";
+
+type SortOption = "alpha" | "recent";
+
+const SORT_FNS: Record<SortOption, (a: Profile, b: Profile) => number> = {
+  alpha: (a, b) => a.name.localeCompare(b.name),
+  recent: (a, b) => b.updatedAt - a.updatedAt,
+};
+
+const SEARCH_FIELDS = (p: Profile) => [p.name, p.host, p.username];
 
 export function ConnectionsPage() {
   const { data: profiles = [], isLoading } = useProfiles();
+  const { data: recentConnections = [] } = useRecentConnections(5);
   const deleteProfile = useDeleteProfile();
 
   // UI state
@@ -44,6 +64,15 @@ export function ConnectionsPage() {
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [profileToDelete, setProfileToDelete] = useState<Profile | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [sortOption, setSortOption] = useState<SortOption>("recent");
+
+  // Search + sort
+  const sortFn = useMemo(() => SORT_FNS[sortOption], [sortOption]);
+  const { query, setQuery, filtered } = useSearchFilter({
+    items: profiles,
+    searchFields: SEARCH_FIELDS,
+    sortFn,
+  });
 
   // Connection flow
   const {
@@ -112,6 +141,44 @@ export function ConnectionsPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Search + sort toolbar — only when profiles exist */}
+      {profiles.length > 0 && (
+        <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+          <div className="relative flex-1">
+            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search connections..."
+              className="bg-muted/50 border-border h-8 pr-8 pl-8 text-sm"
+              aria-label="Search connections"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2"
+                aria-label="Clear search"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+          </div>
+          <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+            <SelectTrigger
+              className="bg-muted/50 border-border h-8 w-[130px] text-xs"
+              aria-label="Sort connections"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="recent">Most recent</SelectItem>
+              <SelectItem value="alpha">A — Z</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Connection list */}
       <div className="min-h-0 flex-1 overflow-hidden">
         {profiles.length === 0 ? (
@@ -135,10 +202,61 @@ export function ConnectionsPage() {
               </Button>
             </EmptyContent>
           </Empty>
+        ) : filtered.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3">
+            <p className="text-muted-foreground text-sm">No matching connections</p>
+            <Button variant="ghost" size="sm" onClick={() => setQuery("")} className="text-xs">
+              Clear search
+            </Button>
+          </div>
         ) : (
           <ScrollArea className="h-full">
+            {/* Recent connections — hidden when searching */}
+            {recentConnections.length > 0 && !query && (
+              <div className="px-3 pt-3 pb-1">
+                <div className="text-muted-foreground mb-1.5 flex items-center gap-1.5 text-xs font-medium">
+                  <Clock className="size-3" />
+                  Recent
+                </div>
+                <div className="space-y-0.5" role="list" aria-label="Recent connections">
+                  {recentConnections.map((rc) => (
+                    <div
+                      key={rc.id}
+                      role="listitem"
+                      tabIndex={0}
+                      onClick={() => handleConnect(rc.profileId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleConnect(rc.profileId);
+                        }
+                      }}
+                      className="group hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-ring/50 flex w-full cursor-pointer items-center gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors duration-100 focus-visible:ring-1 focus-visible:outline-none"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span
+                          className="text-foreground block truncate text-sm"
+                          title={rc.profileName}
+                        >
+                          {rc.profileName}
+                        </span>
+                        <span
+                          className="text-muted-foreground block truncate font-mono text-xs"
+                          title={`${rc.username}@${rc.host}`}
+                        >
+                          {rc.username}@{rc.host}
+                        </span>
+                      </div>
+                      <ArrowRight className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity duration-100 group-hover:opacity-100" />
+                    </div>
+                  ))}
+                </div>
+                <div className="border-border/60 mt-2 border-t" />
+              </div>
+            )}
+
             <div className="space-y-1.5 p-3" role="list" aria-label="Saved connections">
-              {profiles.map((profile, index) => (
+              {filtered.map((profile, index) => (
                 <ConnectionItem
                   key={profile.id}
                   profile={profile}

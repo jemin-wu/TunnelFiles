@@ -386,23 +386,32 @@ impl Database {
     // ============================================
 
     /// 获取最近连接记录
-    pub fn recent_connections_list(&self) -> AppResult<Vec<RecentConnection>> {
+    ///
+    /// JOIN profiles 表排除已删除的 profile 对应的孤立记录
+    pub fn recent_connections_list(&self, limit: usize) -> AppResult<Vec<RecentConnection>> {
         let conn = self
             .conn
             .lock()
             .map_err(|_| AppError::new(ErrorCode::LocalIoError, "数据库锁获取失败"))?;
 
+        let effective_limit = if limit == 0 {
+            MAX_RECENT_CONNECTIONS as usize
+        } else {
+            limit
+        };
+
         let mut stmt = conn.prepare(
             r#"
-            SELECT id, profile_id, profile_name, host, username, connected_at
-            FROM recent_connections
-            ORDER BY connected_at DESC
+            SELECT r.id, r.profile_id, r.profile_name, r.host, r.username, r.connected_at
+            FROM recent_connections r
+            INNER JOIN profiles p ON r.profile_id = p.id
+            ORDER BY r.connected_at DESC
             LIMIT ?
             "#,
         )?;
 
         let records = stmt
-            .query_map([MAX_RECENT_CONNECTIONS], |row| {
+            .query_map([effective_limit], |row| {
                 Ok(RecentConnection {
                     id: row.get(0)?,
                     profile_id: row.get(1)?,
@@ -536,6 +545,36 @@ impl Database {
         Ok(())
     }
 
+    /// 获取所有已信任的 HostKey
+    pub fn known_hosts_list(&self) -> AppResult<Vec<KnownHostRow>> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| AppError::new(ErrorCode::LocalIoError, "数据库锁获取失败"))?;
+
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT host, port, key_type, fingerprint, trusted_at
+            FROM known_hosts
+            ORDER BY trusted_at DESC
+            "#,
+        )?;
+
+        let rows = stmt
+            .query_map([], |row| {
+                Ok(KnownHostRow {
+                    host: row.get(0)?,
+                    port: row.get(1)?,
+                    key_type: row.get(2)?,
+                    fingerprint: row.get(3)?,
+                    trusted_at: row.get(4)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(rows)
+    }
+
     /// 移除信任的 HostKey
     pub fn known_host_remove(&self, host: &str, port: u16) -> AppResult<bool> {
         let conn = self
@@ -650,6 +689,20 @@ impl Database {
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(records)
+    }
+
+    /// 清空传输历史
+    pub fn transfer_history_clear(&self) -> AppResult<()> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|_| AppError::new(ErrorCode::LocalIoError, "数据库锁获取失败"))?;
+
+        conn.execute("DELETE FROM transfer_history", [])?;
+
+        tracing::info!("传输历史已清空");
+
+        Ok(())
     }
 
     // ============================================
@@ -823,8 +876,19 @@ impl Database {
     }
 }
 
-/// 传输历史记录
+/// Known Host 行数据
 #[derive(Debug, Clone)]
+pub struct KnownHostRow {
+    pub host: String,
+    pub port: u16,
+    pub key_type: String,
+    pub fingerprint: String,
+    pub trusted_at: i64,
+}
+
+/// 传输历史记录
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TransferHistoryRecord {
     pub id: String,
     pub session_id: String,
@@ -947,6 +1011,23 @@ mod tests {
     fn test_recent_connections() {
         let db = setup_test_db();
 
+        // Create a profile so the INNER JOIN can match
+        let profile = Profile {
+            id: "p-1".to_string(),
+            name: "Server 1".to_string(),
+            host: "192.168.1.1".to_string(),
+            port: 22,
+            username: "admin".to_string(),
+            auth_type: AuthType::Password,
+            password_ref: None,
+            private_key_path: None,
+            passphrase_ref: None,
+            initial_path: None,
+            created_at: 1000,
+            updated_at: 1000,
+        };
+        db.profile_upsert(&profile).unwrap();
+
         let record = RecentConnection {
             id: "rc-1".to_string(),
             profile_id: "p-1".to_string(),
@@ -958,12 +1039,21 @@ mod tests {
 
         db.recent_connection_add(&record).unwrap();
 
-        let records = db.recent_connections_list().unwrap();
+        let records = db.recent_connections_list(10).unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].profile_name, "Server 1");
 
+        // Orphaned records (profile deleted) should be excluded
+        db.profile_delete("p-1").unwrap();
+        let records = db.recent_connections_list(10).unwrap();
+        assert_eq!(
+            records.len(),
+            0,
+            "Orphaned recent connection should be filtered out"
+        );
+
         db.recent_connections_clear().unwrap();
-        let records = db.recent_connections_list().unwrap();
+        let records = db.recent_connections_list(10).unwrap();
         assert_eq!(records.len(), 0);
     }
 

@@ -31,6 +31,8 @@ interface FileContextMenuProps {
   file: FileEntry;
   /** Number of selected files (for batch operations) */
   selectionCount?: number;
+  /** Whether the right-clicked file is part of the current selection */
+  isFileInSelection?: boolean;
   children: React.ReactNode;
   onEnterDir?: () => void;
   onDownload?: () => void;
@@ -43,6 +45,7 @@ interface FileContextMenuProps {
 export function FileContextMenu({
   file,
   selectionCount = 1,
+  isFileInSelection = true,
   children,
   onEnterDir,
   onDownload,
@@ -51,7 +54,8 @@ export function FileContextMenu({
   onNewFolder,
   onChmod,
 }: FileContextMenuProps) {
-  const isMultiSelect = selectionCount > 1;
+  // Only show batch operation text when right-clicked file is part of the selection
+  const isMultiSelect = selectionCount > 1 && isFileInSelection;
 
   // Copy path to clipboard
   const handleCopyPath = useCallback(async () => {
@@ -149,11 +153,11 @@ export function FileContextMenu({
 
         <ContextMenuSeparator className="bg-border" />
 
-        {/* Delete current file (no batch, always operates on right-clicked file) */}
+        {/* Delete - supports batch */}
         <ContextMenuItem variant="destructive" onClick={onDelete} className="justify-between gap-2">
           <span className="flex items-center gap-2">
             <Trash2 className="size-3.5" />
-            <span>Delete</span>
+            <span>{isMultiSelect ? `Delete ${selectionCount} items` : "Delete"}</span>
           </span>
           <span className="text-xs opacity-70">{formatShortcut("Mod+Backspace")}</span>
         </ContextMenuItem>

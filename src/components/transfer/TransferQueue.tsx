@@ -3,22 +3,38 @@
  */
 
 import { useCallback, useMemo } from "react";
-import { Upload, Download, X, Check, RotateCcw, CheckCircle, XCircle, Trash2 } from "lucide-react";
+import {
+  Upload,
+  Download,
+  X,
+  Check,
+  RotateCcw,
+  CheckCircle,
+  XCircle,
+  Trash2,
+  History,
+  Clock,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyDescription } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTransferStore } from "@/stores/useTransferStore";
+import { useTransferHistory, useClearTransferHistory } from "@/hooks/useTransferHistory";
 import { cancelTransfer, retryTransfer, cleanupTransfers } from "@/lib/transfer";
 import {
   formatSpeed,
   estimateRemainingTime,
   type TransferTask,
   type TransferStatus,
+  type TransferHistoryEntry,
 } from "@/types/transfer";
+import { formatFileSize } from "@/types/file";
+import { formatRelativeTime } from "@/lib/file";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_STATUSES = new Set<TransferStatus>(["running", "waiting"]);
@@ -31,6 +47,8 @@ interface TransferQueueProps {
 export function TransferQueue({ className }: TransferQueueProps) {
   const tasksMap = useTransferStore((s) => s.tasks);
   const clearCompleted = useTransferStore((s) => s.clearCompleted);
+  const { data: history } = useTransferHistory(50);
+  const clearHistory = useClearTransferHistory();
 
   const tasks = useMemo(() => {
     return Array.from(tasksMap.values()).sort((a, b) => b.createdAt - a.createdAt);
@@ -49,10 +67,13 @@ export function TransferQueue({ className }: TransferQueueProps) {
     await cleanupTransfers();
   }, [clearCompleted]);
 
-  if (tasks.length === 0) {
+  const hasActiveTasks = tasks.length > 0;
+  const hasHistory = history && history.length > 0;
+
+  if (!hasActiveTasks && !hasHistory) {
     return (
       <Empty className={cn("w-full", className)}>
-        <EmptyDescription>No active transfers</EmptyDescription>
+        <EmptyDescription>No transfer history</EmptyDescription>
       </Empty>
     );
   }
@@ -96,8 +117,8 @@ export function TransferQueue({ className }: TransferQueueProps) {
         </div>
       )}
 
-      {/* Task list */}
-      <ScrollArea className="min-h-0 flex-1">
+      {/* Task list + History */}
+      <ScrollArea className="min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]>div]:!block">
         {/* Active tasks */}
         {activeTasks.length > 0 && (
           <div className="divide-border/30 divide-y">
@@ -125,6 +146,38 @@ export function TransferQueue({ className }: TransferQueueProps) {
                 >
                   <TransferItem task={task} />
                 </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* History section */}
+        {hasHistory && (
+          <div className={cn(hasActiveTasks && "border-border/50 mt-2 border-t pt-2")}>
+            <div className="flex items-center justify-between px-3 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <History className="text-muted-foreground size-3.5" />
+                <span className="text-muted-foreground text-xs font-medium">History</span>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Clear history"
+                    className="hover:bg-destructive/10 hover:text-destructive h-6 w-6"
+                    onClick={() => clearHistory.mutate()}
+                    disabled={clearHistory.isPending}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">Clear history</TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="divide-border/20 divide-y">
+              {history.map((entry) => (
+                <HistoryItem key={entry.id} entry={entry} />
               ))}
             </div>
           </div>
@@ -352,4 +405,88 @@ function ActionButton({
       <TooltipContent className="text-xs">{tooltip}</TooltipContent>
     </Tooltip>
   );
+}
+
+// ============================================================================
+// History
+// ============================================================================
+
+function HistoryItem({ entry }: { entry: TransferHistoryEntry }) {
+  const fileName = entry.remotePath.split("/").pop() || entry.remotePath;
+  const DirectionIcon = entry.direction === "upload" ? Upload : Download;
+
+  return (
+    <div className="flex min-w-0 items-center gap-2 px-3 py-2 opacity-60">
+      <DirectionIcon
+        className={cn(
+          "size-3.5 shrink-0",
+          entry.direction === "upload" ? "text-transfer-upload" : "text-transfer-download"
+        )}
+      />
+      <span className="min-w-0 flex-1 truncate text-sm" title={fileName}>
+        {fileName}
+      </span>
+      <HistoryStatusBadge status={entry.status} />
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+            <Clock className="size-3" />
+            {formatRelativeTime(entry.startedAt)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="text-xs">
+          <div className="space-y-0.5">
+            <div>{formatFileSize(entry.fileSize)}</div>
+            <div className="text-muted-foreground truncate" title={entry.remotePath}>
+              {entry.remotePath}
+            </div>
+            {entry.errorMessage && <div className="text-destructive">{entry.errorMessage}</div>}
+          </div>
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
+function HistoryStatusBadge({ status }: { status: TransferHistoryEntry["status"] }) {
+  switch (status) {
+    case "success":
+      return (
+        <Badge
+          variant="outline"
+          className="border-success/30 text-success shrink-0 gap-0.5 px-1.5 py-0 text-[10px]"
+        >
+          <Check className="size-2.5" />
+          Done
+        </Badge>
+      );
+    case "failed":
+      return (
+        <Badge
+          variant="outline"
+          className="border-destructive/30 text-destructive shrink-0 gap-0.5 px-1.5 py-0 text-[10px]"
+        >
+          <X className="size-2.5" />
+          Failed
+        </Badge>
+      );
+    case "canceled":
+      return (
+        <Badge
+          variant="outline"
+          className="border-muted-foreground/30 text-muted-foreground shrink-0 gap-0.5 px-1.5 py-0 text-[10px]"
+        >
+          Canceled
+        </Badge>
+      );
+    case "running":
+      return (
+        <Badge
+          variant="outline"
+          className="border-primary/30 text-primary shrink-0 gap-0.5 px-1.5 py-0 text-[10px]"
+        >
+          Running
+        </Badge>
+      );
+  }
 }

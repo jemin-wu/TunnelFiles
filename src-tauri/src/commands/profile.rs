@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::models::error::{AppError, AppResult};
-use crate::models::profile::{Profile, ProfileInput};
+use crate::models::profile::{Profile, ProfileInput, RecentConnection};
 use crate::services::security_service::{
     credential_delete_for_profile, credential_store_passphrase, credential_store_password,
 };
@@ -174,4 +174,17 @@ pub async fn profile_delete(db: State<'_, Arc<Database>>, profile_id: String) ->
     }
 
     Ok(())
+}
+
+/// 获取最近连接记录
+///
+/// JOIN profiles 表排除已删除 profile 的孤立记录
+#[tauri::command]
+pub async fn profile_recent_connections(
+    db: State<'_, Arc<Database>>,
+    limit: Option<u32>,
+) -> AppResult<Vec<RecentConnection>> {
+    let effective_limit = limit.unwrap_or(10) as usize;
+    tracing::debug!(limit = effective_limit, "获取最近连接记录");
+    db.recent_connections_list(effective_limit)
 }

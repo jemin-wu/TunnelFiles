@@ -42,6 +42,14 @@ vi.mock("@/lib/transfer", () => ({
   cleanupTransfers: (...args: unknown[]) => mockCleanupTransfers(...args),
 }));
 
+// Mock transfer history hooks
+const mockClearHistoryMutate = vi.fn();
+
+vi.mock("@/hooks/useTransferHistory", () => ({
+  useTransferHistory: () => ({ data: [], isLoading: false }),
+  useClearTransferHistory: () => ({ mutate: mockClearHistoryMutate, isPending: false }),
+}));
+
 import { TransferQueue } from "@/components/transfer/TransferQueue";
 
 function makeTask(overrides: Partial<TransferTask> = {}): TransferTask {
@@ -76,7 +84,7 @@ describe("TransferQueue", () => {
     setTasks([]);
     render(<TransferQueue />);
 
-    expect(screen.getByText("No active transfers")).toBeInTheDocument();
+    expect(screen.getByText("No transfer history")).toBeInTheDocument();
   });
 
   it("should render active transfer with file name and progress", () => {

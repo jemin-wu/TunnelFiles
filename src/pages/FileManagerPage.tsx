@@ -16,6 +16,7 @@ import {
   Eye,
   EyeOff,
   FolderPlus,
+  Upload,
 } from "lucide-react";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -58,12 +59,14 @@ function PageToolbar({
   currentPath,
   homePath,
   onNavigate,
+  onValidatePath,
   fileCount,
   isFetching,
   onRefresh,
   showHidden,
   onToggleHidden,
   onCreateFolder,
+  onUpload,
   // Terminal mode props
   terminalStatus,
   isTerminalOpening,
@@ -78,12 +81,14 @@ function PageToolbar({
   currentPath: string;
   homePath?: string;
   onNavigate: (path: string) => void;
+  onValidatePath?: (path: string) => Promise<boolean>;
   fileCount: number;
   isFetching: boolean;
   onRefresh: () => void;
   showHidden: boolean;
   onToggleHidden: () => void;
   onCreateFolder: () => void;
+  onUpload: () => void;
   terminalStatus: string;
   isTerminalOpening: boolean;
   isTerminalReconnecting: boolean;
@@ -101,6 +106,7 @@ function PageToolbar({
             path={currentPath}
             homePath={homePath}
             onNavigate={onNavigate}
+            onValidatePath={onValidatePath}
             className="min-w-0 flex-1"
           />
 
@@ -126,6 +132,22 @@ function PageToolbar({
               </Button>
             </TooltipTrigger>
             <TooltipContent className="text-xs">New folder</TooltipContent>
+          </Tooltip>
+
+          {/* Upload files */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Upload files"
+                className="h-7 w-7"
+                onClick={onUpload}
+              >
+                <Upload className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent className="text-xs">Upload files</TooltipContent>
           </Tooltip>
 
           {/* Refresh */}
@@ -262,6 +284,7 @@ function MainContent({
   currentPath,
   homePath,
   onPathChange,
+  onValidatePath,
   onTabChange,
   showHidden,
   onToggleHidden,
@@ -269,6 +292,7 @@ function MainContent({
   isFetching,
   onRefresh,
   onCreateFolderRequest,
+  onUploadRequest,
   createFolderOpen,
   onCreateFolderOpenChange,
   terminalInfo,
@@ -288,6 +312,7 @@ function MainContent({
   currentPath: string;
   homePath?: string;
   onPathChange: (path: string) => void;
+  onValidatePath: (path: string) => Promise<boolean>;
   onTabChange: (tab: TabMode) => void;
   showHidden: boolean;
   onToggleHidden: () => void;
@@ -295,6 +320,7 @@ function MainContent({
   isFetching: boolean;
   onRefresh: () => void;
   onCreateFolderRequest: () => void;
+  onUploadRequest: () => void;
   createFolderOpen: boolean;
   onCreateFolderOpenChange: (open: boolean) => void;
   terminalInfo: { terminalId: string } | null;
@@ -318,12 +344,14 @@ function MainContent({
         currentPath={currentPath}
         homePath={homePath}
         onNavigate={onPathChange}
+        onValidatePath={onValidatePath}
         fileCount={fileCount}
         isFetching={isFetching}
         onRefresh={onRefresh}
         showHidden={showHidden}
         onToggleHidden={onToggleHidden}
         onCreateFolder={onCreateFolderRequest}
+        onUpload={onUploadRequest}
         terminalStatus={terminalStatus}
         isTerminalOpening={isTerminalOpening}
         isTerminalReconnecting={isTerminalReconnecting}
@@ -548,6 +576,54 @@ export function FileManagerPage() {
     setNavigatedPath(path);
   }, []);
 
+  const handleValidatePath = useCallback(
+    async (path: string): Promise<boolean> => {
+      if (!sessionId) return false;
+      try {
+        const { stat } = await import("@/lib/sftp");
+        const entry = await stat(sessionId, path);
+        return entry.isDir;
+      } catch {
+        return false;
+      }
+    },
+    [sessionId]
+  );
+
+  const handleUploadRequest = useCallback(async () => {
+    try {
+      const { open: openFileDialog } = await import("@tauri-apps/plugin-dialog");
+      const selected = await openFileDialog({
+        multiple: true,
+        title: "Select files to upload",
+      });
+      if (!selected || (Array.isArray(selected) && selected.length === 0)) return;
+
+      const { uploadFile, getTransfer } = await import("@/lib/transfer");
+      const addTask = useTransferStore.getState().addTask;
+      const files = Array.isArray(selected) ? selected : [selected];
+
+      const { showErrorToast } = await import("@/lib/error");
+      let queued = 0;
+      for (const localPath of files) {
+        try {
+          const taskId = await uploadFile(sessionId!, localPath, currentPath);
+          const task = await getTransfer(taskId);
+          if (task) addTask(task);
+          queued++;
+        } catch (err) {
+          showErrorToast(err);
+        }
+      }
+      if (queued > 0) {
+        const { showSuccessToast } = await import("@/lib/error");
+        showSuccessToast(`Uploading ${queued} file${queued > 1 ? "s" : ""}`);
+      }
+    } catch {
+      // Dialog was cancelled by user — no action needed
+    }
+  }, [sessionId, currentPath]);
+
   if (!sessionId || isLoading) {
     return <FullPageLoader label="Initializing SFTP..." />;
   }
@@ -565,6 +641,7 @@ export function FileManagerPage() {
     currentPath,
     homePath,
     onPathChange: handlePathChange,
+    onValidatePath: handleValidatePath,
     onTabChange: setActiveTab,
     showHidden,
     onToggleHidden: toggleHidden,
@@ -572,6 +649,7 @@ export function FileManagerPage() {
     isFetching,
     onRefresh: handleRefresh,
     onCreateFolderRequest: handleCreateFolderRequest,
+    onUploadRequest: handleUploadRequest,
     createFolderOpen,
     onCreateFolderOpenChange: setCreateFolderOpen,
     terminalInfo,
@@ -641,7 +719,7 @@ export function FileManagerPage() {
             </div>
 
             {/* Transfer queue content */}
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
               <ErrorBoundary>
                 <TransferQueue className="h-full" />
               </ErrorBoundary>

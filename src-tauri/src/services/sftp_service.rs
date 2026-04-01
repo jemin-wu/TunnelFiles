@@ -6,6 +6,7 @@
 //! - 路径处理与安全验证
 
 use std::cmp::Ordering;
+use std::io::Read;
 use std::path::Path;
 
 use ssh2::Sftp;
@@ -768,6 +769,118 @@ impl SftpService {
         Ok(files)
     }
 
+    /// 读取文件预览
+    ///
+    /// 安全规则:
+    /// - 使用 lstat 检查文件类型（拒绝符号链接和目录）
+    /// - 强制 max_bytes 限制（默认 256KB = 262144）
+    /// - 路径安全验证
+    pub fn read_file_preview(
+        sftp: &Sftp,
+        path: &str,
+        max_bytes: Option<u64>,
+    ) -> AppResult<ReadPreviewResult> {
+        const MAX_PREVIEW_BYTES: u64 = 262_144; // 256KB hard limit
+
+        let normalized = Self::normalize_path(path);
+        Self::validate_path(&normalized)?;
+
+        let max_bytes = max_bytes
+            .unwrap_or(MAX_PREVIEW_BYTES)
+            .min(MAX_PREVIEW_BYTES);
+        let path_obj = Path::new(&normalized);
+
+        // 使用 lstat 检查文件类型（不跟随符号链接）
+        let lstat = sftp
+            .lstat(path_obj)
+            .map_err(|e| map_sftp_error(e, &normalized))?;
+
+        // 拒绝符号链接
+        let is_symlink = lstat
+            .perm
+            .map(|mode| (mode & S_IFMT) == S_IFLNK)
+            .unwrap_or(false);
+        if is_symlink {
+            return Err(AppError::invalid_argument(
+                "Symlinks are not supported for preview",
+            ));
+        }
+
+        // 拒绝目录
+        if lstat.is_dir() {
+            return Err(AppError::invalid_argument(
+                "Directories cannot be previewed",
+            ));
+        }
+
+        let file_size = lstat.size.unwrap_or(0);
+        let mime_guess = Self::guess_mime_type(&normalized);
+
+        // 打开文件并读取
+        let mut file = sftp.open(path_obj).map_err(|e| {
+            if e.code() == ssh2::ErrorCode::SFTP(3) {
+                AppError::permission_denied(format!("无权读取文件: {}", normalized))
+            } else {
+                map_sftp_error(e, &normalized)
+            }
+        })?;
+
+        let read_size = std::cmp::min(file_size, max_bytes) as usize;
+        let mut buf = vec![0u8; read_size];
+        let bytes_read = file
+            .read(&mut buf)
+            .map_err(|e| AppError::remote_io_error(format!("读取文件失败: {}", e)))?;
+        buf.truncate(bytes_read);
+
+        let truncated = file_size > max_bytes;
+
+        // 尝试 UTF-8 解码
+        match String::from_utf8(buf) {
+            Ok(text) => Ok(ReadPreviewResult {
+                content_type: "text".to_string(),
+                content: Some(text),
+                size: file_size,
+                truncated,
+                mime_guess,
+            }),
+            Err(_) => Ok(ReadPreviewResult {
+                content_type: "binary".to_string(),
+                content: None,
+                size: file_size,
+                truncated: false,
+                mime_guess,
+            }),
+        }
+    }
+
+    /// 根据文件扩展名猜测 MIME 类型
+    fn guess_mime_type(path: &str) -> Option<String> {
+        let ext = Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())?;
+
+        let mime = match ext.as_str() {
+            // Code files
+            "rs" | "ts" | "tsx" | "js" | "jsx" | "py" | "rb" | "go" | "java" | "c" | "cpp"
+            | "h" => "text/x-code",
+            // Config/markup files
+            "json" | "yaml" | "yml" | "toml" | "xml" | "html" | "css" | "md" => "text/x-config",
+            // Plain text files
+            "txt" | "log" | "csv" => "text/plain",
+            // Image files
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "svg" => "image/svg+xml",
+            "webp" => "image/webp",
+            // Everything else
+            _ => "application/octet-stream",
+        };
+
+        Some(mime.to_string())
+    }
+
     /// 获取文件/目录信息
     pub fn stat(sftp: &Sftp, path: &str) -> AppResult<FileEntry> {
         let normalized = Self::normalize_path(path);
@@ -836,7 +949,9 @@ impl SftpService {
     }
 }
 
-use crate::commands::sftp::{DeleteFailure, DeleteProgress, DirectoryStats, RecursiveDeleteResult};
+use crate::commands::sftp::{
+    DeleteFailure, DeleteProgress, DirectoryStats, ReadPreviewResult, RecursiveDeleteResult,
+};
 
 /// 递归删除进度回调类型
 pub type DeleteProgressCallback = Box<dyn Fn(DeleteProgress) + Send>;

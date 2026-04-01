@@ -4,10 +4,15 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, State};
 
-use crate::models::error::AppResult;
+use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::transfer_task::TransferTask;
 use crate::services::session_manager::SessionManager;
+use crate::services::storage_service::{Database, TransferHistoryRecord};
 use crate::services::transfer_manager::TransferManager;
+
+fn join_err(e: tokio::task::JoinError) -> AppError {
+    AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e))
+}
 
 /// 后台执行传输任务
 fn spawn_transfer_task(
@@ -201,4 +206,25 @@ pub async fn transfer_get(
 pub async fn transfer_cleanup(transfer_manager: State<'_, Arc<TransferManager>>) -> AppResult<()> {
     transfer_manager.cleanup_completed().await;
     Ok(())
+}
+
+/// 获取传输历史
+#[tauri::command]
+pub async fn transfer_history_list(
+    db: State<'_, Arc<Database>>,
+    limit: Option<i32>,
+) -> AppResult<Vec<TransferHistoryRecord>> {
+    let db = (*db).clone();
+    tokio::task::spawn_blocking(move || db.transfer_history_list(limit.unwrap_or(50)))
+        .await
+        .map_err(join_err)?
+}
+
+/// 清空传输历史
+#[tauri::command]
+pub async fn transfer_history_clear(db: State<'_, Arc<Database>>) -> AppResult<()> {
+    let db = (*db).clone();
+    tokio::task::spawn_blocking(move || db.transfer_history_clear())
+        .await
+        .map_err(join_err)?
 }

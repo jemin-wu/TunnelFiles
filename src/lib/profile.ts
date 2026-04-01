@@ -7,7 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 import { parseInvokeResult } from "./error";
-import type { Profile, ProfileInput } from "@/types/profile";
+import type { Profile, ProfileInput, RecentConnection } from "@/types/profile";
 
 // ============================================================================
 // Schemas
@@ -28,6 +28,15 @@ const ProfileSchema = z.object({
   initialPath: z.string().optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
+});
+
+const RecentConnectionSchema = z.object({
+  id: z.string(),
+  profileId: z.string(),
+  profileName: z.string(),
+  host: z.string(),
+  username: z.string(),
+  connectedAt: z.number(),
 });
 
 // ============================================================================
@@ -55,4 +64,14 @@ export async function upsertProfile(input: ProfileInput): Promise<string> {
 /** Delete a connection profile */
 export async function deleteProfile(profileId: string): Promise<void> {
   await invoke("profile_delete", { profileId });
+}
+
+// ============================================================================
+// Recent Connections
+// ============================================================================
+
+/** List recent connections (excludes orphaned records) */
+export async function listRecentConnections(limit?: number): Promise<RecentConnection[]> {
+  const result = await invoke("profile_recent_connections", { limit: limit ?? null });
+  return parseInvokeResult(z.array(RecentConnectionSchema), result, "profile_recent_connections");
 }

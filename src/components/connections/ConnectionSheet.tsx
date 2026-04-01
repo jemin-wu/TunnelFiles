@@ -160,7 +160,6 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
     const selected = await openDialog({
       multiple: false,
       title: "Select private key",
-      filters: [{ name: "All files", extensions: ["*"] }],
     });
     if (selected) {
       form.setValue("privateKeyPath", selected as string, { shouldValidate: true });

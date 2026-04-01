@@ -85,6 +85,27 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     },
   });
 
+  const batchDelete = useMutation({
+    mutationFn: async (items: Array<{ path: string; isDir: boolean }>) => {
+      return await sftp.batchDelete(sessionId, items);
+    },
+    onSuccess: (result) => {
+      if (result.failures.length === 0) {
+        showSuccessToast(`Deleted ${result.deletedCount} items`);
+      } else if (result.deletedCount > 0) {
+        showSuccessToast(
+          `Partial delete: ${result.deletedCount} succeeded, ${result.failures.length} failed`
+        );
+      } else {
+        showErrorToast(new Error(`Delete failed: ${result.failures[0]?.error}`));
+      }
+      invalidateFileList();
+    },
+    onError: (error) => {
+      showErrorToast(error);
+    },
+  });
+
   const chmod = useMutation({
     mutationFn: async ({ paths, mode }: { paths: string[]; mode: number }) => {
       return await sftp.chmod(sessionId, paths, mode);
@@ -113,6 +134,7 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
     rename,
     deleteItem,
     deleteRecursive,
+    batchDelete,
     chmod,
     getDirStats,
     isOperating:
@@ -120,6 +142,7 @@ export function useFileOperations({ sessionId, currentPath }: UseFileOperationsO
       rename.isPending ||
       deleteItem.isPending ||
       deleteRecursive.isPending ||
+      batchDelete.isPending ||
       chmod.isPending,
   };
 }

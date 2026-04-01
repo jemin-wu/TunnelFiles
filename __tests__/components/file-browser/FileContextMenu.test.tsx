@@ -180,14 +180,14 @@ describe("FileContextMenu", () => {
       });
     });
 
-    it("多选时删除标签始终显示 Delete（不支持批量删除）", async () => {
+    it("多选时删除标签显示批量删除数量", async () => {
       const user = userEvent.setup();
       render(<FileContextMenu {...defaultProps} selectionCount={5} />);
 
       await openContextMenu(user);
 
       await waitFor(() => {
-        expect(screen.getByText("Delete")).toBeInTheDocument();
+        expect(screen.getByText("Delete 5 items")).toBeInTheDocument();
       });
     });
 
@@ -210,7 +210,7 @@ describe("FileContextMenu", () => {
       await openContextMenu(user);
 
       await waitFor(() => {
-        expect(screen.getByText("Delete")).toBeInTheDocument();
+        expect(screen.getByText("Delete 2 items")).toBeInTheDocument();
       });
       expect(screen.queryByText("Rename")).not.toBeInTheDocument();
     });
@@ -222,7 +222,7 @@ describe("FileContextMenu", () => {
       await openContextMenu(user);
 
       await waitFor(() => {
-        expect(screen.getByText("Delete")).toBeInTheDocument();
+        expect(screen.getByText("Delete 2 items")).toBeInTheDocument();
       });
       expect(screen.queryByText("Open")).not.toBeInTheDocument();
     });

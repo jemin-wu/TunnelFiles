@@ -99,3 +99,25 @@ export async function checkHostKey(host: string, port: number): Promise<string |
   const result = await invoke("security_check_hostkey", { host, port });
   return parseInvokeResult(z.string().nullable(), result, "security_check_hostkey");
 }
+
+// ============================================================================
+// Known Hosts
+// ============================================================================
+
+const KnownHostSchema = z.object({
+  host: z.string(),
+  port: z.number(),
+  keyType: z.string(),
+  fingerprint: z.string(),
+  trustedAt: z.number(),
+});
+
+export type KnownHost = z.infer<typeof KnownHostSchema>;
+
+/**
+ * 获取所有已信任的 Known Hosts
+ */
+export async function listKnownHosts(): Promise<KnownHost[]> {
+  const result = await invoke("security_list_known_hosts");
+  return parseInvokeResult(z.array(KnownHostSchema), result, "security_list_known_hosts");
+}

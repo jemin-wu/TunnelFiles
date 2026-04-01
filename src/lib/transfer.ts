@@ -7,7 +7,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 import { parseInvokeResult } from "./error";
-import type { TransferTask } from "@/types/transfer";
+import type { TransferTask, TransferHistoryEntry } from "@/types/transfer";
 
 // ============================================================================
 // Schemas
@@ -124,4 +124,36 @@ export async function getTransfer(taskId: string): Promise<TransferTask | null> 
  */
 export async function cleanupTransfers(): Promise<void> {
   await invoke("transfer_cleanup");
+}
+
+// ============================================================================
+// Transfer History
+// ============================================================================
+
+const TransferHistoryEntrySchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  direction: z.enum(["upload", "download"]),
+  localPath: z.string(),
+  remotePath: z.string(),
+  fileSize: z.number(),
+  status: z.enum(["running", "success", "failed", "canceled"]),
+  errorMessage: z.string().nullable(),
+  startedAt: z.number(),
+  finishedAt: z.number().nullable(),
+});
+
+/**
+ * 获取传输历史
+ */
+export async function listTransferHistory(limit?: number): Promise<TransferHistoryEntry[]> {
+  const result = await invoke("transfer_history_list", { limit: limit ?? null });
+  return parseInvokeResult(z.array(TransferHistoryEntrySchema), result, "transfer_history_list");
+}
+
+/**
+ * 清空传输历史
+ */
+export async function clearTransferHistory(): Promise<void> {
+  await invoke("transfer_history_clear");
 }

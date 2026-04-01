@@ -82,6 +82,36 @@ export async function deleteItem(sessionId: string, path: string, isDir: boolean
   });
 }
 
+// ============================================================================
+// File Preview
+// ============================================================================
+
+export const ReadPreviewResultSchema = z.object({
+  contentType: z.string(),
+  content: z.string().nullable(),
+  size: z.number(),
+  truncated: z.boolean(),
+  mimeGuess: z.string().nullable(),
+});
+
+export type ReadPreviewResult = z.infer<typeof ReadPreviewResultSchema>;
+
+/**
+ * Read remote file preview (max 256KB)
+ *
+ * Rejects symlinks and directories. Returns text content or binary metadata.
+ */
+export async function readFile(
+  sessionId: string,
+  path: string,
+  maxBytes?: number
+): Promise<ReadPreviewResult> {
+  const result = await invoke("sftp_read_file", {
+    input: { sessionId, path, maxBytes: maxBytes ?? null },
+  });
+  return parseInvokeResult(ReadPreviewResultSchema, result, "sftp_read_file");
+}
+
 /**
  * Change file/directory permissions
  */
@@ -154,4 +184,31 @@ export async function deleteRecursive(
     input: { sessionId, path },
   });
   return parseInvokeResult(RecursiveDeleteResultSchema, result, "sftp_delete_recursive");
+}
+
+// ============================================================================
+// Batch Delete
+// ============================================================================
+
+export const BatchDeleteResultSchema = z.object({
+  deletedCount: z.number(),
+  failures: z.array(DeleteFailureSchema),
+});
+
+export type BatchDeleteResult = z.infer<typeof BatchDeleteResultSchema>;
+
+/**
+ * Batch delete files and directories
+ *
+ * Server-side canonicalization: parent dirs skip children.
+ * Directories use recursive delete.
+ */
+export async function batchDelete(
+  sessionId: string,
+  items: Array<{ path: string; isDir: boolean }>
+): Promise<BatchDeleteResult> {
+  const result = await invoke("sftp_batch_delete", {
+    input: { sessionId, items },
+  });
+  return parseInvokeResult(BatchDeleteResultSchema, result, "sftp_batch_delete");
 }
