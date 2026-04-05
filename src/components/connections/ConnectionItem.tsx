@@ -3,7 +3,7 @@
  * Single click to connect, compact card with clear visual hierarchy
  */
 
-import { Loader2, Plug, Pencil, Trash2, Key, MoreHorizontal, ArrowRight } from "lucide-react";
+import { Loader2, Pencil, Trash2, Key, MoreHorizontal, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -64,18 +64,10 @@ export function ConnectionItem({
         }
       }}
     >
-      {/* Connection indicator */}
-      <div className="bg-primary/10 text-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-md">
-        {isConnecting ? (
-          <Loader2 className="size-3.5 animate-spin" />
-        ) : (
-          <Plug className="size-3.5" />
-        )}
-      </div>
-
-      {/* Info */}
+      {/* Info — no icon: identical icons carry zero information */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
+          {isConnecting && <Loader2 className="text-primary size-3.5 shrink-0 animate-spin" />}
           <span className="truncate text-sm font-semibold" title={profile.name}>
             {profile.name}
           </span>
