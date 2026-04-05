@@ -51,7 +51,7 @@ export function PasswordInput({
         onClick={() => setShow(!show)}
         aria-label={show ? "Hide password" : "Show password"}
       >
-        {show ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+        {show ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
       </Button>
     </div>
   );

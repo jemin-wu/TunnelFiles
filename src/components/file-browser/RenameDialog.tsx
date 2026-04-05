@@ -91,7 +91,7 @@ export function RenameDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Pencil className="text-primary h-4 w-4" />
+              <Pencil className="text-primary size-4" />
               <span>Rename</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
@@ -103,7 +103,9 @@ export function RenameDialog({
             {/* Current name */}
             <div className="text-muted-foreground bg-muted/30 flex items-center gap-2 rounded px-3 py-2 text-xs">
               <span>Current:</span>
-              <span className="text-foreground truncate font-mono">{currentName}</span>
+              <span className="text-foreground truncate font-mono" title={currentName}>
+                {currentName}
+              </span>
             </div>
 
             <Label htmlFor="new-name" className="text-sm">
@@ -150,7 +152,7 @@ export function RenameDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isPending || !name.trim()}>
-              {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {isPending && <Loader2 className="size-3.5 animate-spin" />}
               Confirm
             </Button>
           </DialogFooter>

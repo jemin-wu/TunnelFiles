@@ -26,11 +26,11 @@ interface ErrorStateProps {
 }
 
 const errorIcons: Partial<Record<ErrorCode, React.ReactNode>> = {
-  [ErrorCode.NETWORK_LOST]: <WifiOff className="h-8 w-8" />,
-  [ErrorCode.AUTH_FAILED]: <KeyRound className="h-8 w-8" />,
-  [ErrorCode.PERMISSION_DENIED]: <Lock className="h-8 w-8" />,
-  [ErrorCode.NOT_FOUND]: <FileX className="h-8 w-8" />,
-  [ErrorCode.DIR_NOT_EMPTY]: <FolderOpen className="h-8 w-8" />,
+  [ErrorCode.NETWORK_LOST]: <WifiOff className="size-8" />,
+  [ErrorCode.AUTH_FAILED]: <KeyRound className="size-8" />,
+  [ErrorCode.PERMISSION_DENIED]: <Lock className="size-8" />,
+  [ErrorCode.NOT_FOUND]: <FileX className="size-8" />,
+  [ErrorCode.DIR_NOT_EMPTY]: <FolderOpen className="size-8" />,
 };
 
 function parseError(error: AppError | Error | string): AppError {
@@ -59,7 +59,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
 
   const friendlyMessage = ERROR_MESSAGES[appError.code] || appError.message;
 
-  const icon = errorIcons[appError.code] || <AlertCircle className="h-8 w-8" />;
+  const icon = errorIcons[appError.code] || <AlertCircle className="size-8" />;
 
   const showRetry = appError.retryable && onRetry;
   const hasDetail = appError.detail && appError.detail.length > 0;
@@ -77,7 +77,10 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
       <div className="space-y-1">
         <p className="text-foreground text-sm font-medium">{friendlyMessage}</p>
         {appError.message !== friendlyMessage && (
-          <p className="text-muted-foreground max-w-[300px] truncate text-xs">
+          <p
+            className="text-muted-foreground max-w-[300px] truncate text-xs"
+            title={appError.message}
+          >
             {appError.message.length > 100
               ? `${appError.message.slice(0, 100)}...`
               : appError.message}
@@ -95,11 +98,11 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
           >
             {detailExpanded ? (
               <>
-                Hide details <ChevronUp className="h-3 w-3" />
+                Hide details <ChevronUp className="size-3" />
               </>
             ) : (
               <>
-                Show details <ChevronDown className="h-3 w-3" />
+                Show details <ChevronDown className="size-3" />
               </>
             )}
           </Button>
@@ -113,7 +116,7 @@ export function ErrorState({ error, onRetry, className }: ErrorStateProps) {
 
       {showRetry && (
         <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
-          <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="size-4" />
           Retry
         </Button>
       )}
@@ -132,7 +135,7 @@ interface InlineErrorProps {
 export function InlineError({ message, className }: InlineErrorProps) {
   return (
     <div className={cn("text-destructive flex items-center gap-2 text-sm", className)} role="alert">
-      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+      <AlertCircle className="size-4 shrink-0" />
       <span>{message}</span>
     </div>
   );

@@ -74,7 +74,7 @@ export function MainLayout() {
                     className="text-muted-foreground h-7 gap-1 px-2 text-sm"
                     onClick={handleBack}
                   >
-                    <ChevronLeft className="h-3.5 w-3.5" />
+                    <ChevronLeft className="size-3.5" />
                     <span>Back</span>
                   </Button>
                 </TooltipTrigger>
@@ -99,12 +99,14 @@ export function MainLayout() {
             {/* Theme toggle */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleTheme}>
-                  {theme === "dark" ? (
-                    <Sun className="h-3.5 w-3.5" />
-                  ) : (
-                    <Moon className="h-3.5 w-3.5" />
-                  )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={toggleTheme}
+                  aria-label={theme === "dark" ? "Switch to light" : "Switch to dark"}
+                >
+                  {theme === "dark" ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
@@ -115,8 +117,14 @@ export function MainLayout() {
             {/* Settings */}
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleSettings}>
-                  <Settings className="h-3.5 w-3.5" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={handleSettings}
+                  aria-label="Settings"
+                >
+                  <Settings className="size-3.5" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">

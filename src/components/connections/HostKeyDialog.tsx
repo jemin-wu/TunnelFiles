@@ -69,7 +69,7 @@ export function HostKeyDialog({
       >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Icon className={cn("h-4 w-4", isMismatch ? "text-destructive" : "text-warning")} />
+            <Icon className={cn("size-4", isMismatch ? "text-destructive" : "text-warning")} />
             <span>{isMismatch ? "Host key mismatch" : "Verify host key"}</span>
           </DialogTitle>
           <DialogDescription asChild>
@@ -85,7 +85,7 @@ export function HostKeyDialog({
           {/* 服务器信息 */}
           <div className="bg-background/30 flex items-center justify-between rounded px-3 py-2 text-xs">
             <span className="text-muted-foreground flex items-center gap-2">
-              <Server className="h-3 w-3" />
+              <Server className="size-3" />
               Server
             </span>
             <span className="text-primary font-mono">
@@ -107,7 +107,7 @@ export function HostKeyDialog({
           {/* 指纹 */}
           <div className="space-y-2">
             <div className="text-muted-foreground flex items-center gap-2 text-xs">
-              <Fingerprint className="text-primary h-3.5 w-3.5" />
+              <Fingerprint className="text-primary size-3.5" />
               <span>SHA256 fingerprint</span>
             </div>
             <div className="bg-background/50 border-border text-foreground rounded border p-3 font-mono text-xs leading-relaxed break-all">
@@ -118,7 +118,7 @@ export function HostKeyDialog({
           {/* 警告提示 */}
           {isMismatch && (
             <div className="bg-destructive/10 border-destructive/20 flex items-start gap-2 rounded border p-3 text-xs">
-              <AlertTriangle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+              <AlertTriangle className="text-destructive mt-0.5 size-4 shrink-0" />
               <div className="space-y-1">
                 <p className="text-destructive font-medium">Security warning</p>
                 <p className="text-destructive/80">
@@ -140,7 +140,7 @@ export function HostKeyDialog({
             size="sm"
             variant={isMismatch ? "destructive" : "default"}
           >
-            {isProcessing && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            {isProcessing && <Loader2 className="size-3.5 animate-spin" />}
             {isMismatch ? "Trust anyway" : "Trust"}
           </Button>
         </DialogFooter>

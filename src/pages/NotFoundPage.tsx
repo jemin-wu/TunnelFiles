@@ -13,7 +13,7 @@ export function NotFoundPage() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 p-8">
       <div className="space-y-3 text-center">
-        <h1 className="text-foreground text-5xl font-bold">404</h1>
+        <h1 className="text-foreground text-5xl font-semibold">404</h1>
         <p className="text-muted-foreground text-sm">Page not found</p>
       </div>
 
@@ -22,7 +22,7 @@ export function NotFoundPage() {
           Go back
         </Button>
         <Button size="sm" onClick={() => navigate("/connections")} className="gap-2">
-          <Home className="h-3.5 w-3.5" />
+          <Home className="size-3.5" />
           Home
         </Button>
       </div>

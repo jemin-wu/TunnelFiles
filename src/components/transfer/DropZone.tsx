@@ -46,7 +46,7 @@ export function DropZone({
           {/* Content */}
           <div className="animate-fade-in relative flex flex-col items-center gap-4">
             <div className="bg-primary/10 border-primary/30 flex h-16 w-16 items-center justify-center rounded-lg border">
-              <Upload className="text-primary h-8 w-8" />
+              <Upload className="text-primary size-8" />
             </div>
 
             <div className="space-y-2 text-center">
@@ -56,7 +56,10 @@ export function DropZone({
               </p>
               <div className="text-muted-foreground bg-muted/50 flex items-center justify-center gap-1 rounded px-3 py-1 text-xs">
                 <span>Target:</span>
-                <span className="text-foreground max-w-[200px] truncate font-mono">
+                <span
+                  className="text-foreground max-w-[200px] truncate font-mono"
+                  title={remotePath}
+                >
                   {remotePath}
                 </span>
               </div>

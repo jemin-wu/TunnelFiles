@@ -95,7 +95,7 @@ export function PermissionMatrix({
       {/* Octal display */}
       <div className="text-muted-foreground mt-3 flex items-center gap-2">
         <span>Octal:</span>
-        <span className="text-primary font-bold">{formatOctalMode(octalMode)}</span>
+        <span className="text-primary font-semibold">{formatOctalMode(octalMode)}</span>
       </div>
     </div>
   );

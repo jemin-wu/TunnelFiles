@@ -78,6 +78,7 @@ function KnownHostRow({
         className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
         onClick={() => onRemove(host)}
         disabled={isRemoving}
+        aria-label="Remove trusted host"
         title="Remove trusted host"
       >
         {isRemoving ? (
@@ -187,7 +188,7 @@ export function KnownHostsList() {
               disabled={removeKnownHost.isPending}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {removeKnownHost.isPending && <Loader2 className="mr-2 size-3.5 animate-spin" />}
+              {removeKnownHost.isPending && <Loader2 className="size-3.5 animate-spin" />}
               Remove
             </AlertDialogAction>
           </AlertDialogFooter>

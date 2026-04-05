@@ -86,7 +86,7 @@ export function CreateFolderDialog({
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FolderPlus className="text-primary h-4 w-4" />
+              <FolderPlus className="text-primary size-4" />
               <span>New folder</span>
             </DialogTitle>
             <DialogDescription className="sr-only">
@@ -130,7 +130,7 @@ export function CreateFolderDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isPending || !name.trim()}>
-              {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {isPending && <Loader2 className="size-3.5 animate-spin" />}
               Create
             </Button>
           </DialogFooter>

@@ -49,5 +49,5 @@ export function FileIcon({ file, className }: FileIconProps) {
   const Icon = iconMap[fileType];
   const colorClass = colorMap[fileType];
 
-  return <Icon className={cn("h-4 w-4", colorClass, className)} />;
+  return <Icon className={cn("size-4", colorClass, className)} />;
 }

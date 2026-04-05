@@ -124,7 +124,9 @@ export function PreviewDialog({
         <DialogHeader className="border-border border-b px-4 py-3">
           <DialogTitle className="flex items-center gap-2 text-sm font-medium">
             <FileText className="text-muted-foreground size-4" />
-            <span className="truncate">{file?.name ?? "Preview"}</span>
+            <span className="truncate" title={file?.name ?? "Preview"}>
+              {file?.name ?? "Preview"}
+            </span>
           </DialogTitle>
           <DialogDescription className="text-muted-foreground text-xs">
             {result

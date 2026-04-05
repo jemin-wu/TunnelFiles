@@ -197,7 +197,7 @@ export function ConnectionsPage() {
                 className="gap-2"
                 data-testid="add-connection-button"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="size-3.5" />
                 <span>New connection</span>
               </Button>
             </EmptyContent>
@@ -275,7 +275,7 @@ export function ConnectionsPage() {
                 data-testid="add-connection-button"
                 className="border-border/60 text-muted-foreground hover:border-primary/40 mt-1 h-10 w-full gap-2 border border-dashed text-xs"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="size-3.5" />
                 New connection
               </Button>
             </div>
@@ -316,7 +316,7 @@ export function ConnectionsPage() {
               disabled={isDeleting}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 h-8"
             >
-              {isDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : "Delete"}
+              {isDeleting ? <Loader2 className="size-3 animate-spin" /> : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

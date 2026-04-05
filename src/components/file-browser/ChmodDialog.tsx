@@ -77,7 +77,7 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
       <DialogContent className="border-border bg-card sm:max-w-md" showCloseButton={!isPending}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Shield className="text-primary h-4 w-4" />
+            <Shield className="text-primary size-4" />
             <span>Change permissions</span>
           </DialogTitle>
           <DialogDescription className="sr-only">
@@ -103,11 +103,13 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
                     className="text-muted-foreground flex items-center gap-2 font-mono text-xs"
                   >
                     {file.isDir ? (
-                      <Folder className="text-primary h-3 w-3 shrink-0" />
+                      <Folder className="text-primary size-3 shrink-0" />
                     ) : (
-                      <FileText className="h-3 w-3 shrink-0" />
+                      <FileText className="size-3 shrink-0" />
                     )}
-                    <span className="truncate">{file.name}</span>
+                    <span className="truncate" title={file.name}>
+                      {file.name}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -133,7 +135,7 @@ export function ChmodDialog({ open, onOpenChange, files, onSubmit, isPending }: 
             Cancel
           </Button>
           <Button type="button" size="sm" onClick={handleSubmit} disabled={isPending}>
-            {isPending && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            {isPending && <Loader2 className="size-3.5 animate-spin" />}
             Apply
           </Button>
         </DialogFooter>

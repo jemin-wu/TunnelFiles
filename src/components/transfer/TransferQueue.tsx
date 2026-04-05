@@ -317,7 +317,7 @@ function TaskIcon({
   direction: "upload" | "download";
   status: TransferStatus;
 }) {
-  const baseClasses = "size-4 flex-shrink-0";
+  const baseClasses = "size-4 shrink-0";
 
   switch (status) {
     case "success":

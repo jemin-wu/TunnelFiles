@@ -118,7 +118,7 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
 
   return (
     <div className="flex h-full flex-col items-center justify-center p-8" role="alert">
-      <AlertTriangle className="text-destructive mb-4 h-12 w-12" />
+      <AlertTriangle className="text-destructive mb-4 size-12" />
       <h2 className="mb-2 text-xl font-semibold">Something went wrong</h2>
       <p className="text-muted-foreground mb-4 max-w-md text-center">{message}</p>
       {detail && (
@@ -130,18 +130,18 @@ function ErrorFallback({ error, onReset }: ErrorFallbackProps) {
         <Button variant="secondary" onClick={handleCopy}>
           {copied ? (
             <>
-              <Check className="mr-2 h-4 w-4" />
+              <Check className="size-4" />
               Copied
             </>
           ) : (
             <>
-              <Copy className="mr-2 h-4 w-4" />
+              <Copy className="size-4" />
               Copy error info
             </>
           )}
         </Button>
         <Button onClick={onReset}>
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw className="size-4" />
           Retry
         </Button>
         <Button variant="outline" onClick={() => (window.location.href = "/connections")}>

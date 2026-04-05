@@ -134,7 +134,7 @@ const FileRow = memo(function FileRow({
       {...rest}
     >
       {/* Icon */}
-      <div style={{ width: ICON_WIDTH }} className="flex flex-shrink-0 items-center">
+      <div style={{ width: ICON_WIDTH }} className="flex shrink-0 items-center">
         <FileIcon file={file} className="size-3.5" />
       </div>
 
@@ -151,7 +151,7 @@ const FileRow = memo(function FileRow({
 
       {/* Size */}
       <div
-        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
+        className="text-muted-foreground shrink-0 text-right font-mono text-xs"
         style={{ width: SIZE_WIDTH }}
       >
         {file.isDir ? (
@@ -163,7 +163,7 @@ const FileRow = memo(function FileRow({
 
       {/* Permissions */}
       <div
-        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
+        className="text-muted-foreground shrink-0 text-right font-mono text-xs"
         style={{ width: PERM_WIDTH }}
       >
         {formatFileMode(file.mode)}
@@ -171,7 +171,7 @@ const FileRow = memo(function FileRow({
 
       {/* Modified time */}
       <div
-        className="text-muted-foreground flex-shrink-0 text-right font-mono text-xs"
+        className="text-muted-foreground shrink-0 text-right font-mono text-xs"
         style={{ width: MTIME_WIDTH }}
       >
         {formatFileTime(file.mtime)}
@@ -403,9 +403,9 @@ export function FileList({
       {/* Header */}
       <div
         role="row"
-        className="border-border bg-card/30 flex h-8 flex-shrink-0 items-center overflow-hidden border-b px-3"
+        className="border-border bg-card/30 flex h-8 shrink-0 items-center overflow-hidden border-b px-3"
       >
-        <div style={{ width: ICON_WIDTH }} className="flex-shrink-0" />
+        <div style={{ width: ICON_WIDTH }} className="shrink-0" />
         <HeaderCell field="name" currentSort={sort} onSort={onSortChange} style={{ flex: 1 }}>
           Name
         </HeaderCell>
@@ -419,7 +419,7 @@ export function FileList({
           Size
         </HeaderCell>
         <div
-          className="text-muted-foreground flex flex-shrink-0 items-center justify-end text-xs font-medium tracking-wider uppercase"
+          className="text-muted-foreground flex shrink-0 items-center justify-end text-xs font-medium tracking-wider uppercase"
           style={{ width: PERM_WIDTH }}
         >
           Perms

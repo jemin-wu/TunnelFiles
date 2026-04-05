@@ -231,6 +231,7 @@ export function SettingsPage() {
                                   disabled={isUpdating}
                                   onClick={handleSelectDirectory}
                                   className="h-9 w-9 shrink-0"
+                                  aria-label="Browse directory"
                                 >
                                   <FolderOpen className="size-4" />
                                 </Button>

@@ -79,10 +79,6 @@ New feature build order: Types → Rust commands → lib/ wrappers → hooks →
 - **E2E**: WebKitWebDriver + Docker SSH test servers + visual regression
 - **Security**: dependency audit
 
-## Design
-
-@.impeccable.md
-
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

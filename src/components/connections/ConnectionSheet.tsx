@@ -362,6 +362,7 @@ export function ConnectionSheet({ open, onOpenChange, editProfile }: ConnectionS
                                 className="h-9 w-9 shrink-0"
                                 onClick={handleSelectKeyFile}
                                 disabled={upsertProfile.isPending}
+                                aria-label="Browse key file"
                               >
                                 <FolderOpen className="size-4" />
                               </Button>

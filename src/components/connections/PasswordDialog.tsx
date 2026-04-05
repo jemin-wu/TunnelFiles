@@ -109,7 +109,7 @@ export function PasswordDialog({
               Cancel
             </Button>
             <Button type="submit" size="sm" disabled={isConnecting || !value.trim()}>
-              {isConnecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Connect"}
+              {isConnecting ? <Loader2 className="size-3.5 animate-spin" /> : "Connect"}
             </Button>
           </DialogFooter>
         </form>
