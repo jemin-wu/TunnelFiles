@@ -32,7 +32,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useSessionStatus } from "@/hooks/useSessionStatus";
 import { useTransferEvents } from "@/hooks/useTransferEvents";
 import { useTerminal } from "@/hooks/useTerminal";
+import { useTerminalDirectorySync } from "@/hooks/useTerminalDirectorySync";
 import { useFileList } from "@/hooks/useFileList";
+import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cn } from "@/lib/utils";
 import type { TerminalStatusPayload } from "@/types/terminal";
@@ -519,6 +521,16 @@ export function FileManagerPage() {
     resize,
     setStatus: setTerminalStatus,
   } = useTerminal({ sessionId: sessionId ?? "" });
+
+  // Terminal directory sync — auto-cd when file browser navigates
+  const { settings } = useSettings();
+  useTerminalDirectorySync({
+    terminalId: terminalInfo?.terminalId ?? null,
+    currentPath,
+    terminalStatus,
+    writeInput,
+    enabled: settings.terminalFollowDirectory,
+  });
 
   // Auto-open terminal when switching to Terminal tab
   useEffect(() => {

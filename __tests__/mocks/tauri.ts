@@ -66,6 +66,7 @@ export const mockSettings: Settings = {
   logLevel: "info",
   terminalFontSize: 14,
   terminalScrollbackLines: 5000,
+  terminalFollowDirectory: true,
 };
 
 // IPC command mock handlers

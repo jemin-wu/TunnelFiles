@@ -65,6 +65,8 @@ pub struct Settings {
     pub terminal_font_size: u8,
     /// 终端 scrollback 行数 (1000-50000)
     pub terminal_scrollback_lines: u32,
+    /// 终端跟随文件浏览器目录
+    pub terminal_follow_directory: bool,
 }
 
 impl Default for Settings {
@@ -77,6 +79,7 @@ impl Default for Settings {
             log_level: LogLevel::Info,
             terminal_font_size: TERMINAL_FONT_SIZE_DEFAULT,
             terminal_scrollback_lines: TERMINAL_SCROLLBACK_DEFAULT,
+            terminal_follow_directory: true,
         }
     }
 }
@@ -101,6 +104,8 @@ pub struct SettingsPatch {
     pub terminal_font_size: Option<u8>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_scrollback_lines: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_follow_directory: Option<bool>,
 }
 
 #[cfg(test)]
@@ -112,6 +117,7 @@ mod tests {
         let settings = Settings::default();
         assert_eq!(settings.terminal_font_size, 14);
         assert_eq!(settings.terminal_scrollback_lines, 5000);
+        assert!(settings.terminal_follow_directory);
     }
 
     #[test]
@@ -120,13 +126,15 @@ mod tests {
         let json = serde_json::to_string(&settings).unwrap();
         assert!(json.contains("\"terminalFontSize\":14"));
         assert!(json.contains("\"terminalScrollbackLines\":5000"));
+        assert!(json.contains("\"terminalFollowDirectory\":true"));
     }
 
     #[test]
     fn test_settings_patch_deserialize_terminal_fields() {
-        let json = r#"{"terminalFontSize":16,"terminalScrollbackLines":10000}"#;
+        let json = r#"{"terminalFontSize":16,"terminalScrollbackLines":10000,"terminalFollowDirectory":false}"#;
         let patch: SettingsPatch = serde_json::from_str(json).unwrap();
         assert_eq!(patch.terminal_font_size, Some(16));
         assert_eq!(patch.terminal_scrollback_lines, Some(10000));
+        assert_eq!(patch.terminal_follow_directory, Some(false));
     }
 }

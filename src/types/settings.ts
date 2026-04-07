@@ -21,6 +21,8 @@ export interface Settings {
   terminalFontSize: number;
   /** 终端 scrollback 行数 (1000-50000) */
   terminalScrollbackLines: number;
+  /** 终端跟随文件浏览器目录 */
+  terminalFollowDirectory: boolean;
 }
 
 /**
@@ -49,4 +51,5 @@ export const DEFAULT_SETTINGS: Settings = {
   logLevel: "info",
   terminalFontSize: TERMINAL_FONT_SIZE_DEFAULT,
   terminalScrollbackLines: TERMINAL_SCROLLBACK_DEFAULT,
+  terminalFollowDirectory: true,
 };

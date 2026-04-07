@@ -23,6 +23,7 @@ const SettingsSchema = z.object({
   logLevel: LogLevelSchema,
   terminalFontSize: z.number(),
   terminalScrollbackLines: z.number(),
+  terminalFollowDirectory: z.boolean(),
 });
 
 // ============================================================================

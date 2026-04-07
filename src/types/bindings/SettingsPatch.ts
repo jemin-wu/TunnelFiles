@@ -4,4 +4,4 @@ import type { LogLevel } from "./LogLevel";
 /**
  * 设置更新补丁
  */
-export type SettingsPatch = { defaultDownloadDir: string | null, maxConcurrentTransfers: number | null, connectionTimeoutSecs: number | null, transferRetryCount: number | null, logLevel: LogLevel | null, terminalFontSize: number | null, terminalScrollbackLines: number | null, };
+export type SettingsPatch = { defaultDownloadDir: string | null, maxConcurrentTransfers: number | null, connectionTimeoutSecs: number | null, transferRetryCount: number | null, logLevel: LogLevel | null, terminalFontSize: number | null, terminalScrollbackLines: number | null, terminalFollowDirectory: boolean | null, };

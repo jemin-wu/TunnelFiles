@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 3;
+const DB_VERSION: i32 = 4;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -109,6 +109,7 @@ impl Database {
                 log_level TEXT NOT NULL DEFAULT 'info',
                 terminal_font_size INTEGER NOT NULL DEFAULT 14,
                 terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
+                terminal_follow_directory INTEGER NOT NULL DEFAULT 1,
                 updated_at INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO settings (id, updated_at) VALUES (1, 0);
@@ -216,6 +217,7 @@ impl Database {
         for col_sql in [
             "ALTER TABLE settings ADD COLUMN terminal_font_size INTEGER NOT NULL DEFAULT 14",
             "ALTER TABLE settings ADD COLUMN terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000",
+            "ALTER TABLE settings ADD COLUMN terminal_follow_directory INTEGER NOT NULL DEFAULT 1",
         ] {
             if let Err(e) = conn.execute(col_sql, []) {
                 let msg = e.to_string();
@@ -722,6 +724,7 @@ impl Database {
                 log_level = ?,
                 terminal_font_size = ?,
                 terminal_scrollback_lines = ?,
+                terminal_follow_directory = ?,
                 updated_at = ?
             WHERE id = 1
             "#,
@@ -733,6 +736,7 @@ impl Database {
                 settings.log_level.as_str(),
                 settings.terminal_font_size,
                 settings.terminal_scrollback_lines,
+                settings.terminal_follow_directory,
                 now,
             ],
         )?;
@@ -749,6 +753,7 @@ impl Database {
             log_level: parse_log_level(row.get::<_, String>(4)?),
             terminal_font_size: row.get(5)?,
             terminal_scrollback_lines: row.get(6)?,
+            terminal_follow_directory: row.get::<_, i64>(7)? != 0,
         })
     }
 
@@ -799,7 +804,8 @@ impl Database {
             r#"
             SELECT default_download_dir, max_concurrent_transfers,
                    connection_timeout_secs, transfer_retry_count, log_level,
-                   terminal_font_size, terminal_scrollback_lines
+                   terminal_font_size, terminal_scrollback_lines,
+                   terminal_follow_directory
             FROM settings WHERE id = 1
             "#,
             [],
@@ -820,7 +826,8 @@ impl Database {
             r#"
             SELECT default_download_dir, max_concurrent_transfers,
                    connection_timeout_secs, transfer_retry_count, log_level,
-                   terminal_font_size, terminal_scrollback_lines
+                   terminal_font_size, terminal_scrollback_lines,
+                   terminal_follow_directory
             FROM settings WHERE id = 1
             "#,
             [],
@@ -853,6 +860,9 @@ impl Database {
                 crate::models::settings::TERMINAL_SCROLLBACK_MIN,
                 crate::models::settings::TERMINAL_SCROLLBACK_MAX,
             );
+        }
+        if let Some(v) = patch.terminal_follow_directory {
+            settings.terminal_follow_directory = v;
         }
 
         Self::save_settings_to_db(&conn, &settings)?;

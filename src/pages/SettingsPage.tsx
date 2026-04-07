@@ -12,6 +12,7 @@ import { Loader2, FolderOpen, Download, Zap, FileText, TerminalSquare, Shield } 
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -49,6 +50,7 @@ const settingsSchema = z.object({
   logLevel: z.enum(["error", "warn", "info", "debug"]),
   terminalFontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX),
   terminalScrollbackLines: z.number().min(TERMINAL_SCROLLBACK_MIN).max(TERMINAL_SCROLLBACK_MAX),
+  terminalFollowDirectory: z.boolean(),
 });
 
 type SettingsFormValues = z.infer<typeof settingsSchema>;
@@ -121,6 +123,7 @@ export function SettingsPage() {
       logLevel: settings.logLevel,
       terminalFontSize: settings.terminalFontSize,
       terminalScrollbackLines: settings.terminalScrollbackLines,
+      terminalFollowDirectory: settings.terminalFollowDirectory,
     },
   });
 
@@ -133,6 +136,7 @@ export function SettingsPage() {
       logLevel: values.logLevel,
       terminalFontSize: values.terminalFontSize,
       terminalScrollbackLines: values.terminalScrollbackLines,
+      terminalFollowDirectory: values.terminalFollowDirectory,
     });
     navigate(-1);
   };
@@ -404,6 +408,27 @@ export function SettingsPage() {
                               </div>
                             </div>
                             <FormMessage className="text-xs" />
+                          </FormItem>
+                        </SettingRow>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="terminalFollowDirectory"
+                      render={({ field }) => (
+                        <SettingRow
+                          label="Follow directory"
+                          description="Auto-cd to the browsed directory when terminal is idle"
+                        >
+                          <FormItem className="space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={isUpdating}
+                              />
+                            </FormControl>
                           </FormItem>
                         </SettingRow>
                       )}

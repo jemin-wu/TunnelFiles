@@ -32,4 +32,8 @@ terminalFontSize: number,
 /**
  * 终端 scrollback 行数 (1000-50000)
  */
-terminalScrollbackLines: number, };
+terminalScrollbackLines: number, 
+/**
+ * 终端跟随文件浏览器目录
+ */
+terminalFollowDirectory: boolean, };
