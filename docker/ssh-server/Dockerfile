@@ -31,6 +31,9 @@ RUN mkdir -p /home/testuser/.ssh && \
     chmod 700 /home/testuser/.ssh && \
     chown testuser:testuser /home/testuser/.ssh
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 22
 
-CMD ["/usr/sbin/sshd", "-D", "-e"]
+ENTRYPOINT ["/entrypoint.sh"]

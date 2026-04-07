@@ -7,8 +7,8 @@ services:
     ports:
       - "2222:22"
     volumes:
-      # Mount SSH keys for key-based auth testing
-      - ./ssh-keys:/home/testuser/.ssh:ro
+      # Mount SSH keys to staging path — entrypoint copies with correct ownership
+      - ./ssh-keys:/ssh-keys-mount:ro
     healthcheck:
       test: ["CMD", "nc", "-z", "localhost", "22"]
       interval: 5s
