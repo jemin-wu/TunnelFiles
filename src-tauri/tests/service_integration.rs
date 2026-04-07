@@ -296,9 +296,15 @@ mod transfer_lifecycle {
         file
     }
 
+    fn create_test_transfer_manager(max_concurrent: u8) -> (TransferManager, tempfile::TempDir) {
+        let (db, tmp) = create_test_db();
+        let manager = TransferManager::new(max_concurrent, Arc::new(db));
+        (manager, tmp)
+    }
+
     #[tokio::test]
     async fn test_create_upload_task() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp_file = create_temp_file(b"upload test content");
 
         let task_id = manager
@@ -321,7 +327,7 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_create_download_task() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp_dir = tempfile::tempdir().unwrap();
 
         let task_id = manager
@@ -343,7 +349,7 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_cancel_waiting_task() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp_file = create_temp_file(b"cancel me");
 
         let task_id = manager
@@ -365,7 +371,7 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_retry_failed_task() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp_file = create_temp_file(b"retry me");
 
         let task_id = manager
@@ -392,7 +398,8 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_concurrent_task_creation() {
-        let manager = Arc::new(TransferManager::new(2));
+        let (manager, _tmp) = create_test_transfer_manager(2);
+        let manager = Arc::new(manager);
         let mut handles = vec![];
 
         // Create 5 tasks concurrently
@@ -424,7 +431,7 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_list_and_get_tasks() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp1 = create_temp_file(b"file1");
         let _temp2_keep = create_temp_file(b"file2"); // keep alive
         let temp_dir = tempfile::tempdir().unwrap();
@@ -464,7 +471,7 @@ mod transfer_lifecycle {
 
     #[tokio::test]
     async fn test_cleanup_completed() {
-        let manager = TransferManager::new(3);
+        let (manager, _tmp) = create_test_transfer_manager(3);
         let temp1 = create_temp_file(b"data1");
         let temp2 = create_temp_file(b"data2");
         let temp3 = create_temp_file(b"data3");
