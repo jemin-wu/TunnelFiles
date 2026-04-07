@@ -362,8 +362,9 @@ impl SessionManager {
             .profile_get(profile_id)?
             .ok_or_else(|| AppError::not_found(format!("Profile {} 不存在", profile_id)))?;
 
-        // 建立新的 SSH 连接（默认 30 秒超时）
-        let timeout = Duration::from_secs(30);
+        // 使用用户配置的超时时间
+        let settings = db.settings_load()?;
+        let timeout = Duration::from_secs(settings.connection_timeout_secs);
         let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
 
         // 使用缓存的凭据进行认证（借用而非克隆，避免凭据在内存中扩散）
@@ -510,10 +511,18 @@ impl SessionManager {
         let mut session = Session::new()
             .map_err(|e| AppError::new(ErrorCode::Unknown, format!("无法创建 SSH 会话: {}", e)))?;
 
+        session.set_timeout(timeout.as_millis() as u32);
         session.set_tcp_stream(tcp);
-        session
-            .handshake()
-            .map_err(|e| AppError::network_lost(format!("SSH 握手失败: {}", e)))?;
+        session.handshake().map_err(|e| match e.code() {
+            ssh2::ErrorCode::Session(-13) => {
+                // LIBSSH2_ERROR_BANNER_RECV: 服务器未返回 SSH banner
+                AppError::network_lost(
+                    "SSH 握手失败: 服务器未响应，请检查主机地址、端口是否正确，以及目标是否为 SSH 服务"
+                        .to_string(),
+                )
+            }
+            _ => AppError::network_lost(format!("SSH 握手失败: {}", e)),
+        })?;
 
         // 设置 SSH keepalive（每 60 秒发送一次，保持连接活跃）
         session.set_keepalive(true, 60);

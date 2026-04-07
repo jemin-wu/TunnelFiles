@@ -117,6 +117,12 @@ impl From<ssh2::Error> for AppError {
                 // LIBSSH2_ERROR_AUTHENTICATION_FAILED
                 AppError::auth_failed(message)
             }
+            ssh2::ErrorCode::Session(-13) => {
+                // LIBSSH2_ERROR_BANNER_RECV
+                AppError::network_lost(
+                    "服务器未响应 SSH 握手，请检查主机地址、端口是否正确".to_string(),
+                )
+            }
             ssh2::ErrorCode::Session(-43) => {
                 // LIBSSH2_ERROR_TIMEOUT
                 AppError::timeout(message)
