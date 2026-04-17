@@ -69,7 +69,7 @@ fn connect_with_trust(
                 &pending.key_type,
                 &pending.fingerprint,
             )?;
-            manager.connect_after_trust(profile, Some(PASSWORD), None, 30)
+            manager.connect_after_trust(profile, Some(PASSWORD), None, 30, &pending.fingerprint)
         }
     }
 }
@@ -186,23 +186,6 @@ mod session_lifecycle {
     }
 
     #[test]
-    fn test_is_session_alive() {
-        if !is_docker_available() {
-            eprintln!("Skipping: Docker SSH server not available");
-            return;
-        }
-
-        let (db, _tmp) = create_test_db();
-        let manager = SessionManager::new();
-        let profile = create_test_profile(PORT_1);
-
-        let result = connect_with_trust(&manager, &db, &profile).unwrap();
-
-        assert!(manager.is_session_alive(&result.session_id));
-        assert!(!manager.is_session_alive("nonexistent-session"));
-    }
-
-    #[test]
     fn test_cleanup_stale_sessions() {
         if !is_docker_available() {
             eprintln!("Skipping: Docker SSH server not available");
@@ -242,7 +225,8 @@ mod session_lifecycle {
         let session = manager.get_session(&result.session_id).unwrap();
 
         // SFTP readdir should work
-        let entries = session.sftp.readdir(Path::new("."));
+        let sftp = session.lock_sftp().unwrap();
+        let entries = sftp.readdir(Path::new("."));
         assert!(entries.is_ok(), "SFTP readdir should succeed");
     }
 
@@ -298,7 +282,7 @@ mod transfer_lifecycle {
 
     fn create_test_transfer_manager(max_concurrent: u8) -> (TransferManager, tempfile::TempDir) {
         let (db, tmp) = create_test_db();
-        let manager = TransferManager::new(max_concurrent, Arc::new(db));
+        let manager = TransferManager::new(max_concurrent, 2, Arc::new(db));
         (manager, tmp)
     }
 
