@@ -62,6 +62,10 @@ base64 = "0.22"
 # 安全内存清零
 zeroize = "1"
 
+# 凭证 scrubber 正则匹配（SPEC §7 Ask First 新依赖：
+# regex 1.12 已经以传递依赖存在于 Cargo.lock，升级为直接依赖无新依赖树影响）
+regex = "1"
+
 [dev-dependencies]
 tempfile = "3"
 futures = "0.3"

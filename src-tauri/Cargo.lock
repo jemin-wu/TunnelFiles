@@ -4888,6 +4888,7 @@ dependencies = [
  "futures",
  "keyring",
  "openssl",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",
