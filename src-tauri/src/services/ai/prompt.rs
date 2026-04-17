@@ -1,11 +1,12 @@
 //! 提示词组装 + untrusted 内容安全包裹（SPEC §5 AI 增量 / plan.md T2.4 骨架）。
 //!
-//! 本切片提供把 terminal_output / 文件内容 / probe stdout 安全嵌入 system
-//! prompt 的字符串原语：
-//! - 剥离隐形字符（ZWSP / ZWNJ / ZWJ / BOM / LRE / RLE / LRO / RLO / LRI / RLI /
-//!   FSI / PDF / PDI），阻断基于视觉对齐的 prompt injection
-//! - 擦掉字面量 `</untrusted>` 字符串，阻断对闭合标签的伪造
-//! - 用 `<untrusted>...</untrusted>` 包裹清理后的文本
+//! 本模块提供：
+//! - `wrap_untrusted` 原语：剥离隐形字符 + 擦 `</untrusted>` 字面量 + 包裹
+//! - `build` 入口：组装 v0.1 chat prompt（system + user + optional context）
+//!
+//! Scrub 策略对齐 SPEC §5：
+//! - `user_text` 走 user-input 模式（正则硬擦 + entropy 标记继续送）
+//! - `context.*` 走 probe-output 模式（正则硬擦 + entropy 也硬擦）
 //!
 //! NFKC 规范化（SPEC §5 "NFKC 规范化后再 wrap"）推迟至后续切片，待引入
 //! `unicode-normalization` 依赖后补（Ask First）。本切片先落 NFKC 之外的
@@ -51,6 +52,56 @@ pub fn wrap_untrusted(s: &str) -> String {
     let stripped = strip_invisible(s);
     let safe = strip_close_tag(&stripped);
     format!("{OPEN_TAG}{safe}{CLOSE_TAG}")
+}
+
+// ---- Prompt assembly --------------------------------------------------------
+
+use crate::services::ai::scrubber;
+
+/// v0.1 chat system prompt（短、指令性、不承诺具体 shell dialect，让模型
+/// 尽量靠 context 而非背答案）。
+pub const SYSTEM_PROMPT: &str = "You are a local shell assistant embedded in TunnelFiles. \
+Answer concisely in the user's language. When suggesting shell commands, prefer single-line \
+POSIX-compatible forms and flag destructive operations explicitly. Do not fabricate file \
+contents — if context is missing, ask the user to run a probe command.";
+
+/// 终端上下文快照（T1.7 会补采集层；本切片先定型）。
+#[derive(Debug, Clone, Default)]
+pub struct ContextSnapshot {
+    pub pwd: String,
+    pub recent_output: String,
+}
+
+/// 提示词组装输入。
+#[derive(Debug, Clone, Default)]
+pub struct PromptInput {
+    pub user_text: String,
+    pub context: Option<ContextSnapshot>,
+}
+
+/// 组装最终送给 llama.cpp 的 prompt 字符串。
+///
+/// 返回值包含 system prompt + user 段 + （如有）`<untrusted>` wrap 的上下文段。
+/// user 段走宽松 scrub（entropy 只标 warning 不擦），上下文段走严格 scrub
+/// （entropy 硬擦）—— 防范"AI 读到远端泄漏的 secret 再放大到下一轮"的
+/// 放大攻击（SPEC §5）。
+pub fn build(input: &PromptInput) -> String {
+    let user_scrubbed = scrubber::redact_user_input(&input.user_text);
+
+    let mut rendered = String::new();
+    rendered.push_str(SYSTEM_PROMPT);
+    rendered.push_str("\n\nUser:\n");
+    rendered.push_str(&user_scrubbed.text);
+
+    if let Some(ctx) = &input.context {
+        let pwd_safe = scrubber::redact_probe_output(&ctx.pwd);
+        let output_safe = scrubber::redact_probe_output(&ctx.recent_output);
+        let combined = format!("pwd: {pwd_safe}\n\nRecent terminal output:\n{output_safe}");
+        rendered.push_str("\n\nContext:\n");
+        rendered.push_str(&wrap_untrusted(&combined));
+    }
+
+    rendered
 }
 
 #[cfg(test)]
@@ -156,5 +207,63 @@ mod tests {
         let probe_output = "server {\n\tlisten 80;\n\tserver_name 'example.com';\n}";
         let wrapped = wrap_untrusted(probe_output);
         assert_eq!(wrapped, format!("{OPEN_TAG}{probe_output}{CLOSE_TAG}"));
+    }
+
+    // ---- build() tests ----------------------------------------------------------
+
+    #[test]
+    fn build_includes_system_prompt_and_user_section() {
+        let input = PromptInput {
+            user_text: "give me disk usage".to_string(),
+            context: None,
+        };
+        let out = build(&input);
+        assert!(out.contains(SYSTEM_PROMPT));
+        assert!(out.contains("User:\ngive me disk usage"));
+    }
+
+    #[test]
+    fn build_omits_context_block_when_snapshot_missing() {
+        let input = PromptInput {
+            user_text: "hi".to_string(),
+            context: None,
+        };
+        let out = build(&input);
+        assert!(!out.contains("Context:"));
+        assert!(!out.contains(OPEN_TAG));
+    }
+
+    #[test]
+    fn build_wraps_context_in_untrusted_tags() {
+        let input = PromptInput {
+            user_text: "explain this".to_string(),
+            context: Some(ContextSnapshot {
+                pwd: "/etc/nginx".to_string(),
+                recent_output: "nginx: configuration file /etc/nginx/nginx.conf test is successful"
+                    .to_string(),
+            }),
+        };
+        let out = build(&input);
+        assert!(out.contains("Context:\n<untrusted>"));
+        assert!(out.contains("</untrusted>"));
+        assert!(out.contains("pwd: /etc/nginx"));
+    }
+
+    #[test]
+    fn build_scrubs_probe_output_with_hard_erase_strategy() {
+        // High-entropy token in probe output must be hard-erased, not just warned.
+        let input = PromptInput {
+            user_text: "explain".to_string(),
+            context: Some(ContextSnapshot {
+                pwd: "/tmp".to_string(),
+                recent_output: "AKIAIOSFODNN7EXAMPLE".to_string(),
+            }),
+        };
+        let out = build(&input);
+        assert!(
+            !out.contains("AKIAIOSFODNN7EXAMPLE"),
+            "AWS key must not survive into prompt"
+        );
+        assert!(out.contains(scrubber::REDACTED_PLACEHOLDER));
     }
 }
