@@ -9,7 +9,6 @@ import {
   showErrorToast,
   showSuccessToast,
   invokeWithErrorHandling,
-  handleErrorByCode,
 } from "@/lib/error";
 import { ErrorCode, ERROR_MESSAGES, type AppError } from "@/types";
 
@@ -39,7 +38,10 @@ describe("error utilities", () => {
 
   describe("isAppError", () => {
     it("should return true for valid AppError", () => {
-      const error = createAppError({ code: ErrorCode.AUTH_FAILED, message: "Authentication failed" });
+      const error = createAppError({
+        code: ErrorCode.AUTH_FAILED,
+        message: "Authentication failed",
+      });
       expect(isAppError(error)).toBe(true);
     });
 
@@ -143,7 +145,10 @@ describe("error utilities", () => {
 
   describe("getErrorCode", () => {
     it("should return code from AppError", () => {
-      const error = createAppError({ code: ErrorCode.PERMISSION_DENIED, message: "Permission denied" });
+      const error = createAppError({
+        code: ErrorCode.PERMISSION_DENIED,
+        message: "Permission denied",
+      });
       expect(getErrorCode(error)).toBe(ErrorCode.PERMISSION_DENIED);
     });
 
@@ -257,51 +262,6 @@ describe("error utilities", () => {
 
       await expect(invokeWithErrorHandling(fn, { showToast: false })).rejects.toThrow();
       expect(toast.error).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("handleErrorByCode", () => {
-    it("should call handler for matching error code", () => {
-      const error = createAppError({ code: ErrorCode.AUTH_FAILED, message: "Auth failed" });
-      const handler = vi.fn();
-
-      handleErrorByCode(error, {
-        [ErrorCode.AUTH_FAILED]: handler,
-      });
-
-      expect(handler).toHaveBeenCalledWith(error);
-    });
-
-    it("should call default handler when no match", () => {
-      const error = createAppError({ code: ErrorCode.PERMISSION_DENIED, message: "Denied" });
-      const defaultHandler = vi.fn();
-
-      handleErrorByCode(
-        error,
-        {
-          [ErrorCode.AUTH_FAILED]: vi.fn(),
-        },
-        defaultHandler
-      );
-
-      expect(defaultHandler).toHaveBeenCalledWith(error);
-    });
-
-    it("should show error toast when no handlers match", () => {
-      const error = createAppError({ code: ErrorCode.UNKNOWN, message: "Unknown error" });
-
-      handleErrorByCode(error, {});
-
-      expect(toast.error).toHaveBeenCalled();
-    });
-
-    it("should call default handler for non-AppError", () => {
-      const error = new Error("Plain error");
-      const defaultHandler = vi.fn();
-
-      handleErrorByCode(error, {}, defaultHandler);
-
-      expect(defaultHandler).toHaveBeenCalledWith(error);
     });
   });
 });

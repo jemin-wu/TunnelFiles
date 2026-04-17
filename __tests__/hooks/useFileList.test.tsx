@@ -89,6 +89,7 @@ describe("useFileList", () => {
       expect(invoke).toHaveBeenCalledWith("sftp_list_dir", {
         sessionId: "session-1",
         path: "/home/user",
+        sort: null,
       });
     });
 
@@ -206,6 +207,7 @@ describe("useFileList", () => {
       expect(invoke).toHaveBeenLastCalledWith("sftp_list_dir", {
         sessionId: "session-1",
         path: "/home/user/subfolder",
+        sort: null,
       });
     });
   });
