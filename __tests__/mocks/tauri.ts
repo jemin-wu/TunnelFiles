@@ -67,6 +67,10 @@ export const mockSettings: Settings = {
   terminalFontSize: 14,
   terminalScrollbackLines: 5000,
   terminalFollowDirectory: true,
+  aiEnabled: false,
+  aiModelName: "gemma4:e4b",
+  maxConcurrentAiProbes: 3,
+  aiOutputTokenCap: 4096,
 };
 
 // IPC command mock handlers

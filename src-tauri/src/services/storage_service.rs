@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 4;
+const DB_VERSION: i32 = 5;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -116,6 +116,10 @@ impl Database {
                 terminal_font_size INTEGER NOT NULL DEFAULT 14,
                 terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
                 terminal_follow_directory INTEGER NOT NULL DEFAULT 1,
+                ai_enabled INTEGER NOT NULL DEFAULT 0,
+                ai_model_name TEXT NOT NULL DEFAULT 'gemma4:e4b',
+                max_concurrent_ai_probes INTEGER NOT NULL DEFAULT 3,
+                ai_output_token_cap INTEGER NOT NULL DEFAULT 4096,
                 updated_at INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO settings (id, updated_at) VALUES (1, 0);
@@ -218,7 +222,7 @@ impl Database {
             self.migrate_settings_from_json(&conn)?;
         }
 
-        // 添加终端设置字段（防御性：无论版本号如何，确保列存在）
+        // 添加终端 / AI 设置字段（防御性：无论版本号如何，确保列存在）
         {
             let existing_cols: Vec<String> = conn
                 .prepare("PRAGMA table_info(settings)")?
@@ -230,6 +234,10 @@ impl Database {
                 ("terminal_font_size", "INTEGER NOT NULL DEFAULT 14"),
                 ("terminal_scrollback_lines", "INTEGER NOT NULL DEFAULT 5000"),
                 ("terminal_follow_directory", "INTEGER NOT NULL DEFAULT 1"),
+                ("ai_enabled", "INTEGER NOT NULL DEFAULT 0"),
+                ("ai_model_name", "TEXT NOT NULL DEFAULT 'gemma4:e4b'"),
+                ("max_concurrent_ai_probes", "INTEGER NOT NULL DEFAULT 3"),
+                ("ai_output_token_cap", "INTEGER NOT NULL DEFAULT 4096"),
             ];
 
             for (col_name, col_def) in new_cols {
@@ -737,6 +745,10 @@ impl Database {
                 terminal_font_size = ?,
                 terminal_scrollback_lines = ?,
                 terminal_follow_directory = ?,
+                ai_enabled = ?,
+                ai_model_name = ?,
+                max_concurrent_ai_probes = ?,
+                ai_output_token_cap = ?,
                 updated_at = ?
             WHERE id = 1
             "#,
@@ -749,6 +761,10 @@ impl Database {
                 settings.terminal_font_size,
                 settings.terminal_scrollback_lines,
                 settings.terminal_follow_directory,
+                settings.ai_enabled,
+                settings.ai_model_name,
+                settings.max_concurrent_ai_probes,
+                settings.ai_output_token_cap,
                 now,
             ],
         )?;
@@ -766,6 +782,10 @@ impl Database {
             terminal_font_size: row.get(5)?,
             terminal_scrollback_lines: row.get(6)?,
             terminal_follow_directory: row.get::<_, i64>(7)? != 0,
+            ai_enabled: row.get::<_, i64>(8)? != 0,
+            ai_model_name: row.get(9)?,
+            max_concurrent_ai_probes: row.get(10)?,
+            ai_output_token_cap: row.get(11)?,
         })
     }
 
@@ -817,7 +837,9 @@ impl Database {
             SELECT default_download_dir, max_concurrent_transfers,
                    connection_timeout_secs, transfer_retry_count, log_level,
                    terminal_font_size, terminal_scrollback_lines,
-                   terminal_follow_directory
+                   terminal_follow_directory,
+                   ai_enabled, ai_model_name, max_concurrent_ai_probes,
+                   ai_output_token_cap
             FROM settings WHERE id = 1
             "#,
             [],
@@ -839,7 +861,9 @@ impl Database {
             SELECT default_download_dir, max_concurrent_transfers,
                    connection_timeout_secs, transfer_retry_count, log_level,
                    terminal_font_size, terminal_scrollback_lines,
-                   terminal_follow_directory
+                   terminal_follow_directory,
+                   ai_enabled, ai_model_name, max_concurrent_ai_probes,
+                   ai_output_token_cap
             FROM settings WHERE id = 1
             "#,
             [],
@@ -875,6 +899,27 @@ impl Database {
         }
         if let Some(v) = patch.terminal_follow_directory {
             settings.terminal_follow_directory = v;
+        }
+        if let Some(v) = patch.ai_enabled {
+            settings.ai_enabled = v;
+        }
+        if let Some(v) = &patch.ai_model_name {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                settings.ai_model_name = trimmed.to_string();
+            }
+        }
+        if let Some(v) = patch.max_concurrent_ai_probes {
+            settings.max_concurrent_ai_probes = v.clamp(
+                crate::models::settings::AI_MAX_CONCURRENT_PROBES_MIN,
+                crate::models::settings::AI_MAX_CONCURRENT_PROBES_MAX,
+            );
+        }
+        if let Some(v) = patch.ai_output_token_cap {
+            settings.ai_output_token_cap = v.clamp(
+                crate::models::settings::AI_OUTPUT_TOKEN_CAP_MIN,
+                crate::models::settings::AI_OUTPUT_TOKEN_CAP_MAX,
+            );
         }
 
         Self::save_settings_to_db(&conn, &settings)?;
@@ -1077,6 +1122,68 @@ mod tests {
         db.recent_connections_clear().unwrap();
         let records = db.recent_connections_list(10).unwrap();
         assert_eq!(records.len(), 0);
+    }
+
+    #[test]
+    fn test_settings_defaults_and_ai_fields_round_trip() {
+        let db = setup_test_db();
+
+        // 新库载入 → AI 字段为默认值（off-by-default + gemma4:e4b + 3/4096）
+        let loaded = db.settings_load().unwrap();
+        assert!(!loaded.ai_enabled, "新库 ai_enabled 必须为 false");
+        assert_eq!(loaded.ai_model_name, "gemma4:e4b");
+        assert_eq!(loaded.max_concurrent_ai_probes, 3);
+        assert_eq!(loaded.ai_output_token_cap, 4096);
+
+        // patch 启用 AI 并改并发/cap
+        let patch = SettingsPatch {
+            default_download_dir: None,
+            max_concurrent_transfers: None,
+            connection_timeout_secs: None,
+            transfer_retry_count: None,
+            log_level: None,
+            terminal_font_size: None,
+            terminal_scrollback_lines: None,
+            terminal_follow_directory: None,
+            ai_enabled: Some(true),
+            ai_model_name: Some("gemma4:e2b".to_string()),
+            max_concurrent_ai_probes: Some(50), // 越界 → 被 clamp 到 10
+            ai_output_token_cap: Some(99999),   // 越界 → 被 clamp 到 4096
+        };
+        let updated = db.settings_update(&patch).unwrap();
+        assert!(updated.ai_enabled);
+        assert_eq!(updated.ai_model_name, "gemma4:e2b");
+        assert_eq!(updated.max_concurrent_ai_probes, 10);
+        assert_eq!(updated.ai_output_token_cap, 4096);
+
+        // 再次 load，值持久化
+        let reloaded = db.settings_load().unwrap();
+        assert!(reloaded.ai_enabled);
+        assert_eq!(reloaded.ai_model_name, "gemma4:e2b");
+        assert_eq!(reloaded.max_concurrent_ai_probes, 10);
+        assert_eq!(reloaded.ai_output_token_cap, 4096);
+    }
+
+    #[test]
+    fn test_settings_update_empty_ai_model_name_ignored() {
+        // 空白模型名不应覆盖现有值，防止 UI 误提交空串
+        let db = setup_test_db();
+        let patch = SettingsPatch {
+            default_download_dir: None,
+            max_concurrent_transfers: None,
+            connection_timeout_secs: None,
+            transfer_retry_count: None,
+            log_level: None,
+            terminal_font_size: None,
+            terminal_scrollback_lines: None,
+            terminal_follow_directory: None,
+            ai_enabled: None,
+            ai_model_name: Some("   ".to_string()),
+            max_concurrent_ai_probes: None,
+            ai_output_token_cap: None,
+        };
+        let updated = db.settings_update(&patch).unwrap();
+        assert_eq!(updated.ai_model_name, "gemma4:e4b");
     }
 
     #[test]

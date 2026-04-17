@@ -21,6 +21,7 @@ pub enum ErrorCode {
     RemoteIoError,
     Canceled,
     InvalidArgument,
+    AiUnavailable,
     Unknown,
 }
 
@@ -105,6 +106,10 @@ impl AppError {
 
     pub fn invalid_argument(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::InvalidArgument, message)
+    }
+
+    pub fn ai_unavailable(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::AiUnavailable, message).with_retryable(true)
     }
 }
 
@@ -386,5 +391,29 @@ mod tests {
         let app_err = AppError::from(kr_err);
         assert_eq!(app_err.code, ErrorCode::LocalIoError);
         assert!(!app_err.message.is_empty());
+    }
+
+    #[test]
+    fn test_error_code_ai_unavailable_serialization() {
+        // SPEC §5 AI 增量：AiUnavailable 序列化为 AI_UNAVAILABLE（SCREAMING_SNAKE_CASE）
+        let code = ErrorCode::AiUnavailable;
+        let json = serde_json::to_string(&code).unwrap();
+        assert_eq!(json, "\"AI_UNAVAILABLE\"");
+    }
+
+    #[test]
+    fn test_ai_unavailable_is_retryable_by_default() {
+        // SPEC §5: AiUnavailable retryable=true（短暂不可用，重试可恢复）
+        let err = AppError::ai_unavailable("llama.cpp runtime not ready");
+        assert_eq!(err.code, ErrorCode::AiUnavailable);
+        assert_eq!(err.retryable, Some(true));
+        assert_eq!(err.message, "llama.cpp runtime not ready");
+    }
+
+    #[test]
+    fn test_ai_unavailable_with_detail_hides_internals() {
+        // domain-errors.md: message 通用，technical detail 放 .detail
+        let err = AppError::ai_unavailable("AI 功能暂不可用").with_detail("license not accepted");
+        assert_eq!(err.detail.as_deref(), Some("license not accepted"));
     }
 }

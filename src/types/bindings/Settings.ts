@@ -36,4 +36,20 @@ terminalScrollbackLines: number,
 /**
  * 终端跟随文件浏览器目录
  */
-terminalFollowDirectory: boolean, };
+terminalFollowDirectory: boolean, 
+/**
+ * AI Shell Copilot 启用开关（默认 false，off-by-default）
+ */
+aiEnabled: boolean, 
+/**
+ * AI 模型名（GGUF 标识符，默认 gemma4:e4b）
+ */
+aiModelName: string, 
+/**
+ * AI 并发独立只读 probe session 上限（1-10，默认 3）
+ */
+maxConcurrentAiProbes: number, 
+/**
+ * AI 单次生成输出 token 上限（256-4096，DoS 防线）
+ */
+aiOutputTokenCap: number, };

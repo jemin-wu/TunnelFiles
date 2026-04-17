@@ -14,6 +14,7 @@ export enum ErrorCode {
   REMOTE_IO_ERROR = "REMOTE_IO_ERROR",
   CANCELED = "CANCELED",
   INVALID_ARGUMENT = "INVALID_ARGUMENT",
+  AI_UNAVAILABLE = "AI_UNAVAILABLE",
   UNKNOWN = "UNKNOWN",
 }
 
@@ -43,5 +44,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.REMOTE_IO_ERROR]: "远程文件操作失败",
   [ErrorCode.CANCELED]: "操作已取消",
   [ErrorCode.INVALID_ARGUMENT]: "参数无效",
+  [ErrorCode.AI_UNAVAILABLE]: "AI 功能暂不可用",
   [ErrorCode.UNKNOWN]: "未知错误",
 };
