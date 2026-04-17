@@ -45,6 +45,8 @@ import {
 import { cn } from "@/lib/utils";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
+import { useAiHealthCheck } from "@/hooks/useAiHealthCheck";
+import { AiHealthBadge } from "@/components/ai/AiHealthBadge";
 import { KnownHostsList } from "@/components/settings/KnownHostsList";
 import type { LogLevel } from "@/types/settings";
 import {
@@ -140,6 +142,7 @@ function SettingRow({ label, description, children }: SettingRowProps) {
 export function SettingsPage() {
   const navigate = useNavigate();
   const { settings, updateSettings, isLoading, isUpdating } = useSettings();
+  const { status: aiHealthStatus } = useAiHealthCheck(settings.aiEnabled);
   const [activeSection, setActiveSection] = useState<SettingsSection>("transfer");
 
   const form = useForm<SettingsFormValues>({
@@ -498,7 +501,10 @@ export function SettingsPage() {
               {/* AI_CONFIG */}
               {activeSection === "ai" && (
                 <section className="animate-fade-in">
-                  <h2 className="mb-1 text-base font-semibold">AI Shell Copilot</h2>
+                  <div className="mb-1 flex items-center gap-2">
+                    <h2 className="text-base font-semibold">AI Shell Copilot</h2>
+                    <AiHealthBadge status={aiHealthStatus} />
+                  </div>
                   <p className="text-muted-foreground mb-6 text-xs">
                     Local-only terminal assistant. Default off.
                   </p>
