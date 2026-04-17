@@ -135,7 +135,13 @@ export function ConnectionsPage() {
   // Classify profiles into frequency zones
   const sortFn = useMemo(() => SORT_FNS[sortOption], [sortOption]);
   // hourBucket forces reclassification when connections cross the day/week boundary
-  const hourBucket = Math.floor(Date.now() / 3_600_000);
+  const [hourBucket, setHourBucket] = useState(() => Math.floor(Date.now() / 3_600_000));
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHourBucket(Math.floor(Date.now() / 3_600_000));
+    }, 60_000);
+    return () => clearInterval(interval);
+  }, []);
   const { hot, warm, cool, recencyMap } = useMemo(
     () => classifyProfiles(profiles, recentConnections, sortFn),
     // eslint-disable-next-line react-hooks/exhaustive-deps

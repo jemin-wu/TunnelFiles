@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
   PanelRightClose,
@@ -33,7 +34,6 @@ import { useSessionStatus } from "@/hooks/useSessionStatus";
 import { useTransferEvents } from "@/hooks/useTransferEvents";
 import { useTerminal } from "@/hooks/useTerminal";
 import { useTerminalDirectorySync } from "@/hooks/useTerminalDirectorySync";
-import { useFileList } from "@/hooks/useFileList";
 import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
 import { cn } from "@/lib/utils";
@@ -308,6 +308,7 @@ function MainContent({
   writeInput,
   resize,
   onTerminalStatusChange,
+  onFileCountChange,
 }: {
   sessionId: string;
   activeTab: TabMode;
@@ -336,6 +337,7 @@ function MainContent({
   writeInput: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   onTerminalStatusChange: (payload: TerminalStatusPayload) => void;
+  onFileCountChange?: (count: number, isFetching: boolean) => void;
 }) {
   return (
     <div className="flex h-full flex-col">
@@ -381,6 +383,7 @@ function MainContent({
                 showHidden={showHidden}
                 createFolderOpen={createFolderOpen}
                 onCreateFolderOpenChange={onCreateFolderOpenChange}
+                onFileCountChange={onFileCountChange}
               />
             </DropZone>
           </ErrorBoundary>
@@ -470,6 +473,7 @@ export function FileManagerPage() {
     [setSearchParams]
   );
 
+  const queryClient = useQueryClient();
   const { sessionInfo, isValid, isLoading } = useSessionStatus(sessionId);
   useTransferEvents();
 
@@ -478,26 +482,20 @@ export function FileManagerPage() {
 
   // Active transfer count for collapsed sidebar badge
   const activeTransferCount = useTransferStore((s) => s.getActiveTasks().length);
+  const addTask = useTransferStore((s) => s.addTask);
 
-  // File list for toolbar info (count, refresh, fetching state)
-  // Only fetch when Files tab is active; TanStack Query cache serves stale data on re-mount
-  const {
-    files: rawFiles,
-    isFetching,
-    refetch,
-  } = useFileList({
-    sessionId: sessionId ?? "",
-    path: currentPath,
-    enabled: !!sessionId,
-  });
+  // File count and fetching state reported by FileListContainer
+  const [fileCount, setFileCount] = useState(0);
+  const [isFetching, setIsFetching] = useState(false);
 
-  const fileCount = showHidden
-    ? rawFiles.length
-    : rawFiles.filter((f) => !f.name.startsWith(".")).length;
+  const handleFileCountChange = useCallback((count: number, fetching: boolean) => {
+    setFileCount(count);
+    setIsFetching(fetching);
+  }, []);
 
   const handleRefresh = useCallback(() => {
-    refetch();
-  }, [refetch]);
+    queryClient.invalidateQueries({ queryKey: ["files", sessionId, currentPath] });
+  }, [queryClient, sessionId, currentPath]);
 
   const toggleHidden = useCallback(() => {
     setShowHidden((prev) => !prev);
@@ -612,7 +610,6 @@ export function FileManagerPage() {
       if (!selected || (Array.isArray(selected) && selected.length === 0)) return;
 
       const { uploadFile, getTransfer } = await import("@/lib/transfer");
-      const addTask = useTransferStore.getState().addTask;
       const files = Array.isArray(selected) ? selected : [selected];
 
       const { showErrorToast } = await import("@/lib/error");
@@ -634,7 +631,7 @@ export function FileManagerPage() {
     } catch {
       // Dialog was cancelled by user — no action needed
     }
-  }, [sessionId, currentPath]);
+  }, [sessionId, currentPath, addTask]);
 
   if (!sessionId || isLoading) {
     return <FullPageLoader label="Initializing SFTP..." />;
@@ -675,6 +672,7 @@ export function FileManagerPage() {
     writeInput,
     resize,
     onTerminalStatusChange: handleTerminalStatusChange,
+    onFileCountChange: handleFileCountChange,
   };
 
   // Terminal mode: full width, no sidebar

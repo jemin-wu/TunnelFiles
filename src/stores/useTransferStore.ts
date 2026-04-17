@@ -6,6 +6,8 @@ const TERMINAL_STATUSES = new Set<TransferStatus>(["success", "failed", "cancele
 
 interface TransferState {
   tasks: Map<string, TransferTask>;
+  /** Pre-computed sorted list, updated on every task mutation */
+  _sortedTasks: TransferTask[];
   // Computed getters
   getTask: (taskId: string) => TransferTask | undefined;
   getAllTasks: () => TransferTask[];
@@ -20,33 +22,32 @@ interface TransferState {
   syncTasks: (tasks: TransferTask[]) => void;
 }
 
+/** Recompute sorted tasks from map (called after every mutation) */
+function computeSorted(tasks: Map<string, TransferTask>): TransferTask[] {
+  return Array.from(tasks.values()).sort((a, b) => b.createdAt - a.createdAt);
+}
+
 export const useTransferStore = create<TransferState>((set, get) => ({
   tasks: new Map(),
+  _sortedTasks: [],
 
   getTask: (taskId) => get().tasks.get(taskId),
 
-  getAllTasks: () => {
-    const tasks = Array.from(get().tasks.values());
-    return tasks.sort((a, b) => b.createdAt - a.createdAt);
-  },
+  getAllTasks: () => get()._sortedTasks,
 
   getActiveTasks: () => {
-    return get()
-      .getAllTasks()
-      .filter((t) => t.status === "waiting" || t.status === "running");
+    return get()._sortedTasks.filter((t) => t.status === "waiting" || t.status === "running");
   },
 
   getCompletedTasks: () => {
-    return get()
-      .getAllTasks()
-      .filter((t) => TERMINAL_STATUSES.has(t.status));
+    return get()._sortedTasks.filter((t) => TERMINAL_STATUSES.has(t.status));
   },
 
   addTask: (task) =>
     set((state) => {
       const newTasks = new Map(state.tasks);
       newTasks.set(task.taskId, task);
-      return { tasks: newTasks };
+      return { tasks: newTasks, _sortedTasks: computeSorted(newTasks) };
     }),
 
   updateProgress: (payload) =>
@@ -54,15 +55,22 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       const task = state.tasks.get(payload.taskId);
       if (!task) return state;
 
-      const newTasks = new Map(state.tasks);
-      newTasks.set(payload.taskId, {
+      const updatedTask = {
         ...task,
         transferred: payload.transferred,
         total: payload.total,
         speed: payload.speed,
         percent: payload.percent,
-      });
-      return { tasks: newTasks };
+      };
+
+      const newTasks = new Map(state.tasks);
+      newTasks.set(payload.taskId, updatedTask);
+
+      // Progress doesn't change createdAt — preserve sort order, just swap the ref
+      const _sortedTasks = state._sortedTasks.map((t) =>
+        t.taskId === payload.taskId ? updatedTask : t
+      );
+      return { tasks: newTasks, _sortedTasks };
     }),
 
   updateStatus: (payload) =>
@@ -85,14 +93,14 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       }
 
       newTasks.set(payload.taskId, updatedTask);
-      return { tasks: newTasks };
+      return { tasks: newTasks, _sortedTasks: computeSorted(newTasks) };
     }),
 
   removeTask: (taskId) =>
     set((state) => {
       const newTasks = new Map(state.tasks);
       newTasks.delete(taskId);
-      return { tasks: newTasks };
+      return { tasks: newTasks, _sortedTasks: computeSorted(newTasks) };
     }),
 
   clearCompleted: () =>
@@ -103,7 +111,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
           newTasks.delete(taskId);
         }
       }
-      return { tasks: newTasks };
+      return { tasks: newTasks, _sortedTasks: computeSorted(newTasks) };
     }),
 
   syncTasks: (tasks) =>
@@ -112,6 +120,6 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       for (const task of tasks) {
         newTasks.set(task.taskId, task);
       }
-      return { tasks: newTasks };
+      return { tasks: newTasks, _sortedTasks: computeSorted(newTasks) };
     }),
 }));
