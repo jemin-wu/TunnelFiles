@@ -120,12 +120,17 @@ struct InternalTask {
     retry_count: u8,
 }
 
+/// 最大并发传输上限（用户设置的上界）
+const MAX_CONCURRENT_CEILING: u8 = 6;
+
 /// 传输管理器
 pub struct TransferManager {
     /// 任务队列
     tasks: RwLock<HashMap<String, InternalTask>>,
-    /// 并发控制信号量
+    /// 并发控制信号量（permit 总数 = 当前 max_concurrent）
     semaphore: Arc<Semaphore>,
+    /// 当前 max_concurrent 值；可由 set_max_concurrent 在线调整
+    max_concurrent: AtomicU8,
     /// 数据库（用于持久化传输历史）
     db: Arc<Database>,
     /// 最大重试次数（运行时可随用户设置变更而更新）
@@ -138,11 +143,12 @@ impl TransferManager {
     /// max_concurrent: 最大并发传输数 (1-6)
     /// max_retries: 最大重试次数 (0-5)
     pub fn new(max_concurrent: u8, max_retries: u8, db: Arc<Database>) -> Self {
-        let max_concurrent = max_concurrent.clamp(1, 6);
+        let max_concurrent = max_concurrent.clamp(1, MAX_CONCURRENT_CEILING);
 
         Self {
             tasks: RwLock::new(HashMap::new()),
             semaphore: Arc::new(Semaphore::new(max_concurrent as usize)),
+            max_concurrent: AtomicU8::new(max_concurrent),
             db,
             max_retries: AtomicU8::new(max_retries.min(5)),
         }
@@ -152,6 +158,70 @@ impl TransferManager {
     pub fn set_max_retries(&self, max_retries: u8) {
         self.max_retries
             .store(max_retries.min(5), Ordering::Relaxed);
+    }
+
+    /// 更新最大并发传输数（在 `settings_set` 写库后调用）
+    ///
+    /// 与 `set_max_retries` 不同，semaphore 不支持直接 resize。此函数通过
+    /// `add_permits` 扩容、或 spawn 后台任务 `acquire_many(n).forget()` 缩容
+    /// 的方式使新设置对后续任务生效：
+    ///
+    /// - **扩容**（new > current）：立即 `add_permits(delta)`，下次新任务即可并发
+    /// - **缩容**（new < current）：spawn 异步任务在后台逐步把多余 permit 消费
+    ///   并 forget——已在运行的传输不受打扰、继续完成；新任务会按新上限排队
+    ///
+    /// 非阻塞：就算 5 个 permit 全被占用，settings_set 也不会卡住——后台任务
+    /// 会等永 acquire，但不影响调用方。
+    pub fn set_max_concurrent(&self, new_max: u8) {
+        let new_max = new_max.clamp(1, MAX_CONCURRENT_CEILING);
+        let current = self.max_concurrent.load(Ordering::Relaxed);
+        if new_max == current {
+            return;
+        }
+
+        // 先写入新值，保证后续读者看到权威配置
+        self.max_concurrent.store(new_max, Ordering::Relaxed);
+
+        if new_max > current {
+            // 扩容：立即加 permit
+            let delta = (new_max - current) as usize;
+            self.semaphore.add_permits(delta);
+            tracing::info!(
+                old = current,
+                new = new_max,
+                added = delta,
+                "max_concurrent_transfers 增加"
+            );
+        } else {
+            // 缩容：后台 acquire + forget，不阻塞调用者；已运行任务继续
+            let delta = (current - new_max) as u32;
+            let sem = self.semaphore.clone();
+            tokio::spawn(async move {
+                match sem.acquire_many(delta).await {
+                    Ok(permit) => {
+                        permit.forget();
+                        tracing::info!(
+                            removed = delta,
+                            "max_concurrent_transfers 缩容完成（permit 已回收）"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "缩容 semaphore 时出错（可能 manager 已 drop）");
+                    }
+                }
+            });
+            tracing::info!(
+                old = current,
+                new = new_max,
+                "max_concurrent_transfers 缩容已启动（异步回收 permit）"
+            );
+        }
+    }
+
+    /// 当前生效的最大并发数（测试/诊断用）
+    #[cfg(test)]
+    pub fn current_max_concurrent(&self) -> u8 {
+        self.max_concurrent.load(Ordering::Relaxed)
     }
 
     /// 创建上传任务
@@ -1253,6 +1323,103 @@ mod tests {
         let manager = create_test_manager(3);
         let tasks = manager.list_tasks().await;
         assert!(tasks.is_empty());
+    }
+
+    // ========== max_concurrent 动态调整测试 ==========
+
+    #[tokio::test]
+    async fn test_set_max_concurrent_grow_adds_permits() {
+        let manager = create_test_manager(2);
+        assert_eq!(manager.current_max_concurrent(), 2);
+        assert_eq!(manager.semaphore.available_permits(), 2);
+
+        manager.set_max_concurrent(5);
+
+        assert_eq!(manager.current_max_concurrent(), 5);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            5,
+            "扩容后 permit 立即可用"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_max_concurrent_shrink_removes_permits_eventually() {
+        let manager = create_test_manager(5);
+        assert_eq!(manager.semaphore.available_permits(), 5);
+
+        manager.set_max_concurrent(2);
+        // 缩容是异步的，让后台任务跑一下
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        assert_eq!(manager.current_max_concurrent(), 2);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            2,
+            "缩容后可用 permit 应匹配新上限"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_max_concurrent_shrink_does_not_interrupt_running_tasks() {
+        let manager = create_test_manager(3);
+        // 模拟 2 个任务正在占 permit
+        let permit1 = manager.semaphore.clone().acquire_owned().await.unwrap();
+        let permit2 = manager.semaphore.clone().acquire_owned().await.unwrap();
+        assert_eq!(manager.semaphore.available_permits(), 1);
+
+        // 缩到 1 — 后台需要回收 2 个 permit，但只有 1 个 free
+        manager.set_max_concurrent(1);
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+
+        // 只有 1 个 free permit 被立即回收；剩下要等 in-flight 任务释放
+        assert_eq!(manager.current_max_concurrent(), 1);
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            0,
+            "还剩 0 free（已 forget 掉 1 个）"
+        );
+
+        // 释放第一个 in-flight，应该被后台缩容任务"吃掉"
+        drop(permit1);
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            0,
+            "第一个释放的 permit 被缩容任务回收"
+        );
+
+        // 释放第二个 in-flight — 现在应该有 1 个 free 给新任务用
+        drop(permit2);
+        tokio::task::yield_now().await;
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        assert_eq!(
+            manager.semaphore.available_permits(),
+            1,
+            "缩容完成后可用 permit 稳定在新上限"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_max_concurrent_clamp() {
+        let manager = create_test_manager(3);
+
+        manager.set_max_concurrent(0); // 被 clamp 到 1
+        assert_eq!(manager.current_max_concurrent(), 1);
+
+        manager.set_max_concurrent(99); // 被 clamp 到 6
+        assert_eq!(manager.current_max_concurrent(), 6);
+    }
+
+    #[tokio::test]
+    async fn test_set_max_concurrent_noop_when_unchanged() {
+        let manager = create_test_manager(3);
+        let before = manager.semaphore.available_permits();
+        manager.set_max_concurrent(3);
+        assert_eq!(manager.semaphore.available_permits(), before);
     }
 
     #[tokio::test]
