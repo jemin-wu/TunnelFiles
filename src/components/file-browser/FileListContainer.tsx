@@ -2,7 +2,7 @@
  * File List Container Component - Precision Engineering
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 import { FileList } from "./FileList";
@@ -26,6 +26,7 @@ interface FileListContainerProps {
   showHidden: boolean;
   createFolderOpen?: boolean;
   onCreateFolderOpenChange?: (open: boolean) => void;
+  onFileCountChange?: (count: number, isFetching: boolean) => void;
 }
 
 export function FileListContainer({
@@ -35,6 +36,7 @@ export function FileListContainer({
   showHidden,
   createFolderOpen: createFolderOpenProp,
   onCreateFolderOpenChange,
+  onFileCountChange,
 }: FileListContainerProps) {
   const [sort, setSort] = useState<SortSpec | null>(null);
 
@@ -59,7 +61,11 @@ export function FileListContainer({
   const [targetFile, setTargetFile] = useState<FileEntry | null>(null);
   const [filterQuery, setFilterQuery] = useState("");
 
-  const { files: rawFiles, isLoading } = useFileList({
+  const {
+    files: rawFiles,
+    isLoading,
+    isFetching,
+  } = useFileList({
     sessionId,
     path: currentPath,
     enabled: !!sessionId,
@@ -74,10 +80,16 @@ export function FileListContainer({
   const { settings } = useSettings();
   const addTask = useTransferStore((s) => s.addTask);
 
-  const files = useMemo(() => {
-    let filtered = showHidden ? rawFiles : rawFiles.filter((f) => !f.name.startsWith("."));
+  // Pre-search visible files (honors showHidden) — used to report directory-size count
+  // to the toolbar, so typing in the search box doesn't shrink the "N items" label.
+  const visibleFiles = useMemo(
+    () => (showHidden ? rawFiles : rawFiles.filter((f) => !f.name.startsWith("."))),
+    [rawFiles, showHidden]
+  );
 
-    // Apply filter query
+  const files = useMemo(() => {
+    let filtered = visibleFiles;
+
     if (filterQuery) {
       const q = filterQuery.toLowerCase();
       filtered = filtered.filter((f) => f.name.toLowerCase().includes(q));
@@ -108,7 +120,13 @@ export function FileListContainer({
 
       return sort.order === "desc" ? -cmp : cmp;
     });
-  }, [rawFiles, showHidden, sort, filterQuery]);
+  }, [visibleFiles, sort, filterQuery]);
+
+  // Report directory-size count (pre-search) and the TanStack Query fetching flag
+  // (covers both initial load and background refetch from queryClient.invalidateQueries).
+  useEffect(() => {
+    onFileCountChange?.(visibleFiles.length, isFetching);
+  }, [visibleFiles.length, isFetching, onFileCountChange]);
 
   const { selectedFiles, selectFile, selectAll, clearSelection, isSelected, selectionCount } =
     useFileSelection(files);
@@ -253,6 +271,17 @@ export function FileListContainer({
     [sessionId, settings.defaultDownloadDir, addTask]
   );
 
+  const handleDeleteWithSelection = useCallback(
+    (file: FileEntry) => {
+      if (selectedFiles.length > 1 && isSelected(file.path)) {
+        handleDelete(selectedFiles);
+      } else {
+        handleDelete(file);
+      }
+    },
+    [selectedFiles, isSelected, handleDelete]
+  );
+
   const handleCreateFolderSubmit = useCallback(
     (name: string) => {
       createFolder.mutate(name, {
@@ -278,14 +307,7 @@ export function FileListContainer({
           onSortChange={handleSortChange}
           onDownload={handleDownload}
           onRename={handleRename}
-          onDelete={(file) => {
-            // When multi-select is active, delete all selected files
-            if (selectedFiles.length > 1 && isSelected(file.path)) {
-              handleDelete(selectedFiles);
-            } else {
-              handleDelete(file);
-            }
-          }}
+          onDelete={handleDeleteWithSelection}
           onChmod={handleChmod}
           onKeyAction={(action) => {
             if (action === "selectAll") {
