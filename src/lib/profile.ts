@@ -4,9 +4,8 @@
  * All profile-related Tauri IPC call wrappers with Zod validation
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
-import { parseInvokeResult } from "./error";
+import { parseInvokeResult, timedInvoke } from "./error";
 import type { Profile, ProfileInput, RecentConnection } from "@/types/profile";
 
 // ============================================================================
@@ -45,25 +44,25 @@ const RecentConnectionSchema = z.object({
 
 /** List all connection profiles */
 export async function listProfiles(): Promise<Profile[]> {
-  const result = await invoke("profile_list");
+  const result = await timedInvoke("profile_list");
   return parseInvokeResult(z.array(ProfileSchema), result, "profile_list");
 }
 
 /** Get a single connection profile by ID */
 export async function getProfile(profileId: string): Promise<Profile | null> {
-  const result = await invoke("profile_get", { profileId });
+  const result = await timedInvoke("profile_get", { profileId });
   return parseInvokeResult(ProfileSchema.nullable(), result, "profile_get");
 }
 
 /** Create or update a connection profile */
 export async function upsertProfile(input: ProfileInput): Promise<string> {
-  const result = await invoke("profile_upsert", { input });
+  const result = await timedInvoke("profile_upsert", { input });
   return parseInvokeResult(z.string(), result, "profile_upsert");
 }
 
 /** Delete a connection profile */
 export async function deleteProfile(profileId: string): Promise<void> {
-  await invoke("profile_delete", { profileId });
+  await timedInvoke("profile_delete", { profileId });
 }
 
 // ============================================================================
@@ -72,6 +71,6 @@ export async function deleteProfile(profileId: string): Promise<void> {
 
 /** List recent connections (excludes orphaned records) */
 export async function listRecentConnections(limit?: number): Promise<RecentConnection[]> {
-  const result = await invoke("profile_recent_connections", { limit: limit ?? null });
+  const result = await timedInvoke("profile_recent_connections", { limit: limit ?? null });
   return parseInvokeResult(z.array(RecentConnectionSchema), result, "profile_recent_connections");
 }

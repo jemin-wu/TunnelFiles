@@ -4,13 +4,12 @@
  * All SFTP-related Tauri IPC call wrappers with Zod validation
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
 
 import { ChmodResultSchema } from "./file";
-import { parseInvokeResult } from "./error";
+import { parseInvokeResult, timedInvoke } from "./error";
 import type { FileEntry } from "@/types";
-import type { ChmodResult, DirectoryStats, RecursiveDeleteResult } from "@/types/file";
+import type { ChmodResult, DirectoryStats, RecursiveDeleteResult, SortSpec } from "@/types/file";
 
 // ============================================================================
 // Schemas
@@ -34,8 +33,16 @@ const FileListSchema = z.array(FileEntrySchema);
 /**
  * List remote directory contents
  */
-export async function listDir(sessionId: string, path: string): Promise<FileEntry[]> {
-  const result = await invoke("sftp_list_dir", { sessionId, path });
+export async function listDir(
+  sessionId: string,
+  path: string,
+  sort?: SortSpec
+): Promise<FileEntry[]> {
+  const result = await timedInvoke("sftp_list_dir", {
+    sessionId,
+    path,
+    sort: sort ?? null,
+  });
   return parseInvokeResult(FileListSchema, result, "sftp_list_dir");
 }
 
@@ -43,10 +50,7 @@ export async function listDir(sessionId: string, path: string): Promise<FileEntr
  * Get file/directory info
  */
 export async function stat(sessionId: string, path: string): Promise<FileEntry> {
-  const result = await invoke("sftp_stat", {
-    sessionId,
-    path,
-  });
+  const result = await timedInvoke("sftp_stat", { sessionId, path });
   return parseInvokeResult(FileEntrySchema, result, "sftp_stat");
 }
 
@@ -54,32 +58,21 @@ export async function stat(sessionId: string, path: string): Promise<FileEntry> 
  * Create remote directory
  */
 export async function mkdir(sessionId: string, path: string): Promise<void> {
-  await invoke("sftp_mkdir", {
-    sessionId,
-    path,
-  });
+  await timedInvoke("sftp_mkdir", { sessionId, path });
 }
 
 /**
  * Rename/move file or directory
  */
 export async function rename(sessionId: string, fromPath: string, toPath: string): Promise<void> {
-  await invoke("sftp_rename", {
-    sessionId,
-    fromPath,
-    toPath,
-  });
+  await timedInvoke("sftp_rename", { sessionId, fromPath, toPath });
 }
 
 /**
  * Delete file or directory
  */
 export async function deleteItem(sessionId: string, path: string, isDir: boolean): Promise<void> {
-  await invoke("sftp_delete", {
-    sessionId,
-    path,
-    isDir,
-  });
+  await timedInvoke("sftp_delete", { sessionId, path, isDir });
 }
 
 // ============================================================================
@@ -106,7 +99,7 @@ export async function readFile(
   path: string,
   maxBytes?: number
 ): Promise<ReadPreviewResult> {
-  const result = await invoke("sftp_read_file", {
+  const result = await timedInvoke("sftp_read_file", {
     input: { sessionId, path, maxBytes: maxBytes ?? null },
   });
   return parseInvokeResult(ReadPreviewResultSchema, result, "sftp_read_file");
@@ -120,7 +113,7 @@ export async function chmod(
   paths: string[],
   mode: number
 ): Promise<ChmodResult> {
-  const result = await invoke("sftp_chmod", {
+  const result = await timedInvoke("sftp_chmod", {
     input: { sessionId, paths, mode },
   });
   return parseInvokeResult(ChmodResultSchema, result, "sftp_chmod");
@@ -164,10 +157,7 @@ export const DeleteProgressSchema = z.object({
  * Used for delete confirmation dialog to show file count and total size
  */
 export async function getDirStats(sessionId: string, path: string): Promise<DirectoryStats> {
-  const result = await invoke("sftp_get_dir_stats", {
-    sessionId,
-    path,
-  });
+  const result = await timedInvoke("sftp_get_dir_stats", { sessionId, path });
   return parseInvokeResult(DirectoryStatsSchema, result, "sftp_get_dir_stats");
 }
 
@@ -180,9 +170,11 @@ export async function deleteRecursive(
   sessionId: string,
   path: string
 ): Promise<RecursiveDeleteResult> {
-  const result = await invoke("sftp_delete_recursive", {
-    input: { sessionId, path },
-  });
+  const result = await timedInvoke(
+    "sftp_delete_recursive",
+    { input: { sessionId, path } },
+    300_000
+  );
   return parseInvokeResult(RecursiveDeleteResultSchema, result, "sftp_delete_recursive");
 }
 
@@ -207,8 +199,6 @@ export async function batchDelete(
   sessionId: string,
   items: Array<{ path: string; isDir: boolean }>
 ): Promise<BatchDeleteResult> {
-  const result = await invoke("sftp_batch_delete", {
-    input: { sessionId, items },
-  });
+  const result = await timedInvoke("sftp_batch_delete", { input: { sessionId, items } }, 300_000);
   return parseInvokeResult(BatchDeleteResultSchema, result, "sftp_batch_delete");
 }

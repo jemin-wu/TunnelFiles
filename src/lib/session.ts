@@ -4,9 +4,8 @@
  * All session-related Tauri IPC call wrappers with Zod validation
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
-import { parseInvokeResult } from "./error";
+import { parseInvokeResult, timedInvoke } from "./error";
 import type {
   ConnectInput,
   SessionConnectResult,
@@ -42,7 +41,7 @@ const SessionInfoSchema = z.object({
  * 连接到服务器
  */
 export async function connect(input: ConnectInput): Promise<SessionConnectResult> {
-  const result = await invoke("session_connect", { input });
+  const result = await timedInvoke("session_connect", { input });
   return parseInvokeResult(SessionConnectResultSchema, result, "session_connect");
 }
 
@@ -50,14 +49,14 @@ export async function connect(input: ConnectInput): Promise<SessionConnectResult
  * 断开连接
  */
 export async function disconnect(sessionId: string): Promise<void> {
-  await invoke("session_disconnect", { sessionId });
+  await timedInvoke("session_disconnect", { sessionId });
 }
 
 /**
  * 获取会话信息
  */
 export async function getSessionInfo(sessionId: string): Promise<SessionInfo | null> {
-  const result = await invoke("session_info", { sessionId });
+  const result = await timedInvoke("session_info", { sessionId });
   return parseInvokeResult(SessionInfoSchema.nullable(), result, "session_info");
 }
 
@@ -65,14 +64,14 @@ export async function getSessionInfo(sessionId: string): Promise<SessionInfo | n
  * 信任 HostKey
  */
 export async function trustHostKey(input: TrustHostKeyInput): Promise<void> {
-  await invoke("security_trust_hostkey", { input });
+  await timedInvoke("security_trust_hostkey", { input });
 }
 
 /**
  * 使用已信任的 HostKey 重新连接
  */
 export async function reconnectWithTrustedKey(input: ConnectInput): Promise<SessionConnectResult> {
-  const result = await invoke("session_connect_after_trust", { input });
+  const result = await timedInvoke("session_connect_after_trust", { input });
   return parseInvokeResult(SessionConnectResultSchema, result, "session_connect_after_trust");
 }
 
@@ -80,7 +79,7 @@ export async function reconnectWithTrustedKey(input: ConnectInput): Promise<Sess
  * 列出所有活跃会话 ID
  */
 export async function listSessions(): Promise<string[]> {
-  const result = await invoke("session_list");
+  const result = await timedInvoke("session_list");
   return parseInvokeResult(z.array(z.string()), result, "session_list");
 }
 
@@ -88,7 +87,7 @@ export async function listSessions(): Promise<string[]> {
  * 移除已信任的 HostKey
  */
 export async function removeHostKey(host: string, port: number): Promise<boolean> {
-  const result = await invoke("security_remove_hostkey", { host, port });
+  const result = await timedInvoke("security_remove_hostkey", { host, port });
   return parseInvokeResult(z.boolean(), result, "security_remove_hostkey");
 }
 
@@ -96,7 +95,7 @@ export async function removeHostKey(host: string, port: number): Promise<boolean
  * 检查 HostKey 信任状态
  */
 export async function checkHostKey(host: string, port: number): Promise<string | null> {
-  const result = await invoke("security_check_hostkey", { host, port });
+  const result = await timedInvoke("security_check_hostkey", { host, port });
   return parseInvokeResult(z.string().nullable(), result, "security_check_hostkey");
 }
 
@@ -118,6 +117,6 @@ export type KnownHost = z.infer<typeof KnownHostSchema>;
  * 获取所有已信任的 Known Hosts
  */
 export async function listKnownHosts(): Promise<KnownHost[]> {
-  const result = await invoke("security_list_known_hosts");
+  const result = await timedInvoke("security_list_known_hosts");
   return parseInvokeResult(z.array(KnownHostSchema), result, "security_list_known_hosts");
 }

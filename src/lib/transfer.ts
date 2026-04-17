@@ -4,9 +4,8 @@
  * All transfer-related Tauri IPC call wrappers with Zod validation
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
-import { parseInvokeResult } from "./error";
+import { parseInvokeResult, timedInvoke } from "./error";
 import type { TransferTask, TransferHistoryEntry } from "@/types/transfer";
 
 // ============================================================================
@@ -48,7 +47,7 @@ export async function uploadFile(
   localPath: string,
   remoteDir: string
 ): Promise<string> {
-  const result = await invoke("transfer_upload", { sessionId, localPath, remoteDir });
+  const result = await timedInvoke("transfer_upload", { sessionId, localPath, remoteDir });
   return parseInvokeResult(z.string(), result, "transfer_upload");
 }
 
@@ -60,7 +59,7 @@ export async function downloadFile(
   remotePath: string,
   localDir: string
 ): Promise<string> {
-  const result = await invoke("transfer_download", { sessionId, remotePath, localDir });
+  const result = await timedInvoke("transfer_download", { sessionId, remotePath, localDir });
   return parseInvokeResult(z.string(), result, "transfer_download");
 }
 
@@ -72,7 +71,7 @@ export async function uploadDirectory(
   localPath: string,
   remoteDir: string
 ): Promise<string[]> {
-  const result = await invoke("transfer_upload_dir", { sessionId, localPath, remoteDir });
+  const result = await timedInvoke("transfer_upload_dir", { sessionId, localPath, remoteDir });
   return parseInvokeResult(z.array(z.string()), result, "transfer_upload_dir");
 }
 
@@ -84,7 +83,7 @@ export async function downloadDirectory(
   remotePath: string,
   localDir: string
 ): Promise<string[]> {
-  const result = await invoke("transfer_download_dir", { sessionId, remotePath, localDir });
+  const result = await timedInvoke("transfer_download_dir", { sessionId, remotePath, localDir });
   return parseInvokeResult(z.array(z.string()), result, "transfer_download_dir");
 }
 
@@ -92,14 +91,14 @@ export async function downloadDirectory(
  * 取消传输
  */
 export async function cancelTransfer(taskId: string): Promise<void> {
-  await invoke("transfer_cancel", { taskId });
+  await timedInvoke("transfer_cancel", { taskId });
 }
 
 /**
  * 重试传输
  */
 export async function retryTransfer(taskId: string): Promise<string> {
-  const result = await invoke("transfer_retry", { taskId });
+  const result = await timedInvoke("transfer_retry", { taskId });
   return parseInvokeResult(z.string(), result, "transfer_retry");
 }
 
@@ -107,7 +106,7 @@ export async function retryTransfer(taskId: string): Promise<string> {
  * 获取任务列表
  */
 export async function listTransfers(): Promise<TransferTask[]> {
-  const result = await invoke("transfer_list");
+  const result = await timedInvoke("transfer_list");
   return parseInvokeResult(z.array(TransferTaskSchema), result, "transfer_list");
 }
 
@@ -115,7 +114,7 @@ export async function listTransfers(): Promise<TransferTask[]> {
  * 获取单个任务
  */
 export async function getTransfer(taskId: string): Promise<TransferTask | null> {
-  const result = await invoke("transfer_get", { taskId });
+  const result = await timedInvoke("transfer_get", { taskId });
   return parseInvokeResult(TransferTaskSchema.nullable(), result, "transfer_get");
 }
 
@@ -123,7 +122,7 @@ export async function getTransfer(taskId: string): Promise<TransferTask | null> 
  * 清理已完成的任务
  */
 export async function cleanupTransfers(): Promise<void> {
-  await invoke("transfer_cleanup");
+  await timedInvoke("transfer_cleanup");
 }
 
 // ============================================================================
@@ -147,7 +146,7 @@ const TransferHistoryEntrySchema = z.object({
  * 获取传输历史
  */
 export async function listTransferHistory(limit?: number): Promise<TransferHistoryEntry[]> {
-  const result = await invoke("transfer_history_list", { limit: limit ?? null });
+  const result = await timedInvoke("transfer_history_list", { limit: limit ?? null });
   return parseInvokeResult(z.array(TransferHistoryEntrySchema), result, "transfer_history_list");
 }
 
@@ -155,5 +154,5 @@ export async function listTransferHistory(limit?: number): Promise<TransferHisto
  * 清空传输历史
  */
 export async function clearTransferHistory(): Promise<void> {
-  await invoke("transfer_history_clear");
+  await timedInvoke("transfer_history_clear");
 }

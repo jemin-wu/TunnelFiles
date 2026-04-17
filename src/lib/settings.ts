@@ -4,9 +4,8 @@
  * All settings-related Tauri IPC call wrappers with Zod validation
  */
 
-import { invoke } from "@tauri-apps/api/core";
 import { z } from "zod";
-import { parseInvokeResult } from "./error";
+import { parseInvokeResult, timedInvoke } from "./error";
 import type { Settings, SettingsPatch } from "@/types/settings";
 
 // ============================================================================
@@ -34,7 +33,7 @@ const SettingsSchema = z.object({
  * 获取当前设置
  */
 export async function getSettings(): Promise<Settings> {
-  const result = await invoke("settings_get");
+  const result = await timedInvoke("settings_get");
   return parseInvokeResult(SettingsSchema, result, "settings_get");
 }
 
@@ -43,7 +42,7 @@ export async function getSettings(): Promise<Settings> {
  * 支持部分更新，只更新提供的字段
  */
 export async function updateSettings(patch: SettingsPatch): Promise<Settings> {
-  const result = await invoke("settings_set", { patch });
+  const result = await timedInvoke("settings_set", { patch });
   return parseInvokeResult(SettingsSchema, result, "settings_set");
 }
 
@@ -52,6 +51,6 @@ export async function updateSettings(patch: SettingsPatch): Promise<Settings> {
  * 返回生成的 zip 文件路径
  */
 export async function exportDiagnostics(): Promise<string> {
-  const result = await invoke("export_diagnostics");
+  const result = await timedInvoke("export_diagnostics");
   return parseInvokeResult(z.string(), result, "export_diagnostics");
 }

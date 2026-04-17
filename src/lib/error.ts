@@ -4,6 +4,7 @@
  * 提供统一的错误处理和展示逻辑
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { ZodError, type z } from "zod";
 import { type AppError, ErrorCode, ERROR_MESSAGES } from "@/types";
@@ -71,6 +72,46 @@ export function getErrorCode(error: unknown): ErrorCode {
     return error.code;
   }
   return ErrorCode.UNKNOWN;
+}
+
+// ============================================
+// IPC Timeout
+// ============================================
+
+/** Default IPC timeout (30 seconds) */
+const IPC_TIMEOUT_MS = 30_000;
+
+/**
+ * Wrap an IPC invoke call with a timeout.
+ *
+ * Prevents the UI from freezing indefinitely when the backend hangs.
+ */
+export function withTimeout<T>(promise: Promise<T>, ms: number = IPC_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject({
+          code: "TIMEOUT",
+          message: "操作超时，请重试",
+          detail: `IPC 调用在 ${ms / 1000} 秒内未响应`,
+          retryable: true,
+        } as AppError),
+      ms
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Shorthand: invoke a Tauri command with a timeout.
+ */
+export function timedInvoke<T>(
+  cmd: string,
+  args?: Record<string, unknown>,
+  ms?: number
+): Promise<T> {
+  return withTimeout(args !== undefined ? invoke<T>(cmd, args) : invoke<T>(cmd), ms);
 }
 
 // ============================================
@@ -252,40 +293,5 @@ export async function invokeWithErrorHandling<T>(
     }
 
     throw error;
-  }
-}
-
-/**
- * 处理特定错误码
- *
- * @example
- * ```ts
- * try {
- *   await invoke("session_connect", { profileId });
- * } catch (error) {
- *   handleErrorByCode(error, {
- *     [ErrorCode.AUTH_FAILED]: () => openAuthDialog(),
- *     [ErrorCode.HOSTKEY_MISMATCH]: () => showHostKeyWarning(error),
- *   });
- * }
- * ```
- */
-export function handleErrorByCode(
-  error: unknown,
-  handlers: Partial<Record<ErrorCode, (error: AppError) => void>>,
-  defaultHandler?: (error: unknown) => void
-) {
-  if (isAppError(error)) {
-    const handler = handlers[error.code];
-    if (handler) {
-      handler(error);
-      return;
-    }
-  }
-
-  if (defaultHandler) {
-    defaultHandler(error);
-  } else {
-    showErrorToast(error);
   }
 }
