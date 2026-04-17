@@ -15,6 +15,7 @@ use crate::models::profile::RecentConnection;
 use crate::services::session_manager::{ConnectStatus, SessionManager};
 use crate::services::storage_service::Database;
 use crate::services::terminal_manager::TerminalManager;
+use crate::services::transfer_manager::TransferManager;
 
 /// 连接输入参数
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,6 +31,9 @@ pub struct ConnectInput {
     /// 临时 passphrase（未记住时由前端传入）
     #[serde(default)]
     pub passphrase: Option<String>,
+    /// 期望的服务器指纹（connect_after_trust 时用于验证）
+    #[serde(default)]
+    pub expected_fingerprint: Option<String>,
 }
 
 /// 连接结果
@@ -205,6 +209,7 @@ pub async fn session_connect_after_trust(
     let profile_clone = profile.clone();
     let password = input.password.clone();
     let passphrase = input.passphrase.clone();
+    let expected_fingerprint = input.expected_fingerprint.clone().unwrap_or_default();
     let session_manager_clone = (*session_manager).clone();
 
     let result = tokio::task::spawn_blocking(move || {
@@ -213,6 +218,7 @@ pub async fn session_connect_after_trust(
             password.as_deref(),
             passphrase.as_deref(),
             timeout_secs,
+            &expected_fingerprint,
         )
     })
     .await
@@ -236,15 +242,22 @@ pub async fn session_disconnect(
     app: AppHandle,
     session_manager: State<'_, Arc<SessionManager>>,
     terminal_manager: State<'_, Arc<TerminalManager>>,
+    transfer_manager: State<'_, Arc<TransferManager>>,
     session_id: String,
 ) -> AppResult<()> {
     tracing::info!(session_id = %session_id, "断开连接");
 
-    // 先清理关联的终端
+    // 1. 先取消关联的传输任务（确保状态为 Canceled 而非 Failed）
+    transfer_manager
+        .cancel_tasks_by_session(Some(&app), &session_id)
+        .await;
+
+    // 2. 清理关联的终端
     if let Err(e) = terminal_manager.close_by_session(&session_id) {
         tracing::warn!(session_id = %session_id, error = %e, "清理关联终端失败");
     }
 
+    // 3. 关闭 SSH 会话
     session_manager.close_session(&session_id)?;
 
     // 发送断开事件
