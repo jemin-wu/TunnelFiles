@@ -14,6 +14,7 @@ export function useProfiles() {
   return useQuery({
     queryKey: PROFILES_QUERY_KEY,
     queryFn: listProfiles,
+    staleTime: 5 * 60 * 1000,
   });
 }
 

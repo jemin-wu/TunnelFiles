@@ -4,7 +4,7 @@
  */
 
 import { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useBlocker } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
@@ -143,6 +153,11 @@ export function SettingsPage() {
 
   const isDirty = form.formState.isDirty;
 
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      isDirty && currentLocation.pathname !== nextLocation.pathname
+  );
+
   const handleSelectDirectory = useCallback(async () => {
     const selected = await openDialog({
       directory: true,
@@ -154,9 +169,21 @@ export function SettingsPage() {
     }
   }, [form]);
 
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+
   const handleCancel = useCallback(() => {
+    if (isDirty) {
+      setShowDiscardDialog(true);
+    } else {
+      navigate(-1);
+    }
+  }, [isDirty, navigate]);
+
+  const handleDiscardConfirm = useCallback(() => {
+    setShowDiscardDialog(false);
+    form.reset();
     navigate(-1);
-  }, [navigate]);
+  }, [form, navigate]);
 
   if (isLoading) {
     return <FullPageLoader label="Loading settings..." />;
@@ -514,6 +541,40 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Unsaved changes dialog — shared by navigation blocker and cancel button */}
+      <AlertDialog
+        open={blocker.state === "blocked" || showDiscardDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            blocker.reset?.();
+            setShowDiscardDialog(false);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unsaved changes</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              You have unsaved changes. Are you sure you want to leave?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continue editing</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (blocker.state === "blocked") {
+                  blocker.proceed?.();
+                } else {
+                  handleDiscardConfirm();
+                }
+              }}
+            >
+              Discard changes
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

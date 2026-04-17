@@ -19,7 +19,7 @@ const createMockTask = (overrides: Partial<TransferTask> = {}): TransferTask => 
 describe("useTransferStore", () => {
   beforeEach(() => {
     // Reset store state before each test
-    useTransferStore.setState({ tasks: new Map() });
+    useTransferStore.setState({ tasks: new Map(), _sortedTasks: [] });
   });
 
   describe("addTask", () => {
