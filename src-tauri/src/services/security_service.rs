@@ -79,7 +79,7 @@ pub fn credential_get(credential_ref: &str) -> AppResult<Option<String>> {
 pub fn credential_delete(credential_ref: &str) -> AppResult<bool> {
     let entry = Entry::new(SERVICE_NAME, credential_ref)?;
 
-    match entry.delete_password() {
+    match entry.delete_credential() {
         Ok(()) => {
             tracing::debug!(key = %credential_ref, "凭据已删除");
             Ok(true)
@@ -97,10 +97,14 @@ pub fn credential_delete_for_profile(profile_id: &str) -> AppResult<()> {
     let password_key = format!("{}:{}", PASSWORD_PREFIX, profile_id);
     let passphrase_key = format!("{}:{}", PASSPHRASE_PREFIX, profile_id);
 
-    // 删除密码（忽略不存在的情况）
-    let _ = credential_delete(&password_key);
-    // 删除 passphrase（忽略不存在的情况）
-    let _ = credential_delete(&passphrase_key);
+    // 删除密码（忽略不存在的情况，但记录错误）
+    if let Err(e) = credential_delete(&password_key) {
+        tracing::warn!(profile_id = %profile_id, key = %password_key, error = %e, "删除 keychain 密码失败，凭据可能残留");
+    }
+    // 删除 passphrase（忽略不存在的情况，但记录错误）
+    if let Err(e) = credential_delete(&passphrase_key) {
+        tracing::warn!(profile_id = %profile_id, key = %passphrase_key, error = %e, "删除 keychain passphrase 失败，凭据可能残留");
+    }
 
     tracing::debug!(profile_id = %profile_id, "Profile 凭据已清理");
 

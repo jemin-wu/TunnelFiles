@@ -82,7 +82,13 @@ impl Database {
             .map_err(|e| AppError::local_io_error(format!("无法打开数据库: {}", e)))?;
 
         // 启用 WAL 模式，提升并发性能
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;")?;
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL; \
+             PRAGMA busy_timeout=5000; \
+             PRAGMA synchronous=NORMAL; \
+             PRAGMA cache_size=-64000; \
+             PRAGMA foreign_keys=ON;",
+        )?;
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -213,19 +219,25 @@ impl Database {
         }
 
         // 添加终端设置字段（防御性：无论版本号如何，确保列存在）
-        // 仅忽略 "duplicate column" 错误，其他错误正常传播
-        for col_sql in [
-            "ALTER TABLE settings ADD COLUMN terminal_font_size INTEGER NOT NULL DEFAULT 14",
-            "ALTER TABLE settings ADD COLUMN terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000",
-            "ALTER TABLE settings ADD COLUMN terminal_follow_directory INTEGER NOT NULL DEFAULT 1",
-        ] {
-            if let Err(e) = conn.execute(col_sql, []) {
-                let msg = e.to_string();
-                if !msg.contains("duplicate column") {
-                    return Err(AppError::new(
-                        ErrorCode::LocalIoError,
-                        format!("迁移失败: {}", msg),
-                    ));
+        {
+            let existing_cols: Vec<String> = conn
+                .prepare("PRAGMA table_info(settings)")?
+                .query_map([], |row| row.get::<_, String>(1))?
+                .filter_map(|r| r.ok())
+                .collect();
+
+            let new_cols = [
+                ("terminal_font_size", "INTEGER NOT NULL DEFAULT 14"),
+                ("terminal_scrollback_lines", "INTEGER NOT NULL DEFAULT 5000"),
+                ("terminal_follow_directory", "INTEGER NOT NULL DEFAULT 1"),
+            ];
+
+            for (col_name, col_def) in new_cols {
+                if !existing_cols.iter().any(|c| c == col_name) {
+                    conn.execute(
+                        &format!("ALTER TABLE settings ADD COLUMN {} {}", col_name, col_def),
+                        [],
+                    )?;
                 }
             }
         }

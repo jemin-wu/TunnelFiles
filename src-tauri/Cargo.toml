@@ -50,7 +50,7 @@ tracing-appender = "0.2"
 zip = "2"
 
 # 系统安全存储
-keyring = "2"
+keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 
 # 路径处理
 dirs = "5"

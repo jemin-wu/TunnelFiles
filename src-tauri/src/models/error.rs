@@ -136,8 +136,9 @@ impl From<ssh2::Error> for AppError {
                 AppError::permission_denied(message)
             }
             ssh2::ErrorCode::SFTP(4) => {
-                // LIBSSH2_FX_FAILURE (通常是目录非空)
-                AppError::dir_not_empty(message)
+                // LIBSSH2_FX_FAILURE — 通用失败码，可能是目录非空、磁盘满、权限不足等
+                // 具体含义由调用点上下文决定（如 rmdir 时映射为 DirNotEmpty）
+                AppError::remote_io_error(message)
             }
             ssh2::ErrorCode::SFTP(11) => {
                 // LIBSSH2_FX_FILE_ALREADY_EXISTS
@@ -188,19 +189,6 @@ impl From<keyring::Error> for AppError {
             }
             _ => AppError::new(ErrorCode::LocalIoError, format!("凭据存储错误: {}", err)),
         }
-    }
-}
-
-// 从 String 转换（用于自定义错误消息）
-impl From<String> for AppError {
-    fn from(msg: String) -> Self {
-        AppError::new(ErrorCode::Unknown, msg)
-    }
-}
-
-impl From<&str> for AppError {
-    fn from(msg: &str) -> Self {
-        AppError::new(ErrorCode::Unknown, msg)
     }
 }
 
@@ -270,10 +258,11 @@ mod tests {
 
     #[test]
     fn test_from_ssh2_error_sftp_failure() {
-        // LIBSSH2_FX_FAILURE = 4 (mapped to dir_not_empty)
+        // LIBSSH2_FX_FAILURE = 4 — 通用失败码，映射为 RemoteIoError
+        // 具体含义（如 DirNotEmpty）由调用点上下文决定
         let ssh_err = ssh2::Error::new(ssh2::ErrorCode::SFTP(4), "failure");
         let app_err = AppError::from(ssh_err);
-        assert_eq!(app_err.code, ErrorCode::DirNotEmpty);
+        assert_eq!(app_err.code, ErrorCode::RemoteIoError);
         assert!(!app_err.message.is_empty());
     }
 
@@ -397,19 +386,5 @@ mod tests {
         let app_err = AppError::from(kr_err);
         assert_eq!(app_err.code, ErrorCode::LocalIoError);
         assert!(!app_err.message.is_empty());
-    }
-
-    #[test]
-    fn test_from_string() {
-        let app_err = AppError::from("custom error message".to_string());
-        assert_eq!(app_err.code, ErrorCode::Unknown);
-        assert_eq!(app_err.message, "custom error message");
-    }
-
-    #[test]
-    fn test_from_str() {
-        let app_err = AppError::from("static error message");
-        assert_eq!(app_err.code, ErrorCode::Unknown);
-        assert_eq!(app_err.message, "static error message");
     }
 }
