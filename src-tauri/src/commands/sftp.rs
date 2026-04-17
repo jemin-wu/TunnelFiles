@@ -186,8 +186,11 @@ pub async fn sftp_read_file(
     let path = input.path.clone();
     let max_bytes = input.max_bytes;
 
-    let result =
-        spawn_sftp(move || SftpService::read_file_preview(&session.sftp, &path, max_bytes)).await?;
+    let result = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::read_file_preview(&sftp, &path, max_bytes)
+    })
+    .await?;
 
     tracing::debug!(
         session_id = %input.session_id,
@@ -223,7 +226,11 @@ pub async fn sftp_list_dir(
 
     let session = session_manager.get_session(&session_id)?;
 
-    let entries = spawn_sftp(move || SftpService::list_dir(&session.sftp, &path, sort)).await?;
+    let entries = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::list_dir(&sftp, &path, sort)
+    })
+    .await?;
 
     tracing::debug!(
         session_id = %session_id,
@@ -253,7 +260,11 @@ pub async fn sftp_stat(
 
     let session = session_manager.get_session(&session_id)?;
 
-    let entry = spawn_sftp(move || SftpService::stat(&session.sftp, &path)).await?;
+    let entry = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::stat(&sftp, &path)
+    })
+    .await?;
 
     Ok(entry)
 }
@@ -278,7 +289,11 @@ pub async fn sftp_mkdir(
     let session = session_manager.get_session(&session_id)?;
     let path_clone = path.clone();
 
-    spawn_sftp(move || SftpService::mkdir(&session.sftp, &path_clone)).await?;
+    spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::mkdir(&sftp, &path_clone)
+    })
+    .await?;
 
     tracing::info!(
         session_id = %session_id,
@@ -312,7 +327,11 @@ pub async fn sftp_rename(
     let from_clone = from_path.clone();
     let to_clone = to_path.clone();
 
-    spawn_sftp(move || SftpService::rename(&session.sftp, &from_clone, &to_clone)).await?;
+    spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::rename(&sftp, &from_clone, &to_clone)
+    })
+    .await?;
 
     tracing::info!(
         session_id = %session_id,
@@ -346,7 +365,11 @@ pub async fn sftp_delete(
     let session = session_manager.get_session(&session_id)?;
     let path_clone = path.clone();
 
-    spawn_sftp(move || SftpService::delete(&session.sftp, &path_clone, is_dir)).await?;
+    spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::delete(&sftp, &path_clone, is_dir)
+    })
+    .await?;
 
     tracing::info!(
         session_id = %session_id,
@@ -384,6 +407,8 @@ pub async fn sftp_batch_delete(
     let session_id = input.session_id.clone();
 
     let result = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+
         // Canonicalize: sort paths, skip children when parent dir is in the list
         let mut dir_paths: Vec<String> = input
             .items
@@ -426,11 +451,7 @@ pub async fn sftp_batch_delete(
                         let _ = app_clone.emit("delete:progress", &progress);
                     });
 
-                match SftpService::delete_recursive(
-                    &session.sftp,
-                    &item.path,
-                    Some(progress_callback),
-                ) {
+                match SftpService::delete_recursive(&sftp, &item.path, Some(progress_callback)) {
                     Ok(r) => {
                         deleted_count += (r.deleted_files + r.deleted_dirs) as usize;
                         failures.extend(r.failures);
@@ -443,7 +464,7 @@ pub async fn sftp_batch_delete(
                     }
                 }
             } else {
-                match SftpService::delete(&session.sftp, &item.path, false) {
+                match SftpService::delete(&sftp, &item.path, false) {
                     Ok(()) => {
                         deleted_count += 1;
                     }
@@ -537,11 +558,12 @@ pub async fn sftp_chmod(
     let mode = input.mode;
 
     let result = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
         let mut success_count = 0;
         let mut failures = Vec::new();
 
         for path in &paths {
-            match SftpService::chmod(&session.sftp, path, mode) {
+            match SftpService::chmod(&sftp, path, mode) {
                 Ok(()) => {
                     success_count += 1;
                     tracing::debug!(path = %path, mode = format!("{:o}", mode), "权限修改成功");
@@ -595,8 +617,11 @@ pub async fn sftp_get_dir_stats(
     let session = session_manager.get_session(&session_id)?;
     let path_clone = path.clone();
 
-    let stats =
-        spawn_sftp(move || SftpService::get_directory_stats(&session.sftp, &path_clone)).await?;
+    let stats = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+        SftpService::get_directory_stats(&sftp, &path_clone)
+    })
+    .await?;
 
     tracing::debug!(
         session_id = %session_id,
@@ -860,6 +885,8 @@ pub async fn sftp_delete_recursive(
     let path = input.path.clone();
 
     let result = spawn_sftp(move || {
+        let sftp = session.lock_sftp()?;
+
         // 创建进度回调，通过 Tauri 事件发送进度
         let app_clone = app.clone();
         let progress_callback: Box<dyn Fn(DeleteProgress) + Send> = Box::new(move |progress| {
@@ -868,7 +895,7 @@ pub async fn sftp_delete_recursive(
             }
         });
 
-        SftpService::delete_recursive(&session.sftp, &path, Some(progress_callback))
+        SftpService::delete_recursive(&sftp, &path, Some(progress_callback))
     })
     .await?;
 
