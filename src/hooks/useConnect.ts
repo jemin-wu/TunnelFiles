@@ -58,7 +58,6 @@ export function useConnect(): UseConnectReturn {
   const handleConnectResult = useCallback(
     (result: SessionConnectResult, profile: Profile) => {
       if (result.needHostKeyConfirm && result.serverFingerprint) {
-        // 需要确认 HostKey（首次连接或密钥变更）
         setState((prev) => ({
           ...prev,
           isConnecting: false,
@@ -72,7 +71,6 @@ export function useConnect(): UseConnectReturn {
           },
         }));
       } else if (result.sessionId) {
-        // 连接成功
         resetState();
         navigate(`/files/${result.sessionId}`);
       }
@@ -82,6 +80,9 @@ export function useConnect(): UseConnectReturn {
 
   const startConnect = useCallback(
     async (profile: Profile) => {
+      // Double-click guard: prevent concurrent connections
+      if (state.isConnecting) return;
+
       setState({
         isConnecting: true,
         connectingProfileId: profile.id,
@@ -93,7 +94,6 @@ export function useConnect(): UseConnectReturn {
       });
 
       try {
-        // 检查是否需要密码
         if (profile.authType === "password" && !profile.passwordRef) {
           setState((prev) => ({
             ...prev,
@@ -103,16 +103,13 @@ export function useConnect(): UseConnectReturn {
           return;
         }
 
-        // 检查是否需要 passphrase
         if (profile.authType === "key" && !profile.passphraseRef) {
-          // 先尝试无 passphrase 连接，失败后再要求输入
-          // 这里简化处理，直接尝试连接
+          // Try connecting without passphrase first; AUTH_FAILED triggers prompt
         }
 
         const result = await connect({ profileId: profile.id });
         handleConnectResult(result, profile);
       } catch (error) {
-        // 检查是否是认证失败错误（需要密码/passphrase）
         if (isAppError(error) && error.code === ErrorCode.AUTH_FAILED) {
           setState((prev) => ({
             ...prev,
@@ -127,7 +124,7 @@ export function useConnect(): UseConnectReturn {
         resetState();
       }
     },
-    [handleConnectResult, resetState]
+    [state.isConnecting, handleConnectResult, resetState]
   );
 
   const submitCredentials = useCallback(
@@ -171,7 +168,6 @@ export function useConnect(): UseConnectReturn {
     }));
 
     try {
-      // 信任 HostKey
       await trustHostKey({
         host: hostKey.host,
         port: hostKey.port,
@@ -179,11 +175,11 @@ export function useConnect(): UseConnectReturn {
         fingerprint: hostKey.fingerprint,
       });
 
-      // 重新连接，带上之前保存的凭证
       const result = await reconnectWithTrustedKey({
         profileId: profile.id,
         password: credentials?.password,
         passphrase: credentials?.passphrase,
+        expectedFingerprint: hostKey.fingerprint,
       });
       handleConnectResult(result, profile);
     } catch (error) {

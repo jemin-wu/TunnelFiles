@@ -15,4 +15,8 @@ password: string | null,
 /**
  * 临时 passphrase（未记住时由前端传入）
  */
-passphrase: string | null, };
+passphrase: string | null, 
+/**
+ * 期望的服务器指纹（connect_after_trust 时用于验证）
+ */
+expectedFingerprint: string | null, };
