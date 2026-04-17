@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -30,9 +31,6 @@ const CHUNK_SIZE: usize = 64 * 1024;
 
 /// 进度推送节流间隔 (200ms)
 const PROGRESS_THROTTLE_MS: u128 = 200;
-
-/// 默认重试次数
-const DEFAULT_RETRY_COUNT: u8 = 2;
 
 /// 进度追踪器
 struct ProgressTracker<'a> {
@@ -130,20 +128,30 @@ pub struct TransferManager {
     semaphore: Arc<Semaphore>,
     /// 数据库（用于持久化传输历史）
     db: Arc<Database>,
+    /// 最大重试次数（运行时可随用户设置变更而更新）
+    max_retries: AtomicU8,
 }
 
 impl TransferManager {
     /// 创建新的传输管理器
     ///
     /// max_concurrent: 最大并发传输数 (1-6)
-    pub fn new(max_concurrent: u8, db: Arc<Database>) -> Self {
+    /// max_retries: 最大重试次数 (0-5)
+    pub fn new(max_concurrent: u8, max_retries: u8, db: Arc<Database>) -> Self {
         let max_concurrent = max_concurrent.clamp(1, 6);
 
         Self {
             tasks: RwLock::new(HashMap::new()),
             semaphore: Arc::new(Semaphore::new(max_concurrent as usize)),
             db,
+            max_retries: AtomicU8::new(max_retries.min(5)),
         }
+    }
+
+    /// 更新最大重试次数（在 `settings_set` 写库后调用，使新设置立即对新任务生效）
+    pub fn set_max_retries(&self, max_retries: u8) {
+        self.max_retries
+            .store(max_retries.min(5), Ordering::Relaxed);
     }
 
     /// 创建上传任务
@@ -279,7 +287,10 @@ impl TransferManager {
         let files = tokio::task::spawn_blocking({
             let session = session.clone();
             let remote = remote_path.clone();
-            move || SftpService::list_dir_recursive(&session.sftp, &remote)
+            move || {
+                let sftp = session.lock_sftp()?;
+                SftpService::list_dir_recursive(&sftp, &remote)
+            }
         })
         .await
         .map_err(|e| AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e)))??;
@@ -389,8 +400,9 @@ impl TransferManager {
         tokio::task::spawn_blocking({
             let session = session.clone();
             move || {
+                let sftp = session.lock_sftp()?;
                 for parent in parents {
-                    Self::ensure_remote_dir_exists(&session.sftp, &parent)?;
+                    Self::ensure_remote_dir_exists(&sftp, &parent)?;
                 }
                 Ok::<(), AppError>(())
             }
@@ -427,8 +439,9 @@ impl TransferManager {
     async fn verify_remote_dir(session: Arc<ManagedSession>, path: &str) -> AppResult<()> {
         let path = path.to_string();
         tokio::task::spawn_blocking(move || {
+            let sftp = session.lock_sftp()?;
             let path_obj = Path::new(&path);
-            let stat = session.sftp.stat(path_obj).map_err(|e| {
+            let stat = sftp.stat(path_obj).map_err(|e| {
                 if e.code() == ssh2::ErrorCode::SFTP(2) {
                     AppError::not_found(format!("远程目录不存在: {}", path))
                 } else {
@@ -748,7 +761,8 @@ impl TransferManager {
                     let retryable = e.retryable.unwrap_or(false);
 
                     // 自动重试（循环方式，_permit 在本次迭代结束时自动释放）
-                    if retryable && retry_count < DEFAULT_RETRY_COUNT {
+                    let max_retries = self.max_retries.load(Ordering::Relaxed);
+                    if retryable && retry_count < max_retries {
                         let delay = Duration::from_secs(1 << retry_count); // 1s, 2s, 4s...
                         tracing::info!(
                             task_id = %task_id,
@@ -814,26 +828,43 @@ impl TransferManager {
         let mut buffer = vec![0u8; CHUNK_SIZE];
         let mut progress = ProgressTracker::new(app, task_id, total);
 
-        loop {
-            if cancel_token.is_cancelled() {
-                return Err(AppError::canceled());
+        let result = (|| {
+            loop {
+                if cancel_token.is_cancelled() {
+                    return Err(AppError::canceled());
+                }
+
+                let bytes_read = local_file.read(&mut buffer).map_err(|e| {
+                    AppError::new(ErrorCode::LocalIoError, format!("读取本地文件失败: {}", e))
+                        .with_retryable(false)
+                })?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                remote_file.write_all(&buffer[..bytes_read]).map_err(|e| {
+                    AppError::new(ErrorCode::RemoteIoError, format!("写入远程文件失败: {}", e))
+                        .with_retryable(true)
+                })?;
+
+                progress.update(bytes_read as u64);
             }
+            Ok(())
+        })();
 
-            let bytes_read = local_file.read(&mut buffer).map_err(|e| {
-                AppError::new(ErrorCode::LocalIoError, format!("读取本地文件失败: {}", e))
-                    .with_retryable(false)
-            })?;
-
-            if bytes_read == 0 {
-                break;
+        if result.is_err() {
+            // 上传失败/取消时，尝试清理远程部分文件
+            drop(remote_file);
+            if let Err(e) = sftp.unlink(Path::new(remote_path)) {
+                tracing::warn!(
+                    task_id = %task_id,
+                    remote_path = %remote_path,
+                    error = %e,
+                    "上传失败后清理远程部分文件失败"
+                );
             }
-
-            remote_file.write_all(&buffer[..bytes_read]).map_err(|e| {
-                AppError::new(ErrorCode::RemoteIoError, format!("写入远程文件失败: {}", e))
-                    .with_retryable(true)
-            })?;
-
-            progress.update(bytes_read as u64);
+            return result;
         }
 
         progress.finish();
@@ -884,28 +915,35 @@ impl TransferManager {
         let mut buffer = vec![0u8; CHUNK_SIZE];
         let mut progress = ProgressTracker::new(app, task_id, total);
 
-        loop {
-            if cancel_token.is_cancelled() {
-                drop(local_file);
-                std::fs::remove_file(local_path).ok();
-                return Err(AppError::canceled());
+        let result = (|| -> AppResult<()> {
+            loop {
+                if cancel_token.is_cancelled() {
+                    return Err(AppError::canceled());
+                }
+
+                let bytes_read = remote_file.read(&mut buffer).map_err(|e| {
+                    AppError::new(ErrorCode::RemoteIoError, format!("读取远程文件失败: {}", e))
+                        .with_retryable(true)
+                })?;
+
+                if bytes_read == 0 {
+                    break;
+                }
+
+                local_file.write_all(&buffer[..bytes_read]).map_err(|e| {
+                    AppError::new(ErrorCode::LocalIoError, format!("写入本地文件失败: {}", e))
+                        .with_retryable(false)
+                })?;
+
+                progress.update(bytes_read as u64);
             }
+            Ok(())
+        })();
 
-            let bytes_read = remote_file.read(&mut buffer).map_err(|e| {
-                AppError::new(ErrorCode::RemoteIoError, format!("读取远程文件失败: {}", e))
-                    .with_retryable(true)
-            })?;
-
-            if bytes_read == 0 {
-                break;
-            }
-
-            local_file.write_all(&buffer[..bytes_read]).map_err(|e| {
-                AppError::new(ErrorCode::LocalIoError, format!("写入本地文件失败: {}", e))
-                    .with_retryable(false)
-            })?;
-
-            progress.update(bytes_read as u64);
+        if result.is_err() {
+            drop(local_file);
+            std::fs::remove_file(local_path).ok();
+            return result;
         }
 
         progress.finish();
@@ -942,6 +980,36 @@ impl TransferManager {
         }
 
         Ok(())
+    }
+
+    /// 取消指定 session 的所有活跃传输任务
+    ///
+    /// 在 session disconnect 前调用，确保传输以 Canceled 状态结束而非 Failed。
+    pub async fn cancel_tasks_by_session(&self, app: Option<&AppHandle>, session_id: &str) {
+        let task_ids: Vec<String> = {
+            let tasks = self.tasks.read().await;
+            tasks
+                .iter()
+                .filter(|(_, t)| {
+                    t.task.session_id == session_id
+                        && matches!(
+                            t.task.status,
+                            TransferStatus::Waiting | TransferStatus::Running
+                        )
+                })
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+
+        for task_id in &task_ids {
+            if let Err(e) = self.cancel_task(app, task_id).await {
+                tracing::warn!(task_id = %task_id, error = %e, "取消传输任务失败");
+            }
+        }
+
+        if !task_ids.is_empty() {
+            tracing::info!(session_id = %session_id, count = task_ids.len(), "已取消 session 关联的传输任务");
+        }
     }
 
     /// 重试失败的任务
@@ -1104,6 +1172,8 @@ mod tests {
     use tempfile::NamedTempFile;
     use tokio::time::Duration;
 
+    const DEFAULT_RETRY_COUNT: u8 = 2;
+
     // ========== 辅助函数 ==========
 
     /// 创建测试用的 TransferManager（带临时数据库）
@@ -1113,7 +1183,7 @@ mod tests {
         std::fs::create_dir_all(&temp_dir).unwrap();
         let db_path = temp_dir.join("test.db");
         let db = Arc::new(Database::init_with_path(&db_path).unwrap());
-        TransferManager::new(max_concurrent, db)
+        TransferManager::new(max_concurrent, DEFAULT_RETRY_COUNT, db)
     }
 
     /// 创建临时测试文件
