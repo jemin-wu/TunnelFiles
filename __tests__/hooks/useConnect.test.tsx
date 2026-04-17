@@ -275,6 +275,9 @@ describe("useConnect", () => {
       });
       expect(sessionLib.reconnectWithTrustedKey).toHaveBeenCalledWith({
         profileId: "profile-1",
+        expectedFingerprint: "SHA256:abc123",
+        password: undefined,
+        passphrase: undefined,
       });
       expect(mockNavigate).toHaveBeenCalledWith("/files/session-789");
     });
