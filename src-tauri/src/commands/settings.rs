@@ -38,9 +38,9 @@ pub async fn settings_set(
         .await
         .map_err(|e| AppError::new(ErrorCode::Unknown, format!("任务执行失败: {}", e)))??;
 
-    // 同步运行时可变设置（max_concurrent 需要重建 semaphore 才能生效，暂缓；
-    // retry 次数纯原子读，可立即对后续任务生效）
+    // 运行时可变设置同步：两者都立即对后续任务生效，无需重启
     transfer_manager.set_max_retries(settings.transfer_retry_count);
+    transfer_manager.set_max_concurrent(settings.max_concurrent_transfers);
 
     Ok(settings)
 }
