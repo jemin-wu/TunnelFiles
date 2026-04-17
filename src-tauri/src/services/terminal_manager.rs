@@ -504,18 +504,19 @@ impl TerminalManager {
     ) -> AppResult<()> {
         let terminal = self.get_terminal(terminal_id)?;
 
-        // 通知旧 reader 线程退出，并递增代数以使其跳过 Disconnected 事件
-        terminal.shutdown.store(true, Ordering::Release);
+        // 递增代数，使旧 reader 线程在下一次循环检查时自行退出
+        // 旧 reader 在每次迭代开头检查 generation != my_generation，无需 sleep 等待
         terminal.generation.fetch_add(1, Ordering::Release);
 
-        // 短暂等待旧线程看到 shutdown 信号（最多一个 read 循环迭代 ~1ms）
-        thread::sleep(Duration::from_millis(10));
+        // 设置 shutdown 信号加速旧 reader 退出（如果它正在 WouldBlock sleep 中）
+        terminal.shutdown.store(true, Ordering::Release);
 
-        // 重置 shutdown 标志，为新 reader 线程做准备
-        terminal.shutdown.store(false, Ordering::Release);
-
-        // 执行重连
+        // 执行重连（reconnect_terminal 会获取 channel lock，如果旧 reader 持有该锁，
+        // 会等待其当前 read 完成后释放——这是正确的序列化行为，不需要 sleep 猜测）
         Self::reconnect_terminal(&session_manager, &db, &terminal)?;
+
+        // 重连成功后重置 shutdown 标志，为新 reader 线程做准备
+        terminal.shutdown.store(false, Ordering::Release);
 
         // 启动新的 reader 线程
         self.start_output_reader(app, terminal, session_manager, db);
@@ -530,8 +531,8 @@ impl TerminalManager {
             .last_input_ts
             .store(epoch_millis(), Ordering::Release);
 
-        // 在 non-blocking channel 上写入：手动重试 WouldBlock，避免 write_all 中途失败
-        // 不切换 blocking mode，防止锁顺序违反和 reader 线程阻塞
+        // 持锁跨所有成功写入，保证多个并发 write_input 调用的字节不会在 channel 上交织。
+        // 仅在 WouldBlock 需要 sleep 时释放锁，避免阻塞 reader 线程。
         let mut channel = terminal
             .channel
             .lock()
@@ -548,8 +549,12 @@ impl TerminalManager {
                 }
                 Ok(n) => written += n,
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    drop(channel);
                     thread::sleep(Duration::from_millis(1));
-                    continue;
+                    channel = terminal
+                        .channel
+                        .lock()
+                        .map_err(|_| AppError::new(ErrorCode::Unknown, "无法获取 channel 锁"))?;
                 }
                 Err(e) => {
                     return Err(AppError::new(
@@ -563,8 +568,8 @@ impl TerminalManager {
         channel
             .flush()
             .map_err(|e| AppError::new(ErrorCode::RemoteIoError, format!("刷新失败: {}", e)))?;
-
         drop(channel);
+
         terminal.touch();
         Ok(())
     }
@@ -635,6 +640,15 @@ impl TerminalManager {
             .ok()?
             .get(session_id)
             .cloned()
+    }
+
+    /// 查询终端关联的 session_id
+    ///
+    /// 供外部路径（如 `terminal_input` 命令）在写入后 touch 对应的 SSH session，
+    /// 避免空闲清理任务误杀仍在使用终端但 SFTP 层没有活动的会话。
+    pub fn session_id_of(&self, terminal_id: &str) -> Option<String> {
+        let terminals = self.terminals.read().ok()?;
+        terminals.get(terminal_id).map(|t| t.session_id.clone())
     }
 
     /// 根据 session_id 关闭终端

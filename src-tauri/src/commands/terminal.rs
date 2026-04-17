@@ -56,6 +56,7 @@ pub struct TerminalInputData {
 
 #[tauri::command]
 pub async fn terminal_input(
+    session_manager: State<'_, Arc<SessionManager>>,
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: TerminalInputData,
 ) -> AppResult<()> {
@@ -64,10 +65,18 @@ pub async fn terminal_input(
         .map_err(|e| AppError::invalid_argument(format!("Base64 解码失败: {}", e)))?;
 
     let tm = terminal_manager.inner().clone();
+    let sm = session_manager.inner().clone();
     let terminal_id = input.terminal_id;
-    tokio::task::spawn_blocking(move || tm.write_input(&terminal_id, &data))
-        .await
-        .map_err(join_err)?
+    tokio::task::spawn_blocking(move || {
+        tm.write_input(&terminal_id, &data)?;
+        // 刷新底层 SSH 会话的活动时间，防止纯终端用户被空闲清理误杀
+        if let Some(session_id) = tm.session_id_of(&terminal_id) {
+            sm.touch_session(&session_id);
+        }
+        Ok(())
+    })
+    .await
+    .map_err(join_err)?
 }
 
 #[derive(Debug, Serialize, Deserialize)]
