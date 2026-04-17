@@ -165,6 +165,8 @@ pub fn run() {
             commands::terminal::terminal_close,
             commands::terminal::terminal_reconnect,
             commands::terminal::terminal_get_by_session,
+            // AI 命令
+            commands::ai::ai_health_check,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

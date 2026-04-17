@@ -4,5 +4,6 @@
 
 pub mod health;
 pub mod llama_runtime;
+pub mod paths;
 pub mod prompt;
 pub mod scrubber;
