@@ -1565,6 +1565,103 @@ mod tests {
         assert!(task.completed_at.is_some());
     }
 
+    // ========================================================================
+    // cancel_tasks_by_session regression (bug_003: reaper bypass)
+    //
+    // 场景：空闲 session reaper 或 session_disconnect 在关闭 SSH 之前要把
+    // 所有活跃传输以 Canceled 状态结束，避免后续 SFTP call 返回 NotFound
+    // 让任务以 Failed 收尾。
+    //
+    // 验证 cancel_tasks_by_session 只取消匹配 session_id 且处于活跃状态
+    // (Waiting/Running) 的任务，不干扰其他 session 或已终止的任务。
+    // ========================================================================
+
+    #[tokio::test]
+    async fn test_cancel_tasks_by_session_only_matches_target_session() {
+        let manager = create_test_manager(3);
+        let temp = create_temp_file(b"x");
+
+        // session A: 两个 waiting 任务
+        let a1 = manager
+            .create_upload(
+                "sessA".to_string(),
+                temp.path().to_str().unwrap().to_string(),
+                "/".to_string(),
+            )
+            .await
+            .unwrap();
+        let a2 = manager
+            .create_upload(
+                "sessA".to_string(),
+                temp.path().to_str().unwrap().to_string(),
+                "/".to_string(),
+            )
+            .await
+            .unwrap();
+
+        // session B: 一个 waiting 任务（不应该被误杀）
+        let b1 = manager
+            .create_upload(
+                "sessB".to_string(),
+                temp.path().to_str().unwrap().to_string(),
+                "/".to_string(),
+            )
+            .await
+            .unwrap();
+
+        manager.cancel_tasks_by_session(None, "sessA").await;
+
+        assert_eq!(
+            manager.get_task(&a1).await.unwrap().status,
+            TransferStatus::Canceled,
+            "sessA task a1 should be canceled"
+        );
+        assert_eq!(
+            manager.get_task(&a2).await.unwrap().status,
+            TransferStatus::Canceled,
+            "sessA task a2 should be canceled"
+        );
+        assert_eq!(
+            manager.get_task(&b1).await.unwrap().status,
+            TransferStatus::Waiting,
+            "sessB task b1 must NOT be canceled"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cancel_tasks_by_session_skips_terminal_status() {
+        let manager = create_test_manager(3);
+        let temp = create_temp_file(b"x");
+
+        // 已经 Success 的任务不应再被"取消"变成 Canceled
+        let task_id = manager
+            .create_upload(
+                "sess".to_string(),
+                temp.path().to_str().unwrap().to_string(),
+                "/".to_string(),
+            )
+            .await
+            .unwrap();
+        manager
+            .update_status(&task_id, TransferStatus::Success)
+            .await;
+
+        manager.cancel_tasks_by_session(None, "sess").await;
+
+        assert_eq!(
+            manager.get_task(&task_id).await.unwrap().status,
+            TransferStatus::Success,
+            "terminal-status tasks must retain their status after reaper sweep"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cancel_tasks_by_session_noop_when_no_match() {
+        let manager = create_test_manager(3);
+        // 不存在的 session 不应 panic / 不应抛错
+        manager.cancel_tasks_by_session(None, "ghost").await;
+    }
+
     #[tokio::test]
     async fn test_cancel_completed_task_is_idempotent() {
         let manager = create_test_manager(3);

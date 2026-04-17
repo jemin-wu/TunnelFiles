@@ -710,22 +710,29 @@ impl SessionManager {
         };
 
         // 过期的锁定记录，升级为写锁清理
-        // 关键：write() 之前的窗口里可能有并发 record_auth_failure 写入新记录，
-        // 必须在写锁里重新校验，否则会抹掉后来的失败计数（TOCTOU）。
         if let Some(observed_last_failure) = maybe_expired_since {
-            if let Ok(mut failures) = self.auth_failures.write() {
-                if let Some(record) = failures.get(profile_id) {
-                    // 记录没被换过，且仍满足过期条件才清理
-                    if record.last_failure == observed_last_failure
-                        && record.last_failure.elapsed().as_secs() >= AUTH_LOCKOUT_SECS
-                    {
-                        failures.remove(profile_id);
-                    }
-                }
-            }
+            self.try_cleanup_expired_lockout(profile_id, observed_last_failure);
         }
 
         Ok(())
+    }
+
+    /// 清理过期锁定记录，带 TOCTOU 二次校验。
+    ///
+    /// 关键不变量：read() 观察到记录过期，但在升级 write() 前的窗口里，
+    /// 并发的 `record_auth_failure` 可能已写入新记录。必须在写锁里用
+    /// `observed_last_failure` 做二次比对——记录没被换过，且仍满足过期条件，
+    /// 才 remove。否则会抹掉后来的失败计数，让暴力破解者"白嫖"计数清零。
+    fn try_cleanup_expired_lockout(&self, profile_id: &str, observed_last_failure: Instant) {
+        if let Ok(mut failures) = self.auth_failures.write() {
+            if let Some(record) = failures.get(profile_id) {
+                if record.last_failure == observed_last_failure
+                    && record.last_failure.elapsed().as_secs() >= AUTH_LOCKOUT_SECS
+                {
+                    failures.remove(profile_id);
+                }
+            }
+        }
     }
 
     /// 记录认证失败
@@ -976,5 +983,127 @@ mod tests {
         // 关闭不存在的会话应该静默成功
         let result = manager.close_session("nonexistent");
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_list_stale_session_ids_empty() {
+        let manager = SessionManager::new();
+        let stale = manager.list_stale_session_ids(0);
+        assert!(stale.is_empty());
+    }
+
+    #[test]
+    fn test_touch_session_noop_on_missing() {
+        let manager = SessionManager::new();
+        // 不存在的 session_id 应该静默无操作（不 panic，不报错）
+        manager.touch_session("nonexistent");
+    }
+
+    // ========================================================================
+    // check_auth_lockout TOCTOU regression (bug_014)
+    //
+    // 场景：线程 A 观察到某 profile 的失败记录已过期（count≥5 且 elapsed≥300s），
+    // 准备升级为写锁清理。在读锁 drop 到写锁 acquire 的窗口里，线程 B 做了
+    // 一次失败认证，`record_auth_failure` 写入了一条新的 {count=1, last_failure=now}
+    // 记录。如果 A 拿到写锁后无条件 remove，B 的新失败记录就被抹了——
+    // 攻击者借此重置计数。
+    //
+    // 修复：A 必须在写锁里拿 observed_last_failure 做二次比对，记录被换过就跳过。
+    // ========================================================================
+
+    fn seed_expired_lockout(mgr: &SessionManager, profile_id: &str) -> Instant {
+        let old = Instant::now()
+            .checked_sub(Duration::from_secs(AUTH_LOCKOUT_SECS + 100))
+            .expect("system uptime must be > 400s");
+        mgr.auth_failures.write().unwrap().insert(
+            profile_id.to_string(),
+            AuthFailureRecord {
+                count: AUTH_FAILURE_THRESHOLD,
+                last_failure: old,
+            },
+        );
+        old
+    }
+
+    #[test]
+    fn test_cleanup_expired_lockout_removes_when_record_unchanged() {
+        let mgr = SessionManager::new();
+        let observed = seed_expired_lockout(&mgr, "p1");
+
+        // No concurrent write — cleanup should succeed.
+        mgr.try_cleanup_expired_lockout("p1", observed);
+
+        assert!(
+            !mgr.auth_failures.read().unwrap().contains_key("p1"),
+            "expired lockout record should have been removed"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_expired_lockout_preserves_concurrent_failure() {
+        let mgr = SessionManager::new();
+        let observed = seed_expired_lockout(&mgr, "p2");
+
+        // Simulate the TOCTOU race: between read-lock-drop and write-lock-acquire
+        // a concurrent failed auth happens and replaces the record with a fresh
+        // one. record_auth_failure increments count and advances last_failure.
+        mgr.record_auth_failure("p2");
+
+        // Pre-fix: this unconditionally removed "p2", wiping the fresh failure.
+        // Post-fix: observed_last_failure no longer matches, cleanup bails out.
+        mgr.try_cleanup_expired_lockout("p2", observed);
+
+        let failures = mgr.auth_failures.read().unwrap();
+        let record = failures
+            .get("p2")
+            .expect("concurrent failure record must survive cleanup");
+        assert_eq!(
+            record.count,
+            AUTH_FAILURE_THRESHOLD + 1,
+            "counter should reflect the concurrent failure, not be reset"
+        );
+        assert_ne!(
+            record.last_failure, observed,
+            "last_failure must have advanced past the stale observation"
+        );
+    }
+
+    #[test]
+    fn test_cleanup_expired_lockout_noop_on_missing_record() {
+        let mgr = SessionManager::new();
+        // Call with an arbitrary observed Instant — no record exists, should noop.
+        mgr.try_cleanup_expired_lockout("ghost", Instant::now());
+        assert!(mgr.auth_failures.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_check_auth_lockout_clears_expired_record() {
+        let mgr = SessionManager::new();
+        seed_expired_lockout(&mgr, "p3");
+
+        // Expired lockout → check returns Ok and cleans up.
+        let result = mgr.check_auth_lockout("p3");
+        assert!(result.is_ok());
+
+        assert!(
+            !mgr.auth_failures.read().unwrap().contains_key("p3"),
+            "expired lockout should be cleaned on the first check"
+        );
+    }
+
+    #[test]
+    fn test_check_auth_lockout_rejects_during_active_window() {
+        let mgr = SessionManager::new();
+        // Record an active lockout (not yet expired) by doing 5 fresh failures.
+        for _ in 0..AUTH_FAILURE_THRESHOLD {
+            mgr.record_auth_failure("p4");
+        }
+
+        let result = mgr.check_auth_lockout("p4");
+        let err = result.expect_err("active lockout must reject new attempts");
+        assert_eq!(err.code, ErrorCode::AuthFailed);
+        assert_eq!(err.retryable, Some(false));
+        // Record is still present — we didn't remove during active window.
+        assert!(mgr.auth_failures.read().unwrap().contains_key("p4"));
     }
 }
