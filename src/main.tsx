@@ -7,6 +7,20 @@ import { router } from "./router";
 import { ThemeProvider } from "./lib/theme";
 import { queryClient } from "./lib/query";
 import { Toaster } from "./components/ui/sonner";
+
+// Bundled fonts — loaded from 'self' so CSP no longer needs to whitelist
+// https://cdn.jsdelivr.net. @fontsource ships per-weight CSS with relative
+// woff2 URLs that Vite rewrites to the app origin.
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-600.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/jetbrains-mono/latin-600.css";
+import "@fontsource/ibm-plex-mono/latin-400.css";
+import "@fontsource/ibm-plex-mono/latin-500.css";
+import "@fontsource/ibm-plex-mono/latin-600.css";
+
 import "./index.css";
 
 /** Global keyboard handler - Escape dismisses all toasts */

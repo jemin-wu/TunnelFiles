@@ -8,6 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@fontsource/ibm-plex-mono':
+        specifier: 5.0.13
+        version: 5.0.13
+      '@fontsource/inter':
+        specifier: 5.1.1
+        version: 5.1.1
+      '@fontsource/jetbrains-mono':
+        specifier: 5.0.21
+        version: 5.0.21
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.71.0(react@19.2.3))
@@ -591,6 +600,15 @@ packages:
 
   '@floating-ui/utils@0.2.10':
     resolution: {integrity: sha512-aGTxbpbg8/b5JfU1HXSrbH3wXZuLPJcNEcZQFMxLs3oSzgtVu6nFPkbbGGUvBcUjKV2YyB9Wxxabo+HEH9tcRQ==}
+
+  '@fontsource/ibm-plex-mono@5.0.13':
+    resolution: {integrity: sha512-gtlMmvk//2AgDEZDFsoL5z9mgW3ZZg/9SC7pIfDwNKp5DtZpApgqd1Fua3HhPwYRIHrT76IQ1tMTzQKLEGtJGQ==}
+
+  '@fontsource/inter@5.1.1':
+    resolution: {integrity: sha512-weN3E+rq0Xb3Z93VHJ+Rc7WOQX9ETJPTAJ+gDcaMHtjft67L58sfS65rAjC5tZUXQ2FdZ/V1/sSzCwZ6v05kJw==}
+
+  '@fontsource/jetbrains-mono@5.0.21':
+    resolution: {integrity: sha512-BjI7a4U4HC4R3rEq96dN4CKtH8qxHFA+zU+6Ftusn/9k+VbF+VZ1l5bmHCUtg2ekjXbGF955/1FODlCKXleaGQ==}
 
   '@hookform/resolvers@5.2.2':
     resolution: {integrity: sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA==}
@@ -5177,6 +5195,12 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
 
   '@floating-ui/utils@0.2.10': {}
+
+  '@fontsource/ibm-plex-mono@5.0.13': {}
+
+  '@fontsource/inter@5.1.1': {}
+
+  '@fontsource/jetbrains-mono@5.0.21': {}
 
   '@hookform/resolvers@5.2.2(react-hook-form@7.71.0(react@19.2.3))':
     dependencies:
