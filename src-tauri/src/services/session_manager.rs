@@ -52,8 +52,8 @@ pub struct ManagedSession {
     pub session_id: String,
     /// SSH Session
     pub session: Session,
-    /// SFTP Channel
-    pub sftp: Sftp,
+    /// SFTP Channel（通过 Mutex 保护，libssh2 非线程安全）
+    pub sftp: std::sync::Mutex<Sftp>,
     /// 关联的 Profile ID
     pub profile_id: String,
     /// 服务器指纹
@@ -96,6 +96,13 @@ impl ManagedSession {
             Ok(creds) => f(creds.password.as_deref(), creds.passphrase.as_deref()),
             Err(_) => f(None, None),
         }
+    }
+
+    /// 获取 SFTP 锁（供 spawn_blocking 闭包内使用）
+    pub fn lock_sftp(&self) -> AppResult<std::sync::MutexGuard<'_, Sftp>> {
+        self.sftp
+            .lock()
+            .map_err(|e| AppError::new(ErrorCode::Unknown, format!("SFTP lock poisoned: {}", e)))
     }
 
     /// 创建独立的 SFTP 通道
@@ -271,14 +278,25 @@ impl SessionManager {
         password: Option<&str>,
         passphrase: Option<&str>,
         timeout_secs: u64,
+        expected_fingerprint: &str,
     ) -> AppResult<ConnectResult> {
         let timeout = Duration::from_secs(timeout_secs);
 
         // 1. 建立 SSH 连接
         let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
 
-        // 2. 获取指纹（已信任，不再验证）
+        // 2. 获取并验证指纹（防止 TOFU 间隙攻击）
         let (_, fingerprint) = self.get_host_key_info(&session)?;
+        if fingerprint != expected_fingerprint {
+            return Err(AppError::new(
+                ErrorCode::HostkeyMismatch,
+                "服务器指纹在确认后发生变更，连接已中止",
+            )
+            .with_detail(format!(
+                "期望: {}\n实际: {}",
+                expected_fingerprint, fingerprint
+            )));
+        }
 
         // 3. 认证（并获取缓存的凭据）
         let cached_credentials = self.authenticate(&session, profile, password, passphrase)?;
@@ -344,6 +362,33 @@ impl SessionManager {
         Ok(sessions.keys().cloned().collect())
     }
 
+    /// 刷新指定会话的最后活动时间（供 terminal 写入等非 SFTP 路径调用）
+    ///
+    /// 普通 SFTP 调用通过 `get_session()` 已自动 touch；Terminal 写入走独立 channel
+    /// 不经 `get_session`，需要显式调用此方法防止被空闲清理误杀。
+    pub fn touch_session(&self, session_id: &str) {
+        if let Ok(sessions) = self.sessions.read() {
+            if let Some(session) = sessions.get(session_id) {
+                session.touch();
+            }
+        }
+    }
+
+    /// 列出所有空闲超时的会话 ID（只读查询，不做清理）
+    ///
+    /// 供外部调度器（如 `lib.rs` 空闲清理任务）执行完整拆解流程后再调 `close_session`。
+    pub fn list_stale_session_ids(&self, idle_timeout_secs: u64) -> Vec<String> {
+        let sessions = match self.sessions.read() {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        sessions
+            .iter()
+            .filter(|(_, s)| s.idle_secs() >= idle_timeout_secs)
+            .map(|(id, _)| id.clone())
+            .collect()
+    }
+
     /// 为 Terminal 创建独立的 SSH session（阻塞模式，调用方负责后续设置非阻塞）
     ///
     /// 使用主 session 中缓存的凭据进行认证，避免再次访问系统钥匙串。
@@ -403,16 +448,6 @@ impl SessionManager {
         );
 
         Ok(session)
-    }
-
-    /// 检查会话是否活跃
-    pub fn is_session_alive(&self, session_id: &str) -> bool {
-        if let Ok(session) = self.get_session(session_id) {
-            // 尝试执行简单命令检测连接
-            session.sftp.readdir(Path::new(".")).is_ok()
-        } else {
-            false
-        }
     }
 
     /// 清理超时的空闲会话
@@ -554,7 +589,7 @@ impl SessionManager {
         let managed_session = Arc::new(ManagedSession {
             session_id: session_id.clone(),
             session,
-            sftp,
+            sftp: std::sync::Mutex::new(sftp),
             profile_id: profile_id.to_string(),
             fingerprint: fingerprint.clone(),
             home_path: home_path.clone(),
@@ -644,23 +679,48 @@ impl SessionManager {
         result
     }
 
-    /// 检查是否被锁定
+    /// 检查是否被锁定（同时清理过期记录）
     fn check_auth_lockout(&self, profile_id: &str) -> AppResult<()> {
-        let failures = self
-            .auth_failures
-            .read()
-            .map_err(|_| AppError::new(ErrorCode::Unknown, "认证锁获取失败"))?;
+        // 先用读锁检查当前状态
+        let maybe_expired_since = {
+            let failures = self
+                .auth_failures
+                .read()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "认证锁获取失败"))?;
 
-        if let Some(record) = failures.get(profile_id) {
-            if record.count >= AUTH_FAILURE_THRESHOLD {
-                let elapsed = record.last_failure.elapsed().as_secs();
-                if elapsed < AUTH_LOCKOUT_SECS {
-                    let remaining = AUTH_LOCKOUT_SECS - elapsed;
-                    return Err(AppError::new(
-                        ErrorCode::AuthFailed,
-                        format!("认证失败次数过多，请等待 {} 秒后重试", remaining),
-                    )
-                    .with_retryable(false));
+            if let Some(record) = failures.get(profile_id) {
+                if record.count >= AUTH_FAILURE_THRESHOLD {
+                    let elapsed = record.last_failure.elapsed().as_secs();
+                    if elapsed < AUTH_LOCKOUT_SECS {
+                        let remaining = AUTH_LOCKOUT_SECS - elapsed;
+                        return Err(AppError::new(
+                            ErrorCode::AuthFailed,
+                            format!("认证失败次数过多，请等待 {} 秒后重试", remaining),
+                        )
+                        .with_retryable(false));
+                    }
+                    // 锁定已过期，标记需要清理（使用观察到的 last_failure 做二次校验）
+                    Some(record.last_failure)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        };
+
+        // 过期的锁定记录，升级为写锁清理
+        // 关键：write() 之前的窗口里可能有并发 record_auth_failure 写入新记录，
+        // 必须在写锁里重新校验，否则会抹掉后来的失败计数（TOCTOU）。
+        if let Some(observed_last_failure) = maybe_expired_since {
+            if let Ok(mut failures) = self.auth_failures.write() {
+                if let Some(record) = failures.get(profile_id) {
+                    // 记录没被换过，且仍满足过期条件才清理
+                    if record.last_failure == observed_last_failure
+                        && record.last_failure.elapsed().as_secs() >= AUTH_LOCKOUT_SECS
+                    {
+                        failures.remove(profile_id);
+                    }
                 }
             }
         }
@@ -871,7 +931,7 @@ impl Default for SessionManager {
 //    - `Session` 和 `Sftp` 字段虽然是 `!Send`，但只在 `spawn_blocking` 闭包中使用
 //
 // 不变量 (Invariants):
-// - 所有对 `session.sftp` 或 `session.session` 的方法调用必须在 `spawn_blocking` 中
+// - 所有对 `session.sftp`（通过 lock_sftp()）或 `session.session` 的方法调用必须在 `spawn_blocking` 中
 // - 永远不要在异步上下文中直接调用 ssh2 的同步方法
 // - 修改此模块时必须维护这些不变量
 //
