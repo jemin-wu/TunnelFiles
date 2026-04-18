@@ -9,9 +9,18 @@
 //! - FFI bug 与编排 bug 分离，上线后调试时 narrow 范围
 //! - 未来换 backend（candle / mistral.rs / ...）只需新 `TokenSource` impl
 
+use std::num::NonZeroU32;
+
 use tokio_util::sync::CancellationToken;
 
-use crate::models::error::AppResult;
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::context::LlamaContext;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::llama_batch::LlamaBatch;
+use llama_cpp_2::model::{AddBos, LlamaModel};
+use llama_cpp_2::sampling::LlamaSampler;
+
+use crate::models::error::{AppError, AppResult};
 
 /// 生成参数。
 #[derive(Debug, Clone, Copy)]
@@ -47,6 +56,130 @@ pub enum GenerationOutcome {
 pub trait TokenSource {
     fn next_token(&mut self) -> AppResult<Option<String>>;
 }
+
+// ---- LlamaTokenLoop: 真 FFI TokenSource 实现 -------------------------------
+
+/// 把 prompt feed 进 KV cache 后，按 token 边界 sample → detokenize → decode
+/// 推进。生命周期 `'model` 绑死到 `LlamaModel` —— 由 `LlamaRuntime::generate`
+/// 在调用栈上构造，确保 ctx 借用期内 model 不消失。
+///
+/// 默认 sampler 用 `LlamaSampler::greedy()` —— 决定性输出，方便 golden prompt
+/// 回归套件比对。后续若要走 top-k / top-p / temperature，从 `Settings` 拉。
+pub struct LlamaTokenLoop<'model> {
+    model: &'model LlamaModel,
+    ctx: LlamaContext<'model>,
+    sampler: LlamaSampler,
+    batch: LlamaBatch<'static>,
+    decoder: encoding_rs::Decoder,
+    n_pos: i32,
+    finished: bool,
+}
+
+impl<'model> LlamaTokenLoop<'model> {
+    pub fn new(
+        backend: &'static LlamaBackend,
+        model: &'model LlamaModel,
+        num_ctx: u32,
+        prompt: &str,
+    ) -> AppResult<Self> {
+        if prompt.is_empty() {
+            return Err(AppError::invalid_argument("prompt cannot be empty"));
+        }
+
+        // 1. tokenize（gemma chat template 在上游 prompt::build 阶段已应用）
+        let tokens = model.str_to_token(prompt, AddBos::Always).map_err(|e| {
+            AppError::ai_unavailable("tokenize failed")
+                .with_detail(format!("str_to_token: {e}"))
+                .with_retryable(false)
+        })?;
+        if tokens.is_empty() {
+            return Err(AppError::ai_unavailable("empty token sequence")
+                .with_detail("str_to_token returned 0 tokens".to_string())
+                .with_retryable(false));
+        }
+        let n_prompt = tokens.len();
+
+        // 2. 创建 context（KV cache 上限 = num_ctx）
+        let ctx_params = LlamaContextParams::default().with_n_ctx(NonZeroU32::new(num_ctx));
+        let mut ctx = model.new_context(backend, ctx_params).map_err(|e| {
+            AppError::ai_unavailable("context creation failed")
+                .with_detail(format!("new_context: {e}"))
+                .with_retryable(false)
+        })?;
+
+        // 3. 把 prompt 全推进 batch + decode（最后一个 token 要 logits 用于首次采样）
+        let mut batch = LlamaBatch::new(n_prompt, 1);
+        for (i, &tok) in tokens.iter().enumerate() {
+            let is_last = i == n_prompt - 1;
+            batch.add(tok, i as i32, &[0], is_last).map_err(|e| {
+                AppError::ai_unavailable("batch add failed")
+                    .with_detail(format!("batch.add prompt[{i}]: {e}"))
+                    .with_retryable(false)
+            })?;
+        }
+        ctx.decode(&mut batch).map_err(|e| {
+            AppError::ai_unavailable("prompt decode failed")
+                .with_detail(format!("ctx.decode: {e}"))
+                .with_retryable(false)
+        })?;
+
+        Ok(Self {
+            model,
+            ctx,
+            sampler: LlamaSampler::greedy(),
+            batch,
+            decoder: encoding_rs::UTF_8.new_decoder(),
+            n_pos: n_prompt as i32,
+            finished: false,
+        })
+    }
+}
+
+impl<'model> TokenSource for LlamaTokenLoop<'model> {
+    fn next_token(&mut self) -> AppResult<Option<String>> {
+        if self.finished {
+            return Ok(None);
+        }
+
+        // 上一次 decode 留下的 logits 在 batch 末位
+        let last_idx = self.batch.n_tokens() - 1;
+        let next = self.sampler.sample(&self.ctx, last_idx);
+
+        // EOG / EOS / EOT —— 模型自然结束
+        if self.model.is_eog_token(next) {
+            self.finished = true;
+            return Ok(None);
+        }
+
+        // 流式 detokenize：encoding_rs::Decoder 跨 token 边界拼 utf-8
+        let piece = self
+            .model
+            .token_to_piece(next, &mut self.decoder, false, None)
+            .map_err(|e| {
+                AppError::ai_unavailable("detokenize failed")
+                    .with_detail(format!("token_to_piece: {e}"))
+                    .with_retryable(false)
+            })?;
+
+        // 把刚生成的 token 喂回去，让下次 decode 算它的 logits
+        self.batch.clear();
+        self.batch.add(next, self.n_pos, &[0], true).map_err(|e| {
+            AppError::ai_unavailable("batch add failed")
+                .with_detail(format!("batch.add gen[{}]: {e}", self.n_pos))
+                .with_retryable(false)
+        })?;
+        self.n_pos = self.n_pos.saturating_add(1);
+        self.ctx.decode(&mut self.batch).map_err(|e| {
+            AppError::ai_unavailable("decode failed")
+                .with_detail(format!("ctx.decode pos={}: {e}", self.n_pos))
+                .with_retryable(false)
+        })?;
+
+        Ok(Some(piece))
+    }
+}
+
+// ----------------------------------------------------------------------------
 
 /// 跑生成循环。
 ///

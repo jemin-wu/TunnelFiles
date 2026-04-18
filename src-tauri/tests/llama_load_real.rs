@@ -12,6 +12,9 @@
 //! 测试**不**比对预期 SHA —— 它使用文件自身的 SHA 作为 expected，仅验证
 //! load() 三道 gate + FFI 都能跑通；canonical SHA 校验是 T1.5 下载阶段的事。
 
+use tokio_util::sync::CancellationToken;
+
+use tunnelfiles_lib::services::ai::generate::{GenerateOptions, GenerationOutcome};
 use tunnelfiles_lib::services::ai::llama_runtime::{
     compute_gguf_sha256, LlamaRuntime, LoadOptions, SystemRamProbe,
 };
@@ -50,4 +53,29 @@ fn load_real_gemma_when_present() {
     let _ = runtime.model();
     let _ = runtime.backend();
     eprintln!("Load succeeded; runtime ready.");
+
+    // 跑一个最小生成 —— 32 token cap，验证 token loop + sampler + detokenize 链
+    eprintln!("Running tiny generation (max 32 tokens) ...");
+    let cancel = CancellationToken::new();
+    let mut emitted = String::new();
+    let outcome = runtime
+        .generate(
+            "Respond with exactly: ready.",
+            GenerateOptions { max_tokens: 32 },
+            &cancel,
+            |t| emitted.push_str(t),
+        )
+        .expect("generate should succeed on real model");
+    eprintln!("Outcome: {outcome:?}; emitted: {emitted:?}");
+    assert!(
+        matches!(
+            outcome,
+            GenerationOutcome::Completed | GenerationOutcome::Truncated
+        ),
+        "outcome should be Completed or Truncated, got {outcome:?}"
+    );
+    assert!(
+        !emitted.is_empty(),
+        "should have emitted at least one token"
+    );
 }

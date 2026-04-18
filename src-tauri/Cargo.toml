@@ -71,6 +71,10 @@ regex = "1"
 # 升级为直接依赖无新依赖树影响。
 libc = "0.2"
 
+# UTF-8 流式解码（LlamaTokenLoop 跨 token 边界拼字节 → str）。
+# encoding_rs 已经以传递依赖存在于 llama-cpp-2，升级为直接依赖无新依赖树影响。
+encoding_rs = "0.8"
+
 # AI 推理运行时（SPEC §5 T1.3，Ask First 已批准 2026-04-17）。
 # 严格 pin 版本防 bundled llama.cpp 升级回归（SPEC §5 llama-cpp-2 pin 说明）。
 # Feature 白名单：macOS → metal；Windows/Linux → default（CPU）。

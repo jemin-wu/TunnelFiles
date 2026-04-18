@@ -338,6 +338,26 @@ impl LlamaRuntime {
     pub fn num_ctx(&self) -> u32 {
         self.num_ctx
     }
+
+    /// 跑一次完整生成。每个 token 通过 `on_token` 同步回调；`cancel_token`
+    /// 命中或达到 `options.max_tokens` 上限即停。
+    ///
+    /// FFI 路径未在单测覆盖（需要真实 Gemma GGUF）—— 集成 smoke 测试在
+    /// `tests/llama_load_real.rs` 后续切片补充。
+    pub fn generate<F>(
+        &self,
+        prompt: &str,
+        options: crate::services::ai::generate::GenerateOptions,
+        cancel: &tokio_util::sync::CancellationToken,
+        on_token: F,
+    ) -> AppResult<crate::services::ai::generate::GenerationOutcome>
+    where
+        F: FnMut(&str),
+    {
+        use crate::services::ai::generate::{run_generation_loop, LlamaTokenLoop};
+        let mut source = LlamaTokenLoop::new(self.backend, &self.model, self.num_ctx, prompt)?;
+        run_generation_loop(&mut source, options, cancel, on_token)
+    }
 }
 
 #[cfg(test)]
