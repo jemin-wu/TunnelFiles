@@ -47,6 +47,8 @@ import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
 import { useAiHealthCheck } from "@/hooks/useAiHealthCheck";
 import { AiHealthBadge } from "@/components/ai/AiHealthBadge";
+import { ModelOnboardingDialog } from "@/components/ai/ModelOnboardingDialog";
+import { useModelOnboarding } from "@/hooks/useModelOnboarding";
 import { KnownHostsList } from "@/components/settings/KnownHostsList";
 import type { LogLevel } from "@/types/settings";
 import {
@@ -143,6 +145,7 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { settings, updateSettings, isLoading, isUpdating } = useSettings();
   const { status: aiHealthStatus } = useAiHealthCheck(settings.aiEnabled);
+  const onboarding = useModelOnboarding();
   const [activeSection, setActiveSection] = useState<SettingsSection>("transfer");
 
   const form = useForm<SettingsFormValues>({
@@ -504,10 +507,24 @@ export function SettingsPage() {
                   <div className="mb-1 flex items-center gap-2">
                     <h2 className="text-base font-semibold">AI Shell Copilot</h2>
                     <AiHealthBadge status={aiHealthStatus} />
+                    {aiHealthStatus === "model-missing" && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ml-auto h-7"
+                        onClick={onboarding.openDialog}
+                        data-testid="download-model-button"
+                      >
+                        <Download className="size-3.5" />
+                        Download model
+                      </Button>
+                    )}
                   </div>
                   <p className="text-muted-foreground mb-6 text-xs">
                     Local-only terminal assistant. Default off.
                   </p>
+                  <ModelOnboardingDialog onboarding={onboarding} />
 
                   <div>
                     <FormField
