@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
 
@@ -8,6 +9,7 @@ beforeEach(() => {
   // 重置全局 store 防 case 间状态泄漏
   useAiSessionStore.setState({ sessions: new Map() });
   Element.prototype.scrollIntoView = vi.fn();
+  vi.clearAllMocks();
 });
 
 describe("ChatPanel", () => {
@@ -16,17 +18,37 @@ describe("ChatPanel", () => {
     expect(screen.getByText(/Ask the local assistant/i)).toBeInTheDocument();
   });
 
-  it("submitting in echo mode appends user message + auto-completes", async () => {
+  it("default send invokes ai_chat_send IPC and stays in thinking until events arrive", async () => {
     const user = userEvent.setup();
-    render(<ChatPanel sessionId="tab-echo" />);
+    vi.mocked(invoke).mockResolvedValue({ messageId: "m-stub" });
+    render(<ChatPanel sessionId="tab-default" />);
     await user.type(screen.getByLabelText("Chat input"), "hello");
     await user.click(screen.getByLabelText("Send message"));
 
     await waitFor(() => {
-      const session = useAiSessionStore.getState().getSession("tab-echo");
-      expect(session?.messages.some((m) => m.role === "user" && m.content === "hello")).toBe(true);
-      expect(session?.streamState).toBe("idle");
+      expect(invoke).toHaveBeenCalledWith("ai_chat_send", {
+        input: { sessionId: "tab-default", text: "hello" },
+      });
     });
+    const session = useAiSessionStore.getState().getSession("tab-default");
+    expect(session?.messages.some((m) => m.role === "user" && m.content === "hello")).toBe(true);
+    // 没有 ai:done 事件 → 仍在 thinking（不应自动 complete）
+    expect(session?.streamState).toBe("thinking");
+  });
+
+  it("default send fails stream when ai_chat_send IPC rejects", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke).mockRejectedValue({
+      code: "INVALID_ARGUMENT",
+      message: "stub rejection",
+    });
+    render(<ChatPanel sessionId="tab-fail-default" />);
+    await user.type(screen.getByLabelText("Chat input"), "hi");
+    await user.click(screen.getByLabelText("Send message"));
+
+    await waitFor(() =>
+      expect(useAiSessionStore.getState().getSession("tab-fail-default")?.streamState).toBe("error")
+    );
   });
 
   it("calls onSend with sessionId and text", async () => {
@@ -94,11 +116,12 @@ describe("ChatPanel", () => {
 
   it("isolates state across sessionIds (multi-tab)", async () => {
     const user = userEvent.setup();
-    const { rerender } = render(<ChatPanel sessionId="tab-A" />);
+    const onSend = vi.fn().mockResolvedValue(undefined);
+    const { rerender } = render(<ChatPanel sessionId="tab-A" onSend={onSend} />);
     await user.type(screen.getByLabelText("Chat input"), "from A");
     await user.click(screen.getByLabelText("Send message"));
 
-    rerender(<ChatPanel sessionId="tab-B" />);
+    rerender(<ChatPanel sessionId="tab-B" onSend={onSend} />);
     // tab-B 应该是空的 — 不应看到 tab-A 的消息
     expect(screen.queryByText("from A")).not.toBeInTheDocument();
     expect(screen.getByText(/Ask the local assistant/i)).toBeInTheDocument();
