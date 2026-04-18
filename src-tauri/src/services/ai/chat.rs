@@ -20,6 +20,7 @@ use crate::models::ai_events::{AiDonePayload, AiErrorPayload, AiThinkingPayload,
 use crate::models::error::AppError;
 use crate::services::ai::generate::{GenerateOptions, GenerationOutcome};
 use crate::services::ai::llama_runtime::{self, LlamaRuntime};
+use crate::services::ai::prompt::{self, PromptInput};
 
 pub const EVENT_THINKING: &str = "ai:thinking";
 pub const EVENT_TOKEN: &str = "ai:token";
@@ -160,6 +161,16 @@ pub async fn run_chat_stream(
 
 // ---- Real path (FFI) --------------------------------------------------------
 
+/// 把 chat send 入参组装成最终送 llama.cpp 的 prompt：
+/// `prompt::build` 应用 SPEC §5 user-input 策略（正则硬擦 + entropy 标记继续）。
+/// context 字段在 T1.7 落地后接入终端快照。
+fn assemble_prompt(user_text: &str) -> String {
+    prompt::build(&PromptInput {
+        user_text: user_text.to_string(),
+        context: None,
+    })
+}
+
 async fn run_real_stream(
     app: AppHandle,
     runtime: Arc<LlamaRuntime>,
@@ -168,6 +179,10 @@ async fn run_real_stream(
     user_text: String,
     cancel_token: CancellationToken,
 ) -> StreamOutcome {
+    // 进 FFI 前组装：system prompt + scrubbed user 段。这一层是后端 scrub 的
+    // 唯一防线（前端 chip 警告只是 UX 早期反馈，不能信任）。
+    let assembled = assemble_prompt(&user_text);
+
     // FFI 调用必须在 spawn_blocking —— llama.cpp 是 sync + blocking。
     // 闭包 move 进 worker 线程；token emit 通过 AppHandle clone（Send）。
     let session_id_for_cb = session_id.clone();
@@ -177,7 +192,7 @@ async fn run_real_stream(
 
     let join = tokio::task::spawn_blocking(move || {
         runtime.generate(
-            &user_text,
+            &assembled,
             GenerateOptions::default(),
             &cancel_for_loop,
             |tok| {
@@ -374,5 +389,47 @@ mod tests {
             }
             _ => panic!("expected Error variant"),
         }
+    }
+
+    // ---- assemble_prompt: scrubber pre-FFI integration --------------------
+
+    #[test]
+    fn assemble_prompt_includes_system_prompt_and_user_section() {
+        let assembled = assemble_prompt("how do I list ports");
+        assert!(assembled.contains(crate::services::ai::prompt::SYSTEM_PROMPT));
+        assert!(assembled.contains("User:\nhow do I list ports"));
+    }
+
+    #[test]
+    fn assemble_prompt_scrubs_aws_access_key_from_user_text() {
+        let assembled = assemble_prompt("debug key AKIAIOSFODNN7EXAMPLE here");
+        assert!(
+            !assembled.contains("AKIAIOSFODNN7EXAMPLE"),
+            "AWS key must not survive into the prompt sent to llama.cpp"
+        );
+    }
+
+    #[test]
+    fn assemble_prompt_scrubs_pem_block_from_user_text() {
+        let pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAA\n-----END RSA PRIVATE KEY-----";
+        let assembled = assemble_prompt(&format!("paste this: {pem}"));
+        assert!(
+            !assembled.contains("MIIEowIBAA"),
+            "PEM body must not survive into the prompt"
+        );
+    }
+
+    #[test]
+    fn assemble_prompt_does_not_attach_context_block_for_chat_only() {
+        // T1.7 (context snapshot) 还没接入；assemble_prompt 不该自己塞假 context
+        let assembled = assemble_prompt("hi");
+        assert!(!assembled.contains("Context:"));
+        assert!(!assembled.contains("<untrusted>"));
+    }
+
+    #[test]
+    fn assemble_prompt_preserves_safe_user_text_verbatim() {
+        let assembled = assemble_prompt("explain `ss -tlnp` flags");
+        assert!(assembled.contains("explain `ss -tlnp` flags"));
     }
 }
