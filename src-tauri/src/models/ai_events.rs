@@ -31,7 +31,11 @@ pub struct AiTokenPayload {
     pub token: String,
 }
 
-/// `ai:done` —— 模型自然结束（EOG）或达到 max_tokens。
+/// `ai:done` —— 推理流结束（自然终止 / 截断 / 用户取消）。
+///
+/// `truncated` 与 `canceled` 互斥：truncated 表示模型生成达到 max_tokens
+/// 上限被截断；canceled 表示用户主动调用 `ai_chat_cancel` 中止。两者皆
+/// false 表示模型 EOG 自然结束。
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[cfg_attr(test, derive(TS))]
 #[cfg_attr(test, ts(export))]
@@ -39,8 +43,10 @@ pub struct AiTokenPayload {
 pub struct AiDonePayload {
     pub session_id: String,
     pub message_id: String,
-    /// true 表示因 max_tokens 截断；false 表示自然结束。
+    /// true 表示生成达到 max_tokens 上限。
     pub truncated: bool,
+    /// true 表示流被 `ai_chat_cancel` 中断。
+    pub canceled: bool,
 }
 
 /// `ai:error` —— 推理失败 / 取消 / 任意 IPC 异常。

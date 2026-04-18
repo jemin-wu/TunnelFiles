@@ -52,6 +52,25 @@ pub struct AiChatSendInput {
     pub text: String,
 }
 
+/// `ai_chat_cancel` 入参（v0.1）。
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatCancelInput {
+    pub message_id: String,
+}
+
+/// `ai_chat_cancel` 返回值。`canceled=false` 表示该 messageId 已结束 /
+/// 不存在 —— 这是良性 noop（防 race），调用方不需要处理。
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatCancelResult {
+    pub canceled: bool,
+}
+
 /// `ai_chat_send` 返回值。
 #[derive(Debug, Clone, Serialize)]
 #[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
@@ -89,6 +108,18 @@ pub async fn ai_chat_send(app: AppHandle, input: AiChatSendInput) -> AppResult<A
     ));
 
     Ok(AiChatSendResult { message_id })
+}
+
+/// `ai_chat_cancel`：触发指定 messageId 的取消。返回的 canceled=false 表示
+/// 该消息已完成或从未存在 —— 视为 noop，前端可忽略（例如用户连点 stop）。
+#[tauri::command]
+pub async fn ai_chat_cancel(input: AiChatCancelInput) -> AppResult<AiChatCancelResult> {
+    if input.message_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("messageId cannot be empty"));
+    }
+    let canceled = chat::cancel_message(&input.message_id);
+    tracing::debug!(message_id = %input.message_id, canceled, "AI chat cancel");
+    Ok(AiChatCancelResult { canceled })
 }
 
 #[cfg(test)]
@@ -161,5 +192,61 @@ mod tests {
         assert!(json.contains("\"messageId\""));
         let back: AiChatSendResult = serde_json::from_str(&json).expect("round trip");
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn ai_chat_cancel_input_uses_camel_case() {
+        let input = AiChatCancelInput {
+            message_id: "msg-1".into(),
+        };
+        let json = serde_json::to_string(&input).expect("serialize");
+        assert!(json.contains("\"messageId\""));
+        let back: AiChatCancelInput = serde_json::from_str(&json).expect("round trip");
+        assert_eq!(back.message_id, "msg-1");
+    }
+
+    #[test]
+    fn ai_chat_cancel_result_uses_camel_case() {
+        let r = AiChatCancelResult { canceled: true };
+        let json = serde_json::to_string(&r).expect("serialize");
+        assert!(json.contains("\"canceled\""));
+        let back: AiChatCancelResult = serde_json::from_str(&json).expect("round trip");
+        assert_eq!(back, r);
+    }
+
+    #[tokio::test]
+    async fn ai_chat_cancel_returns_false_for_unknown_message() {
+        // 命令层不需要 Tauri State —— 直接走入参逻辑
+        let input = AiChatCancelInput {
+            message_id: "definitely-not-registered".into(),
+        };
+        let result = ai_chat_cancel(input).await.expect("ok");
+        assert!(!result.canceled);
+    }
+
+    #[tokio::test]
+    async fn ai_chat_cancel_rejects_empty_message_id() {
+        let input = AiChatCancelInput {
+            message_id: "   ".into(),
+        };
+        let err = ai_chat_cancel(input).await.unwrap_err();
+        assert_eq!(err.code, ErrorCode::InvalidArgument);
+    }
+
+    #[tokio::test]
+    async fn ai_chat_cancel_returns_true_when_message_registered() {
+        let id = format!("test-cmd-{}", uuid::Uuid::new_v4());
+        let _token = crate::services::ai::chat::register_cancel_token(&id);
+        let result = ai_chat_cancel(AiChatCancelInput {
+            message_id: id.clone(),
+        })
+        .await
+        .expect("ok");
+        assert!(result.canceled);
+        // 二次取消应 noop（registry 已清空）
+        let result2 = ai_chat_cancel(AiChatCancelInput { message_id: id })
+            .await
+            .expect("ok");
+        assert!(!result2.canceled);
     }
 }
