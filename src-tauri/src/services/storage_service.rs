@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 7;
+const DB_VERSION: i32 = 8;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -267,6 +267,23 @@ impl Database {
                 tracing::info!(
                     affected,
                     "v6 → v7 迁移：把遗留 ai_model_name 更新为 {}",
+                    crate::models::settings::AI_MODEL_NAME_DEFAULT
+                );
+            }
+        }
+
+        // v7 → v8: 第一版 v7 迁移在少量机器上未能真正更新（原因未定位 ——
+        // 可能是 user_version 预先被其它代码 bump 到 7、导致 UPDATE 被早退）。
+        // 重跑同一条 UPDATE 作为幂等安全网。已正确停在新值的行不受影响。
+        if current_version < 8 {
+            let affected = conn.execute(
+                "UPDATE settings SET ai_model_name = ?1 WHERE ai_model_name = 'gemma4:e4b'",
+                params![crate::models::settings::AI_MODEL_NAME_DEFAULT],
+            )?;
+            if affected > 0 {
+                tracing::info!(
+                    affected,
+                    "v7 → v8 再保险：ai_model_name 终于被更新为 {}",
                     crate::models::settings::AI_MODEL_NAME_DEFAULT
                 );
             }
