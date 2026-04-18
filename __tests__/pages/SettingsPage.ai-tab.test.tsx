@@ -44,9 +44,9 @@ describe("SettingsPage — AI tab (T1.1 AI-off plumbing)", () => {
     const enableCheckbox = screen.getByRole("checkbox", { name: /enable|启用/i });
     expect(enableCheckbox).not.toBeChecked();
 
-    // Model name input — defaults to gemma-4-E4B-it-Q4_K_M
-    const modelInput = screen.getByRole("textbox", { name: /model|模型/i });
-    expect(modelInput).toHaveValue("gemma-4-E4B-it-Q4_K_M");
+    // Model is pinned readonly in v0.1 — shown as monospace label, not an input
+    expect(screen.getByText("gemma-4-E4B-it-Q4_K_M")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /model|模型/i })).not.toBeInTheDocument();
 
     // Output token cap shown as readonly copy
     expect(screen.getByText(/4096/)).toBeInTheDocument();

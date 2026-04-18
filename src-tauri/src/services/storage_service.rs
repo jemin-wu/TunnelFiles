@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 6;
+const DB_VERSION: i32 = 7;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -252,6 +252,23 @@ impl Database {
                         [],
                     )?;
                 }
+            }
+        }
+
+        // v6 → v7: 把 T1.1 时期的占位 model_name `gemma4:e4b` 替换为实际 pin 的
+        // `gemma-4-E4B-it-Q4_K_M`（v0.1 α 从未 ship，没有真用户自定义该值；
+        // 自定义其他值的行不受影响）。见 docs/approved-model-sources.md。
+        if current_version < 7 {
+            let affected = conn.execute(
+                "UPDATE settings SET ai_model_name = ?1 WHERE ai_model_name = 'gemma4:e4b'",
+                params![crate::models::settings::AI_MODEL_NAME_DEFAULT],
+            )?;
+            if affected > 0 {
+                tracing::info!(
+                    affected,
+                    "v6 → v7 迁移：把遗留 ai_model_name 更新为 {}",
+                    crate::models::settings::AI_MODEL_NAME_DEFAULT
+                );
             }
         }
 
@@ -1251,6 +1268,110 @@ mod tests {
         .unwrap();
         let reset = db.settings_reset().unwrap();
         assert!(reset.ai_license_accepted_at.is_none());
+    }
+
+    /// 构造一个处于 v5 schema 的旧库（`ai_model_name = 'gemma4:e4b'`），
+    /// 用新 `migrate` 跑一遍，断言 v6→v7 把值改写了。
+    #[test]
+    fn test_migrate_v6_to_v7_rewrites_stale_gemma4_e4b_model_name() {
+        use crate::models::settings::AI_MODEL_NAME_DEFAULT;
+
+        let temp_dir = env::temp_dir().join(format!("tf_migrate_test_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+
+        // 手工拼一个 "v5 时代" 的库：settings 表有 ai_model_name = 'gemma4:e4b'
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                r#"
+                PRAGMA journal_mode=WAL;
+                CREATE TABLE settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    default_download_dir TEXT,
+                    max_concurrent_transfers INTEGER NOT NULL DEFAULT 3,
+                    connection_timeout_secs INTEGER NOT NULL DEFAULT 30,
+                    transfer_retry_count INTEGER NOT NULL DEFAULT 2,
+                    log_level TEXT NOT NULL DEFAULT 'info',
+                    terminal_font_size INTEGER NOT NULL DEFAULT 14,
+                    terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
+                    terminal_follow_directory INTEGER NOT NULL DEFAULT 1,
+                    ai_enabled INTEGER NOT NULL DEFAULT 0,
+                    ai_model_name TEXT NOT NULL DEFAULT 'gemma4:e4b',
+                    max_concurrent_ai_probes INTEGER NOT NULL DEFAULT 3,
+                    ai_output_token_cap INTEGER NOT NULL DEFAULT 4096,
+                    updated_at INTEGER NOT NULL
+                );
+                INSERT INTO settings (id, ai_model_name, updated_at) VALUES (1, 'gemma4:e4b', 0);
+                PRAGMA user_version = 5;
+                "#,
+            )
+            .unwrap();
+        }
+
+        // 再打开并跑迁移
+        let conn = Connection::open(&db_path).unwrap();
+        let db = Database {
+            conn: Mutex::new(conn),
+        };
+        db.migrate().unwrap();
+
+        let settings = db.settings_load().unwrap();
+        assert_eq!(
+            settings.ai_model_name, AI_MODEL_NAME_DEFAULT,
+            "v7 migration 应把占位 'gemma4:e4b' 重写为 {}",
+            AI_MODEL_NAME_DEFAULT
+        );
+    }
+
+    /// 对照测试：如果用户把 model_name 改成别的（假设未来支持多模型），
+    /// v7 迁移不该覆盖自定义值。
+    #[test]
+    fn test_migrate_v6_to_v7_preserves_custom_model_name() {
+        let temp_dir =
+            env::temp_dir().join(format!("tf_migrate_custom_test_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("test.db");
+
+        {
+            let conn = Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                r#"
+                PRAGMA journal_mode=WAL;
+                CREATE TABLE settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    default_download_dir TEXT,
+                    max_concurrent_transfers INTEGER NOT NULL DEFAULT 3,
+                    connection_timeout_secs INTEGER NOT NULL DEFAULT 30,
+                    transfer_retry_count INTEGER NOT NULL DEFAULT 2,
+                    log_level TEXT NOT NULL DEFAULT 'info',
+                    terminal_font_size INTEGER NOT NULL DEFAULT 14,
+                    terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
+                    terminal_follow_directory INTEGER NOT NULL DEFAULT 1,
+                    ai_enabled INTEGER NOT NULL DEFAULT 0,
+                    ai_model_name TEXT NOT NULL DEFAULT 'gemma4:e4b',
+                    max_concurrent_ai_probes INTEGER NOT NULL DEFAULT 3,
+                    ai_output_token_cap INTEGER NOT NULL DEFAULT 4096,
+                    updated_at INTEGER NOT NULL
+                );
+                INSERT INTO settings (id, ai_model_name, updated_at) VALUES (1, 'my-custom-model', 0);
+                PRAGMA user_version = 5;
+                "#,
+            )
+            .unwrap();
+        }
+
+        let conn = Connection::open(&db_path).unwrap();
+        let db = Database {
+            conn: Mutex::new(conn),
+        };
+        db.migrate().unwrap();
+
+        let settings = db.settings_load().unwrap();
+        assert_eq!(
+            settings.ai_model_name, "my-custom-model",
+            "v7 migration 不应覆盖非 'gemma4:e4b' 的值"
+        );
     }
 
     #[test]

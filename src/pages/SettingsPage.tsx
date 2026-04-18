@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -78,7 +79,6 @@ const settingsSchema = z.object({
   terminalScrollbackLines: z.number().min(TERMINAL_SCROLLBACK_MIN).max(TERMINAL_SCROLLBACK_MAX),
   terminalFollowDirectory: z.boolean(),
   aiEnabled: z.boolean(),
-  aiModelName: z.string().trim().min(1, "Model name required"),
   maxConcurrentAiProbes: z
     .number()
     .int()
@@ -160,7 +160,6 @@ export function SettingsPage() {
       terminalScrollbackLines: settings.terminalScrollbackLines,
       terminalFollowDirectory: settings.terminalFollowDirectory,
       aiEnabled: settings.aiEnabled,
-      aiModelName: settings.aiModelName,
       maxConcurrentAiProbes: settings.maxConcurrentAiProbes,
     },
   });
@@ -176,7 +175,8 @@ export function SettingsPage() {
       terminalScrollbackLines: values.terminalScrollbackLines,
       terminalFollowDirectory: values.terminalFollowDirectory,
       aiEnabled: values.aiEnabled,
-      aiModelName: values.aiModelName,
+      // aiModelName 在 v0.1 中是 pin 值（见 approved-model-sources.md），
+      // UI 只读展示；不走 form patch
       maxConcurrentAiProbes: values.maxConcurrentAiProbes,
     });
     navigate(-1);
@@ -542,6 +542,7 @@ export function SettingsPage() {
                                 onCheckedChange={field.onChange}
                                 disabled={isUpdating}
                                 aria-label="Enable AI assistant"
+                                className="size-5 border-2"
                               />
                             </FormControl>
                           </FormItem>
@@ -549,25 +550,23 @@ export function SettingsPage() {
                       )}
                     />
 
-                    <FormField
-                      control={form.control}
-                      name="aiModelName"
-                      render={({ field }) => (
-                        <SettingRow label="Model" description="GGUF model identifier">
-                          <FormItem className="space-y-0">
-                            <FormControl>
-                              <Input
-                                {...field}
-                                disabled={isUpdating}
-                                aria-label="AI model name"
-                                className="h-9 w-64 font-mono text-xs"
-                              />
-                            </FormControl>
-                            <FormMessage className="text-xs" />
-                          </FormItem>
-                        </SettingRow>
-                      )}
-                    />
+                    <SettingRow
+                      label="Model"
+                      description="Pinned in v0.1 — see approved-model-sources.md"
+                    >
+                      <div className="flex flex-col items-end gap-1">
+                        <code className="font-mono text-xs">{settings.aiModelName}</code>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openUrl("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF")
+                          }
+                          className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
+                        >
+                          ≈ 5 GB · unsloth/gemma-4-E4B-it-GGUF ↗
+                        </button>
+                      </div>
+                    </SettingRow>
 
                     <FormField
                       control={form.control}
