@@ -128,6 +128,42 @@ These signals act as the evidence that Gemma 4 E4B can actually plan, observed f
 - **Evidence**: `docs/v0.1-perf.md` containing timed screen captures; perf assertions in Vitest skipped on CI but run locally with transcript
 - **Independent subagent**: `agent-skills:test-engineer` reads the perf log + recordings
 
+### G10 — Model onboarding UX acceptance (T1.5)
+
+- **Criterion**: on Mac (primary) the full download flow is user-navigable and fail-safe
+  1. Settings AI tab 显示 "Download model" 按钮当且仅当 `aiHealthStatus === "model-missing"`
+  2. 点击按钮 → Dialog 打开停在 `licensePrompt`；复选框默认未勾；"Accept & Download" 按钮此时 disabled
+  3. 勾 Gemma ToU checkbox → 按钮变 enabled；点击后 Dialog 转 `starting` 1–3 秒内变 `fetching`
+  4. `fetching` 态：进度条随 `ai:download_progress` 推进，MB 数与 `downloaded/total` 对齐；Cancel 按钮点击后进 `canceled` 终态
+  5. 续传路径：`canceled` 状态点 Resume → Dialog 重进 `starting → fetching`，起始 percent > 0（Range resume 生效）
+  6. `verifying` 态：Cancel 仍可用；sha256 跑 ~30 秒后进 `completed`
+  7. `error` 态（例如手动 offline 触发 NetworkLost）：展示 AppError.detail；`retryable=true` 时显示 Retry
+  8. 非终态下 Esc / 点 overlay / 点 close icon 不关闭 Dialog（防误关 5GB 下载）
+  9. 下载完成后 `useAiHealthCheck` 5 秒内刷到 `modelPresent=true`，`aiHealthStatus` 从 `model-missing` 转 `loading` → `ready`
+- **Evidence**:
+  - Screen recording `.cast` / `.mov` 从点按钮到 Dialog 关闭，commit 到 `docs/checkpoints/b/onboarding/` 下
+  - 手工跑通两次：一次完整下载 + 一次在 fetching 中途 Cancel 然后 Resume
+  - 自动化：`__tests__/hooks/useModelOnboarding.reducer.test.ts`（29 cases）+ SettingsPage Button 渲染单测
+- **Independent subagent**: `agent-skills:test-engineer` 审录屏 + reducer 测试覆盖
+- **SKIPPED triggers**:
+  - 没真跑 5 GB 下载 → 这一项记 SKIPPED，并在 `waivers.md` 说明"dogfood 期补做"（软 gate，可 waive）
+  - 非 Mac 平台未验 → 列明，Linux / Win 留作 v0.2 scope
+- **FAIL 示例**：Dialog 在 fetching 态可 Esc 关 / Cancel 按钮不真 cancel / `completed` 后 health check 不刷新
+
+### G11 — Context snapshot end-to-end (T1.7)
+
+- **Criterion**: AI chat 能读到终端最近 8 KB 输出并据此作答
+  1. 打开终端 tab，`cd /etc/nginx`，`ls`
+  2. 在 ChatPanel 问 "这是什么目录，有哪些文件？"
+  3. AI 回答需命中 "nginx" 且列出的文件来自 `ls` 实际输出
+  4. `ai_context_snapshot` IPC 直接调用（debug 用）返回的 `recentOutput` 字段经过 `redact_probe_output` —— 粘个 `AKIAIOSFODNN7EXAMPLE` 进终端，snapshot 里应出现 `<REDACTED>`
+  5. `ai_chat_send` 自动 gather context —— 粘一个 PEM 进终端 prompt 然后 chat，观察 llama.cpp 送入的 prompt（tracing debug 日志）不含原 PEM bytes
+- **Evidence**:
+  - 手工 transcript: 问题 + AI 回答 + 终端截屏 → `docs/checkpoints/b/context-snapshot/`
+  - 自动化：`services::ai::context::tests`（12 pure-function cases）+ `commands::ai::gather_snapshot_from_state` 空态测试
+- **Independent subagent**: `agent-skills:security-auditor` 审 scrubber 在 snapshot 路径有效
+- **SKIPPED trigger**: 实际 AI 回答质量差（不 "熟悉" 终端上下文）仍可 PASS，只要机制跑通；质量退入 Dogfood G2 信号
+
 ---
 
 ## Dogfood Gate Trigger (post-CHECKPOINT B)
@@ -149,6 +185,8 @@ Passing CHECKPOINT B does not immediately enter Phase 2. SPEC §11 requires 2 we
 | G5   | `agent-skills:security-auditor` | scrubber fixtures + black-box test output | PASS/FAIL per category         |
 | G8   | `agent-skills:code-reviewer`    | bindings diff + ERROR_MESSAGES            | PASS/FAIL                      |
 | G9   | `agent-skills:test-engineer`    | perf log + recordings                     | PASS/FAIL                      |
+| G10  | `agent-skills:test-engineer`    | onboarding recordings + reducer tests     | PASS/FAIL                      |
+| G11  | `agent-skills:security-auditor` | context transcript + scrubber 路径        | PASS/FAIL                      |
 
 Subagents are spawned with clean context, read-only tools (`Read`, `Grep`, `Glob`), and a prompt that includes this rubric plus the referenced evidence paths. They MUST NOT be asked for recommendations — only PASS/FAIL judgments per stated criteria.
 
@@ -159,4 +197,4 @@ Subagents are spawned with clean context, read-only tools (`Read`, `Grep`, `Glob
 - **Writer of this rubric**: minjian-wu (pre-gate, before any G-item is executed)
 - **Executor of each G item**: minjian-wu (produces evidence)
 - **Final gate sign-off**: minjian-wu records PASS/FAIL matrix in `docs/checkpoints/b/result.md`; FAIL or SKIPPED on any hard gate blocks v0.1 ship
-- **Waivers**: only non-hard items may be waived; waiver requires one-line justification + compensating control in `docs/checkpoints/b/waivers.md`. Hard gates G1, G3, G4, G5, G6, G7 are never waived.
+- **Waivers**: only non-hard items may be waived; waiver requires one-line justification + compensating control in `docs/checkpoints/b/waivers.md`. Hard gates G1, G3, G4, G5, G6, G7 are never waived. G10 / G11 的 "real-model 交互" 部分可 waive 到 dogfood 期补做（reducer/单测已 PASS 时），但 waiver 必须登记。
