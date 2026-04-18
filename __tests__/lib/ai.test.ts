@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { aiHealthCheck, aiChatSend, aiChatCancel } from "@/lib/ai";
+import { aiHealthCheck, aiChatSend, aiChatCancel, aiContextSnapshot } from "@/lib/ai";
 
 // lib/ai.ts 是 IPC 边界本身 —— 它的单测必须 mock invoke（上面一层禁止）。
 // 功能层测试仍要 mock `@/lib/ai`，见 core-testing.md。
@@ -163,6 +163,78 @@ describe("lib/ai", () => {
         code: "UNKNOWN",
         message: expect.stringContaining("ai_chat_cancel"),
       });
+    });
+  });
+
+  describe("aiContextSnapshot", () => {
+    it("invokes ai_context_snapshot with input wrapper carrying sessionId", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        sessionId: "tab-1",
+        pwd: "/home/user",
+        recentOutput: "ls\nfile\n",
+      });
+      await aiContextSnapshot("tab-1");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_context_snapshot", {
+        input: { sessionId: "tab-1" },
+      });
+    });
+
+    it("returns the parsed snapshot on success", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        sessionId: "tab-1",
+        pwd: "/home/user",
+        recentOutput: "ls\nfile\n",
+      });
+      const result = await aiContextSnapshot("tab-1");
+      expect(result).toEqual({
+        sessionId: "tab-1",
+        pwd: "/home/user",
+        recentOutput: "ls\nfile\n",
+      });
+    });
+
+    it("accepts empty strings (best-effort when session/terminal missing)", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        sessionId: "gone",
+        pwd: "",
+        recentOutput: "",
+      });
+      const result = await aiContextSnapshot("gone");
+      expect(result.pwd).toBe("");
+      expect(result.recentOutput).toBe("");
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        sessionId: "tab-1",
+        // pwd 缺失
+        recentOutput: "",
+      });
+      await expect(aiContextSnapshot("tab-1")).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_context_snapshot"),
+      });
+    });
+
+    it("rejects with AppError on wrong field type", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        sessionId: "tab-1",
+        pwd: 42, // number, 不是 string
+        recentOutput: "",
+      });
+      await expect(aiContextSnapshot("tab-1")).rejects.toMatchObject({
+        code: "UNKNOWN",
+      });
+    });
+
+    it("propagates invoke rejection unchanged", async () => {
+      const appError = {
+        code: "INVALID_ARGUMENT",
+        message: "sessionId cannot be empty",
+        retryable: false,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiContextSnapshot("  ")).rejects.toBe(appError);
     });
   });
 });
