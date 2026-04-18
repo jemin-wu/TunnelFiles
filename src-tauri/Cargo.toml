@@ -59,6 +59,26 @@ dirs = "5"
 sha2 = "0.10"
 base64 = "0.22"
 
+# AI 模型下载（SPEC §5 T1.5，Ask First 已批准 2026-04-18）。
+# Feature 白名单：rustls-tls（纯 Rust，避免 OpenSSL 系统依赖）/ stream（Range resume + 进度
+# 回调）/ http2（HuggingFace 直链走 HTTP/2）/ gzip（服务端可能启用传输编码）。
+# 禁用 default-features（排除 native-tls / cookies / blocking 等不需要的 features）。
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "stream",
+    "http2",
+    "gzip",
+] }
+
+# 跨平台磁盘可用空间查询（SPEC §5 T1.5 下载前 7GB gate）。
+# 选型论证：fs4 维护活跃（2024 更新），内部封装 libc::statvfs + Windows API，
+# 避免手写 cfg-gated FFI；单一职责，依赖树极小。
+fs4 = "0.12"
+
+# 异步字节流 trait（reqwest::Response::bytes_stream 返回 futures Stream）
+# 已通过 [dev-dependencies] 引入，这里升级到生产路径。
+futures-util = "0.3"
+
 # 安全内存清零
 zeroize = "1"
 

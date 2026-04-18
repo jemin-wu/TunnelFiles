@@ -1,19 +1,25 @@
-//! Model download helpers (plan.md T1.5 slice B — pure functions, no HTTP).
+//! Model download helpers (plan.md T1.5 slice B + C).
 //!
-//! 这一层只管 "文件已经在磁盘上" 和 "判断磁盘够不够下载" 两件事：
+//! 一层覆盖从磁盘 gate 到实际字节下载的所有"非 IPC"逻辑：
 //!
-//! - `compute_sha256_hex` / `verify_sha256`: 落盘后的哈希校验，失败硬删坏文件
-//! - `DiskProbe` trait + `check_disk_available`: 下载前磁盘空闲量 gate
-//! - 模型权重 pin（URL / sha256 / 字节数 / 磁盘阈值）都集中在这个模块的顶部常量，
-//!   升级三方源（见 `docs/approved-model-sources.md`）时只改本文件
+//! - `compute_sha256_hex` / `verify_sha256`：落盘后的哈希校验，失败硬删坏文件
+//! - `DiskProbe` / `SysDiskProbe` / `check_disk_available`：下载前磁盘 gate
+//! - `plan_download`：根据 dest 现存文件与期望大小决定 Fresh / Resume / Complete / Oversized
+//! - `ProgressTracker`：节流 200ms + 4MB 阈值
+//! - `download_gguf`：基于 `reqwest` 的 Range-resume 流式下载 + 进度回调 + cancel
+//! - 权重 pin 集中在模块顶部常量（URL / sha256 / 字节数 / 磁盘阈值），升级三方源
+//!   （见 `docs/approved-model-sources.md`）时只改本文件
 //!
-//! HTTP 本身 + progress 事件发射在 slice C（引入 `reqwest` 之后）。
+//! IPC 命令 `ai_model_download` + `ai:download_progress` 事件发射在 slice D。
 
 use std::fs;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::Path;
+use std::time::{Duration, Instant};
 
+use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
+use tokio_util::sync::CancellationToken;
 
 use crate::models::error::{AppError, AppResult, ErrorCode};
 
@@ -39,6 +45,17 @@ pub const MODEL_DISK_REQUIRED_BYTES: u64 = 7_000_000_000;
 
 /// sha256 流式读取缓冲 —— 8 KB 平衡吞吐和内存占用。
 const HASH_CHUNK_BYTES: usize = 8 * 1024;
+
+/// 下载进度事件节流窗口 —— 200ms 与 transfer_manager 保持一致（SPEC §Performance）。
+const PROGRESS_THROTTLE: Duration = Duration::from_millis(200);
+
+/// 即便节流窗口未到，也在累计这么多字节时强制刷一次进度。保证小文件 / 局部快读
+/// 场景有起码的反馈。
+const PROGRESS_BYTES_FORCE_EMIT: u64 = 4 * 1024 * 1024;
+
+/// HTTP 响应读取缓冲。reqwest 的 stream 本身已按 chunk 切，这里再攒到 64KB 再写盘，
+/// 平衡系统调用次数和内存占用（跟 SSH 传输 `CHUNK_SIZE` 一致）。
+const WRITE_CHUNK_BYTES: usize = 64 * 1024;
 
 // ---- sha256 verification ---------------------------------------------------
 
@@ -128,6 +145,307 @@ pub fn check_disk_available<P: DiskProbe>(
         ))
         .with_retryable(false)),
     }
+}
+
+/// 生产磁盘探针：委托 `fs4::available_space`，路径必须存在（若目标目录尚未
+/// 创建，先从父目录查询）。失败一律返回 None 走 fail-open。
+pub struct SysDiskProbe;
+
+impl DiskProbe for SysDiskProbe {
+    fn available_bytes(&self, path: &Path) -> Option<u64> {
+        // fs4 要求传入的路径必须存在；若 dest_dir 还没 mkdir，向上找到第一个
+        // 存在的祖先。极端情况下连根都不存在就只能返回 None。
+        let mut probe_target = path;
+        while !probe_target.exists() {
+            probe_target = probe_target.parent()?;
+        }
+        fs4::available_space(probe_target).ok()
+    }
+}
+
+// ---- Download planning ------------------------------------------------------
+
+/// 对比 dest 现有文件与期望大小，决定下载策略。纯函数，便于单测。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DownloadPlan {
+    /// 目标文件不存在，从头下载。
+    StartFresh,
+    /// 目标文件已存在但不完整（size < expected_size），从 `from_offset` 续传。
+    Resume { from_offset: u64 },
+    /// 目标文件恰好等于期望大小，跳过下载直接进 sha256 校验。
+    AlreadyComplete,
+    /// 目标文件大于期望大小（或 metadata 异常）—— 由调用方决定是删除重下还是报错。
+    Oversized { actual_size: u64 },
+}
+
+/// 检查 dest 现有文件 vs 期望大小 → 决定 Fresh / Resume / Complete / Oversized。
+pub fn plan_download(dest: &Path, expected_size: u64) -> AppResult<DownloadPlan> {
+    match fs::metadata(dest) {
+        Ok(md) if !md.is_file() => Err(AppError::new(
+            ErrorCode::LocalIoError,
+            "模型存储路径已被非文件对象占用",
+        )
+        .with_detail(dest.display().to_string())
+        .with_retryable(false)),
+        Ok(md) => {
+            let size = md.len();
+            if size == expected_size {
+                Ok(DownloadPlan::AlreadyComplete)
+            } else if size < expected_size {
+                Ok(DownloadPlan::Resume { from_offset: size })
+            } else {
+                Ok(DownloadPlan::Oversized { actual_size: size })
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(DownloadPlan::StartFresh),
+        Err(e) => Err(e.into()),
+    }
+}
+
+// ---- Progress tracker -------------------------------------------------------
+
+/// 进度回调节流：最多每 `PROGRESS_THROTTLE` 刷一次，或累计
+/// `PROGRESS_BYTES_FORCE_EMIT` 字节强制刷。外部保证 `finish()` 在流结束时调用，
+/// 保证 UI 能看到终态事件。
+pub struct ProgressTracker {
+    downloaded: u64,
+    total: u64,
+    last_emit_at: Option<Instant>,
+    last_emit_downloaded: u64,
+}
+
+impl ProgressTracker {
+    pub fn new(total: u64, initial_downloaded: u64) -> Self {
+        Self {
+            downloaded: initial_downloaded,
+            total,
+            last_emit_at: None,
+            last_emit_downloaded: 0,
+        }
+    }
+
+    pub fn downloaded(&self) -> u64 {
+        self.downloaded
+    }
+
+    /// 追加一块字节数 —— 如果距上次 emit 过了节流窗口 / 字节阈值，返回 Some 让
+    /// 调用方发事件；否则 None。
+    pub fn advance(&mut self, bytes_added: u64, now: Instant) -> Option<ProgressTick> {
+        self.downloaded = self.downloaded.saturating_add(bytes_added);
+        if self.should_emit(now) {
+            self.stamp(now);
+            Some(self.tick())
+        } else {
+            None
+        }
+    }
+
+    /// 强制在流结束时刷一次进度（即便节流窗口没到）。
+    pub fn finish(&mut self, now: Instant) -> ProgressTick {
+        self.stamp(now);
+        self.tick()
+    }
+
+    fn should_emit(&self, now: Instant) -> bool {
+        match self.last_emit_at {
+            None => true,
+            Some(prev) => {
+                now.duration_since(prev) >= PROGRESS_THROTTLE
+                    || self.downloaded.saturating_sub(self.last_emit_downloaded)
+                        >= PROGRESS_BYTES_FORCE_EMIT
+            }
+        }
+    }
+
+    fn stamp(&mut self, now: Instant) {
+        self.last_emit_at = Some(now);
+        self.last_emit_downloaded = self.downloaded;
+    }
+
+    fn tick(&self) -> ProgressTick {
+        let percent = if self.total == 0 {
+            0
+        } else {
+            // floor 策略；total == 0 时走上分支。u64 乘 100 在极端情况下不会溢
+            // 出（downloaded ≤ total < 2^57 对 5GB 量级足够）
+            let raw = (self.downloaded.saturating_mul(100)) / self.total;
+            u64::min(raw, 100) as u8
+        };
+        ProgressTick {
+            downloaded: self.downloaded,
+            total: self.total,
+            percent,
+        }
+    }
+}
+
+/// 单次进度事件快照。调用方据此构造 `AiDownloadProgressPayload`（补 phase 字段）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ProgressTick {
+    pub downloaded: u64,
+    pub total: u64,
+    pub percent: u8,
+}
+
+// ---- HTTP download ---------------------------------------------------------
+
+/// 下载结果 —— Slice D 的 IPC 层据此判断接下来要走 verify 还是 skip。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DownloadOutcome {
+    /// 首次完整下载或断点续传后到达期望大小。
+    Completed,
+    /// 本地文件已等于期望大小；整次调用未发起 HTTP 请求。
+    AlreadyPresent,
+    /// 用户取消 —— 已写入的字节保留在磁盘（方便下次续传）。
+    Cancelled,
+}
+
+/// 执行 GGUF 下载 —— 自动续传 + 节流进度回调 + 取消感知。
+///
+/// 约定：
+/// - 服务端声明的总字节数若与 `expected_size` 冲突 → `AiUnavailable`（retryable）
+/// - Range resume 失败（服务端返回 200 而非 206） → 当前实现丢弃已有字节，从头覆盖写
+/// - 取消发生时写盘立即停止 —— 未 flush 的字节可能被丢（OS level），可接受
+/// - 下载完成但实际字节数与期望不符 → `AiUnavailable`（retryable），留文件由调用方决定
+///
+/// 本函数**不**做 sha256 校验；调用方（Slice D IPC）依次调
+/// `download_gguf` → `verify_sha256` → 继续 runtime load。
+pub async fn download_gguf(
+    url: &str,
+    dest: &Path,
+    expected_size: u64,
+    mut on_progress: impl FnMut(ProgressTick),
+    cancel: &CancellationToken,
+) -> AppResult<DownloadOutcome> {
+    let plan = plan_download(dest, expected_size)?;
+    let resume_offset = match plan {
+        DownloadPlan::AlreadyComplete => return Ok(DownloadOutcome::AlreadyPresent),
+        DownloadPlan::Oversized { actual_size } => {
+            tracing::warn!(
+                dest = %dest.display(),
+                actual_size,
+                expected_size,
+                "既有文件大于期望大小，删除后重下"
+            );
+            fs::remove_file(dest)?;
+            0u64
+        }
+        DownloadPlan::StartFresh => 0u64,
+        DownloadPlan::Resume { from_offset } => from_offset,
+    };
+
+    // 确保父目录存在
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .build()
+        .map_err(|e| {
+            AppError::new(ErrorCode::AiUnavailable, "HTTP client 构造失败")
+                .with_detail(e.to_string())
+                .with_retryable(true)
+        })?;
+
+    let mut request = client.get(url);
+    if resume_offset > 0 {
+        request = request.header(reqwest::header::RANGE, format!("bytes={resume_offset}-"));
+    }
+
+    let response = request.send().await.map_err(|e| {
+        AppError::new(ErrorCode::NetworkLost, "GGUF 下载请求失败")
+            .with_detail(e.to_string())
+            .with_retryable(true)
+    })?;
+
+    let status = response.status();
+    // 206 Partial Content → 续传成功；200 OK → 服务器未接受 Range，从头开始
+    let write_mode_append = if resume_offset > 0 && status == reqwest::StatusCode::PARTIAL_CONTENT {
+        true
+    } else if resume_offset > 0 && status == reqwest::StatusCode::OK {
+        tracing::warn!(
+            url,
+            resume_offset,
+            "服务端未接受 Range（返回 200），删除部分文件从头下"
+        );
+        fs::remove_file(dest).ok();
+        false
+    } else if status.is_success() {
+        false
+    } else {
+        return Err(AppError::new(
+            ErrorCode::AiUnavailable,
+            format!("GGUF 下载返回非预期状态 {status}"),
+        )
+        .with_retryable(true));
+    };
+
+    // Content-Length 校验：206 返回的是 "本段" 长度（期望 - offset），需加回 offset
+    // 后与 expected_size 比对；200 直接比。
+    if let Some(content_length) = response.content_length() {
+        let reported_total = if write_mode_append {
+            resume_offset + content_length
+        } else {
+            content_length
+        };
+        if reported_total != expected_size {
+            return Err(
+                AppError::new(ErrorCode::AiUnavailable, "GGUF 服务端声明字节数与期望不符")
+                    .with_detail(format!("expected {expected_size}, server {reported_total}"))
+                    .with_retryable(true),
+            );
+        }
+    }
+
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .append(write_mode_append)
+        .truncate(!write_mode_append)
+        .write(true)
+        .open(dest)?;
+    let mut writer = std::io::BufWriter::with_capacity(WRITE_CHUNK_BYTES, file);
+
+    let mut tracker = ProgressTracker::new(
+        expected_size,
+        if write_mode_append { resume_offset } else { 0 },
+    );
+    // 立即发一次起始事件（便于 UI 显示 0% 或续传起点）
+    on_progress(tracker.finish(Instant::now()));
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        if cancel.is_cancelled() {
+            writer.flush().ok();
+            return Ok(DownloadOutcome::Cancelled);
+        }
+        let bytes = chunk.map_err(|e| {
+            AppError::new(ErrorCode::NetworkLost, "GGUF 下载流中断")
+                .with_detail(e.to_string())
+                .with_retryable(true)
+        })?;
+        writer.write_all(&bytes)?;
+        if let Some(tick) = tracker.advance(bytes.len() as u64, Instant::now()) {
+            on_progress(tick);
+        }
+    }
+    writer.flush()?;
+    drop(writer);
+
+    // 流结束后发最终进度
+    on_progress(tracker.finish(Instant::now()));
+
+    // 字节数最终校验 —— 防止服务器提前截断但未返回错误
+    let final_size = fs::metadata(dest)?.len();
+    if final_size != expected_size {
+        return Err(
+            AppError::new(ErrorCode::AiUnavailable, "GGUF 下载结束后字节数与期望不符")
+                .with_detail(format!("expected {expected_size}, actual {final_size}"))
+                .with_retryable(true),
+        );
+    }
+
+    Ok(DownloadOutcome::Completed)
 }
 
 #[cfg(test)]
@@ -306,5 +624,154 @@ mod tests {
         // 生产环境探测失败（权限 / 平台不支持）不应阻塞用户下载 —— 保守通过
         let probe = FakeDiskProbe(None);
         check_disk_available(&probe, Path::new("/tmp"), 7_000_000_000).expect("fail-open");
+    }
+
+    // ---- SysDiskProbe smoke test ------------------------------------------
+
+    #[test]
+    fn sys_disk_probe_returns_positive_for_tempdir() {
+        // 在能正常查询磁盘的平台，tempdir 应有 > 0 空闲空间。查询失败（容器 /
+        // 权限问题）时返回 None 是合理的，不把它当 test failure。
+        let dir = tempdir().expect("tempdir");
+        let probe = SysDiskProbe;
+        let result = probe.available_bytes(dir.path());
+        if let Some(bytes) = result {
+            assert!(bytes > 0, "available_bytes 应 > 0，实际 {bytes}");
+        }
+    }
+
+    #[test]
+    fn sys_disk_probe_falls_back_to_existing_ancestor() {
+        // dest 路径本身不存在，但父目录存在 —— 应能查到祖先的空闲空间
+        let dir = tempdir().expect("tempdir");
+        let nonexistent = dir.path().join("subdir-not-yet-created/model.gguf");
+        assert!(!nonexistent.exists());
+        let probe = SysDiskProbe;
+        let result = probe.available_bytes(&nonexistent);
+        if let Some(bytes) = result {
+            assert!(bytes > 0);
+        }
+    }
+
+    // ---- plan_download ----------------------------------------------------
+
+    #[test]
+    fn plan_download_returns_start_fresh_for_absent_file() {
+        let dir = tempdir().unwrap();
+        let dest = dir.path().join("model.gguf");
+        assert_eq!(
+            plan_download(&dest, 1000).unwrap(),
+            DownloadPlan::StartFresh
+        );
+    }
+
+    #[test]
+    fn plan_download_returns_already_complete_for_exact_size() {
+        let f = write_tmp(&vec![0u8; 512]);
+        let plan = plan_download(f.path(), 512).unwrap();
+        assert_eq!(plan, DownloadPlan::AlreadyComplete);
+    }
+
+    #[test]
+    fn plan_download_returns_resume_when_partial() {
+        let f = write_tmp(&vec![0u8; 256]);
+        let plan = plan_download(f.path(), 512).unwrap();
+        assert_eq!(plan, DownloadPlan::Resume { from_offset: 256 });
+    }
+
+    #[test]
+    fn plan_download_returns_oversized_when_bigger_than_expected() {
+        let f = write_tmp(&vec![0u8; 1024]);
+        let plan = plan_download(f.path(), 512).unwrap();
+        assert_eq!(plan, DownloadPlan::Oversized { actual_size: 1024 });
+    }
+
+    #[test]
+    fn plan_download_rejects_directory_at_dest_path() {
+        let dir = tempdir().unwrap();
+        let err = plan_download(dir.path(), 512).unwrap_err();
+        assert_eq!(err.code, ErrorCode::LocalIoError);
+    }
+
+    // ---- ProgressTracker --------------------------------------------------
+
+    #[test]
+    fn progress_tracker_computes_percent_floor() {
+        let mut t = ProgressTracker::new(1000, 0);
+        t.advance(590, Instant::now()); // 59%
+        let tick = t.finish(Instant::now());
+        assert_eq!(tick.percent, 59);
+    }
+
+    #[test]
+    fn progress_tracker_percent_caps_at_100() {
+        // downloaded > total 的退化场景（例如服务器 over-send），percent 不超 100
+        let mut t = ProgressTracker::new(100, 0);
+        t.advance(200, Instant::now());
+        let tick = t.finish(Instant::now());
+        assert_eq!(tick.percent, 100);
+    }
+
+    #[test]
+    fn progress_tracker_reports_zero_percent_for_unknown_total() {
+        let mut t = ProgressTracker::new(0, 0);
+        t.advance(12345, Instant::now());
+        let tick = t.finish(Instant::now());
+        assert_eq!(tick.percent, 0);
+    }
+
+    #[test]
+    fn progress_tracker_first_advance_emits_immediately() {
+        // 第一次 advance 应 emit（last_emit_at = None）
+        let mut t = ProgressTracker::new(1000, 0);
+        assert!(t.advance(100, Instant::now()).is_some());
+    }
+
+    #[test]
+    fn progress_tracker_throttles_rapid_successive_advances() {
+        let now = Instant::now();
+        let mut t = ProgressTracker::new(1_000_000, 0);
+        assert!(t.advance(10, now).is_some()); // 首次 emit
+                                               // 紧随其后的同一瞬间再 advance 应被节流
+        assert!(t.advance(10, now).is_none());
+    }
+
+    #[test]
+    fn progress_tracker_force_emits_after_byte_threshold() {
+        let now = Instant::now();
+        let mut t = ProgressTracker::new(100 * 1024 * 1024, 0);
+        assert!(t.advance(10, now).is_some()); // 初次
+                                               // 同一瞬间但累积 >= PROGRESS_BYTES_FORCE_EMIT → 强制 emit
+        assert!(t.advance(PROGRESS_BYTES_FORCE_EMIT, now).is_some());
+    }
+
+    #[test]
+    fn progress_tracker_emits_after_throttle_window() {
+        let start = Instant::now();
+        let mut t = ProgressTracker::new(1_000_000, 0);
+        t.advance(10, start);
+        // 模拟 200ms 后 advance —— 应再次 emit
+        let later = start + PROGRESS_THROTTLE + Duration::from_millis(1);
+        assert!(t.advance(10, later).is_some());
+    }
+
+    #[test]
+    fn progress_tracker_finish_always_emits() {
+        let mut t = ProgressTracker::new(1000, 0);
+        t.advance(500, Instant::now());
+        // finish 不做节流判断 —— 始终返回终态
+        let tick = t.finish(Instant::now());
+        assert_eq!(tick.downloaded, 500);
+        assert_eq!(tick.percent, 50);
+    }
+
+    #[test]
+    fn progress_tracker_honors_initial_offset_for_resume() {
+        let mut t = ProgressTracker::new(1000, 300);
+        assert_eq!(t.downloaded(), 300);
+        t.advance(100, Instant::now());
+        assert_eq!(t.downloaded(), 400);
+        let tick = t.finish(Instant::now());
+        assert_eq!(tick.percent, 40);
     }
 }

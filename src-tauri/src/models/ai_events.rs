@@ -59,3 +59,32 @@ pub struct AiErrorPayload {
     pub message_id: String,
     pub error: AppError,
 }
+
+/// 模型下载进度阶段（SPEC §5 T1.5）。`fetching` 是 HTTP 字节下载；
+/// `verifying` 是落盘后 sha256 校验（占时 ~30 秒）；`loading` 是
+/// `LlamaRuntime::load` 把 GGUF 读入内存 + Metal buffer 初始化。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub enum AiDownloadPhase {
+    Fetching,
+    Verifying,
+    Loading,
+}
+
+/// `ai:download_progress` —— 下载 / 校验 / 加载阶段进度（SPEC §5 T1.5）。
+///
+/// `downloaded` / `total` 单位均为字节；`verifying` 与 `loading` 阶段没有
+/// 字节级进度时 `downloaded == total` 同步发一次即可。`percent` 预计算
+/// `0..=100` 整数方便 UI 直接渲染（floor 策略：59.99% → 59）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiDownloadProgressPayload {
+    pub phase: AiDownloadPhase,
+    pub downloaded: u64,
+    pub total: u64,
+    pub percent: u8,
+}
