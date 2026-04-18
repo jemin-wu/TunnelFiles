@@ -40,9 +40,12 @@ pub enum GenerationOutcome {
 /// 抽象 token 源。生产实现 wrap `llama_cpp_2::context::LlamaContext` +
 /// sampler；测试可用 `VecTokenSource` 喂死定 token 流。
 ///
-/// 返回 `None` 表示 EOG —— 编排层据此报告 `Completed`。
+/// 返回值语义：
+/// - `Ok(Some(token))`：emit 一个 token 给上层
+/// - `Ok(None)`：EOG，自然结束
+/// - `Err(e)`：FFI 失败 / decode 错误，编排层立即冒泡终止生成
 pub trait TokenSource {
-    fn next_token(&mut self) -> Option<String>;
+    fn next_token(&mut self) -> AppResult<Option<String>>;
 }
 
 /// 跑生成循环。
@@ -73,7 +76,7 @@ where
         if emitted >= options.max_tokens {
             return Ok(GenerationOutcome::Truncated);
         }
-        match source.next_token() {
+        match source.next_token()? {
             Some(t) => {
                 on_token(&t);
                 emitted = emitted.saturating_add(1);
@@ -101,8 +104,27 @@ mod tests {
     }
 
     impl TokenSource for VecTokenSource {
-        fn next_token(&mut self) -> Option<String> {
-            self.tokens.pop_front()
+        fn next_token(&mut self) -> AppResult<Option<String>> {
+            Ok(self.tokens.pop_front())
+        }
+    }
+
+    /// 第 N 次调用注入失败的 source —— 用于验证错误冒泡。
+    struct FailingTokenSource {
+        emit_before_failing: usize,
+        called: usize,
+    }
+
+    impl TokenSource for FailingTokenSource {
+        fn next_token(&mut self) -> AppResult<Option<String>> {
+            self.called += 1;
+            if self.called > self.emit_before_failing {
+                Err(crate::models::error::AppError::ai_unavailable(
+                    "stub decode failure",
+                ))
+            } else {
+                Ok(Some(format!("t{}", self.called)))
+            }
         }
     }
 
@@ -243,6 +265,27 @@ mod tests {
         assert_eq!(
             count, 1,
             "callback should fire exactly once for one-token stream"
+        );
+    }
+
+    #[test]
+    fn source_error_propagates_to_caller() {
+        // FFI decode 失败 → AppError 上抛 → 编排不再 emit 后续
+        let mut src = FailingTokenSource {
+            emit_before_failing: 2,
+            called: 0,
+        };
+        let cancel = CancellationToken::new();
+        let mut emitted = Vec::new();
+        let result = run_generation_loop(&mut src, GenerateOptions::default(), &cancel, |t| {
+            emitted.push(t.to_string())
+        });
+        assert!(result.is_err());
+        // 已 emit 的 2 个 token 保留（流式下游已经收到，回滚不可能）
+        assert_eq!(emitted, vec!["t1", "t2"]);
+        assert_eq!(
+            result.unwrap_err().code,
+            crate::models::error::ErrorCode::AiUnavailable
         );
     }
 }
