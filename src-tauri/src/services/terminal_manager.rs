@@ -681,6 +681,15 @@ impl TerminalManager {
             .cloned()
     }
 
+    /// 按 session_id 查找活跃终端（AI context snapshot 用）。无终端返回 None。
+    pub fn get_managed_terminal_by_session(
+        &self,
+        session_id: &str,
+    ) -> Option<Arc<ManagedTerminal>> {
+        let terminal_id = self.get_terminal_by_session(session_id)?;
+        self.terminals.read().ok()?.get(&terminal_id).cloned()
+    }
+
     /// 查询终端关联的 session_id
     ///
     /// 供外部路径（如 `terminal_input` 命令）在写入后 touch 对应的 SSH session，
