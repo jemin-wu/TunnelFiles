@@ -44,12 +44,18 @@ export function ChatPanel({ sessionId, onSend, className }: ChatPanelProps) {
 
   // 默认订阅 IPC 事件 + 提供 send 回调；外部 onSend 覆盖时仅作为发送入口，
   // listener 仍然订阅（事件契约固定，外部 handler 改不了响应通路）。
-  const { send: defaultSend } = useAiChat(sessionId);
+  const { send: defaultSend, cancel } = useAiChat(sessionId);
 
   const messages = session?.messages ?? [];
   const streamState = session?.streamState ?? "idle";
   const isStreaming = streamState === "thinking" || streamState === "streaming";
   const isError = streamState === "error";
+  const pendingAssistantId = session?.pendingAssistantId ?? null;
+
+  const handleStop = useCallback(() => {
+    if (!pendingAssistantId) return;
+    void cancel(pendingAssistantId);
+  }, [cancel, pendingAssistantId]);
 
   const handleSubmit = useCallback(
     async (text: string) => {
@@ -99,6 +105,7 @@ export function ChatPanel({ sessionId, onSend, className }: ChatPanelProps) {
         <ChatInput
           onSubmit={handleSubmit}
           disabled={isStreaming}
+          onStop={pendingAssistantId ? handleStop : undefined}
           placeholder={isStreaming ? "Waiting for response..." : "Ask the local assistant..."}
         />
       </div>

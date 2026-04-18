@@ -10,6 +10,7 @@ import { z } from "zod";
 import { parseInvokeResult, timedInvoke } from "./error";
 import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
+import type { AiChatCancelResult } from "@/types/bindings/AiChatCancelResult";
 
 // ============================================================================
 // Schemas
@@ -56,4 +57,23 @@ export async function aiChatSend(sessionId: string, text: string): Promise<AiCha
     input: { sessionId, text },
   });
   return parseInvokeResult(AiChatSendResultSchema, result, "ai_chat_send");
+}
+
+// ============================================================================
+// Chat Cancel
+// ============================================================================
+
+const AiChatCancelResultSchema: z.ZodType<AiChatCancelResult> = z.object({
+  canceled: z.boolean(),
+});
+
+/**
+ * Stop an in-flight chat response. `canceled === false` means the message
+ * had already finished or never existed — safe to ignore (race-tolerant).
+ */
+export async function aiChatCancel(messageId: string): Promise<AiChatCancelResult> {
+  const result = await timedInvoke("ai_chat_cancel", {
+    input: { messageId },
+  });
+  return parseInvokeResult(AiChatCancelResultSchema, result, "ai_chat_cancel");
 }

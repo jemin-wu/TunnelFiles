@@ -109,4 +109,37 @@ describe("ChatInput", () => {
     render(<ChatInput onSubmit={vi.fn()} placeholder="Custom prompt" />);
     expect(screen.getByPlaceholderText("Custom prompt")).toBeInTheDocument();
   });
+
+  describe("Stop button (cancel UX)", () => {
+    it("renders Stop button instead of Send when disabled + onStop provided", () => {
+      render(<ChatInput onSubmit={vi.fn()} disabled onStop={vi.fn()} />);
+      expect(screen.getByLabelText("Stop response")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Send message")).not.toBeInTheDocument();
+    });
+
+    it("Stop button stays enabled even with empty textarea", () => {
+      render(<ChatInput onSubmit={vi.fn()} disabled onStop={vi.fn()} />);
+      expect(screen.getByLabelText("Stop response")).not.toBeDisabled();
+    });
+
+    it("clicking Stop fires onStop callback", async () => {
+      const user = userEvent.setup();
+      const onStop = vi.fn();
+      render(<ChatInput onSubmit={vi.fn()} disabled onStop={onStop} />);
+      await user.click(screen.getByLabelText("Stop response"));
+      expect(onStop).toHaveBeenCalledTimes(1);
+    });
+
+    it("falls back to disabled Send button when disabled but no onStop given", () => {
+      render(<ChatInput onSubmit={vi.fn()} disabled />);
+      expect(screen.queryByLabelText("Stop response")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Send message")).toBeDisabled();
+    });
+
+    it("shows Send (not Stop) when not disabled even if onStop is provided", () => {
+      render(<ChatInput onSubmit={vi.fn()} onStop={vi.fn()} />);
+      expect(screen.getByLabelText("Send message")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Stop response")).not.toBeInTheDocument();
+    });
+  });
 });

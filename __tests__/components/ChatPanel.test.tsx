@@ -100,7 +100,7 @@ describe("ChatPanel", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("ipc dropped");
   });
 
-  it("disables input while streaming", async () => {
+  it("disables textarea + swaps Send for Stop while streaming", async () => {
     const user = userEvent.setup();
     const onSend = vi.fn(() => new Promise<void>(() => {})); // never resolves
     render(<ChatPanel sessionId="tab-busy" onSend={onSend} />);
@@ -111,7 +111,31 @@ describe("ChatPanel", () => {
       expect(useAiSessionStore.getState().getSession("tab-busy")?.streamState).toBe("thinking")
     );
     expect(screen.getByLabelText("Chat input")).toBeDisabled();
-    expect(screen.getByLabelText("Send message")).toBeDisabled();
+    // Send button replaced by Stop button (cancel UX)
+    expect(screen.queryByLabelText("Send message")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Stop response")).toBeInTheDocument();
+  });
+
+  it("clicking Stop calls ai_chat_cancel with the pending assistant id", async () => {
+    const user = userEvent.setup();
+    const onSend = vi.fn(() => new Promise<void>(() => {})); // never resolves
+    vi.mocked(invoke).mockResolvedValue({ canceled: true });
+    render(<ChatPanel sessionId="tab-stop" onSend={onSend} />);
+    await user.type(screen.getByLabelText("Chat input"), "stop me");
+    await user.click(screen.getByLabelText("Send message"));
+
+    await waitFor(() =>
+      expect(useAiSessionStore.getState().getSession("tab-stop")?.streamState).toBe("thinking")
+    );
+    const pendingId = useAiSessionStore.getState().getSession("tab-stop")?.pendingAssistantId;
+    expect(pendingId).toBeTruthy();
+
+    await user.click(screen.getByLabelText("Stop response"));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_chat_cancel", {
+        input: { messageId: pendingId },
+      })
+    );
   });
 
   it("isolates state across sessionIds (multi-tab)", async () => {

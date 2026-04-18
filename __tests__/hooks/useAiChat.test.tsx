@@ -179,4 +179,18 @@ describe("useAiChat", () => {
       input: { sessionId: "tab-B", text: "after switch" },
     });
   });
+
+  it("cancel() invokes ai_chat_cancel with the given messageId", async () => {
+    vi.mocked(invoke).mockResolvedValueOnce({ canceled: true });
+    const { result } = renderHook(() => useAiChat("tab-cancel"));
+    await waitForListenerRegistered("ai:token");
+
+    await act(async () => {
+      await result.current.cancel("msg-99");
+    });
+
+    expect(invoke).toHaveBeenCalledWith("ai_chat_cancel", {
+      input: { messageId: "msg-99" },
+    });
+  });
 });

@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-import { aiChatSend } from "@/lib/ai";
+import { aiChatSend, aiChatCancel } from "@/lib/ai";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
 import type { AiTokenPayload } from "@/types/bindings/AiTokenPayload";
 import type { AiDonePayload } from "@/types/bindings/AiDonePayload";
@@ -23,6 +23,11 @@ export const AI_EVENT_ERROR = "ai:error";
 
 export interface UseAiChatReturn {
   send: (text: string) => Promise<void>;
+  /**
+   * Stop an in-flight assistant response by messageId. Safe noop if the
+   * message has already completed (backend returns canceled=false).
+   */
+  cancel: (messageId: string) => Promise<void>;
 }
 
 export function useAiChat(sessionId: string): UseAiChatReturn {
@@ -80,5 +85,9 @@ export function useAiChat(sessionId: string): UseAiChatReturn {
     await aiChatSend(sessionIdRef.current, text);
   }, []);
 
-  return { send };
+  const cancel = useCallback(async (messageId: string) => {
+    await aiChatCancel(messageId);
+  }, []);
+
+  return { send, cancel };
 }

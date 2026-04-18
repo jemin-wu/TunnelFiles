@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { aiHealthCheck, aiChatSend } from "@/lib/ai";
+import { aiHealthCheck, aiChatSend, aiChatCancel } from "@/lib/ai";
 
 // lib/ai.ts 是 IPC 边界本身 —— 它的单测必须 mock invoke（上面一层禁止）。
 // 功能层测试仍要 mock `@/lib/ai`，见 core-testing.md。
@@ -133,6 +133,36 @@ describe("lib/ai", () => {
       };
       mockedInvoke.mockRejectedValueOnce(appError);
       await expect(aiChatSend("tab-1", "  ")).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiChatCancel", () => {
+    it("invokes ai_chat_cancel with input wrapper carrying messageId", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: true });
+      await aiChatCancel("msg-42");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_chat_cancel", {
+        input: { messageId: "msg-42" },
+      });
+    });
+
+    it("returns parsed AiChatCancelResult", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: true });
+      const result = await aiChatCancel("msg-42");
+      expect(result).toEqual({ canceled: true });
+    });
+
+    it("returns canceled=false when backend reports message already finished", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: false });
+      const result = await aiChatCancel("stale-msg");
+      expect(result.canceled).toBe(false);
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({ wrongField: true });
+      await expect(aiChatCancel("msg-42")).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_chat_cancel"),
+      });
     });
   });
 });
