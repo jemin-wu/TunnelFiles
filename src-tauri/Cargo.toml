@@ -66,6 +66,18 @@ zeroize = "1"
 # regex 1.12 已经以传递依赖存在于 Cargo.lock，升级为直接依赖无新依赖树影响）
 regex = "1"
 
+# AI 推理运行时（SPEC §5 T1.3，Ask First 已批准 2026-04-17）。
+# 严格 pin 版本防 bundled llama.cpp 升级回归（SPEC §5 llama-cpp-2 pin 说明）。
+# Feature 白名单：macOS → metal；Windows/Linux → default（CPU）。
+# 禁用的 upstream 默认 features：openmp / android-shared-stdcxx（SPEC §7 Never）。
+# CUDA / Vulkan / ROCm 严禁启用（SPEC §7 Never "llama.cpp backend whitelist 外"）。
+# 系统先决条件：cmake（README "系统先决条件" 节）。
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { version = "=0.1.143", default-features = false, features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+llama-cpp-2 = { version = "=0.1.143", default-features = false }
+
 [dev-dependencies]
 tempfile = "3"
 futures = "0.3"

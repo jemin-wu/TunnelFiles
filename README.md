@@ -48,6 +48,18 @@ sudo xattr -rd com.apple.quarantine /Applications/TunnelFiles.app
 
 ### 从源码构建
 
+#### 系统先决条件
+
+构建过程会编译 bundled `llama.cpp`（in-process AI runtime），需要 CMake：
+
+| 平台            | 命令                                                                                                  |
+| --------------- | ----------------------------------------------------------------------------------------------------- |
+| macOS           | `brew install cmake`                                                                                  |
+| Ubuntu / Debian | `sudo apt-get install -y cmake`                                                                       |
+| Windows         | 安装 [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) 并勾选 C++ CMake 组件 |
+
+Rust toolchain (`rustup`) + Node.js 22+ + pnpm 10 见上游各自文档。
+
 ```bash
 git clone https://github.com/jemin-wu/TunnelFiles.git
 cd TunnelFiles
