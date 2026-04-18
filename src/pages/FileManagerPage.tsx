@@ -36,6 +36,7 @@ import { useTerminal } from "@/hooks/useTerminal";
 import { useTerminalDirectorySync } from "@/hooks/useTerminalDirectorySync";
 import { useSettings } from "@/hooks/useSettings";
 import { useTransferStore } from "@/stores/useTransferStore";
+import { ChatPanelLauncher } from "@/components/ai/ChatPanelLauncher";
 import { cn } from "@/lib/utils";
 import type { TerminalStatusPayload } from "@/types/terminal";
 
@@ -55,6 +56,7 @@ function getInitialSidebarCollapsed(): boolean {
 
 /** Unified toolbar for Files and Terminal modes */
 function PageToolbar({
+  sessionId,
   activeTab,
   onTabChange,
   // Files mode props
@@ -78,6 +80,7 @@ function PageToolbar({
   terminalInfo,
   onReconnect,
 }: {
+  sessionId: string;
   activeTab: TabMode;
   onTabChange: (tab: TabMode) => void;
   currentPath: string;
@@ -275,6 +278,9 @@ function PageToolbar({
         </TooltipTrigger>
         <TooltipContent className="text-xs">Terminal</TooltipContent>
       </Tooltip>
+
+      {/* AI chat launcher (only renders when settings.aiEnabled) */}
+      <ChatPanelLauncher sessionId={sessionId} />
     </div>
   );
 }
@@ -343,6 +349,7 @@ function MainContent({
     <div className="flex h-full flex-col">
       {/* Unified toolbar */}
       <PageToolbar
+        sessionId={sessionId}
         activeTab={activeTab}
         onTabChange={onTabChange}
         currentPath={currentPath}
