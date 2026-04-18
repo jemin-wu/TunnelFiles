@@ -94,11 +94,20 @@ pub struct AiChatSendResult {
     pub message_id: String,
 }
 
-/// `ai_chat_send` (v0.1 stub)：立即返回 messageId，异步发射 `ai:thinking`
-/// → 多次 `ai:token` → `ai:done` 事件。真实 LlamaRuntime::generate 在
-/// T1.3 slice 3 之后接入；事件契约不会变。
+/// `ai_chat_send`：立即返回 messageId，异步发射 `ai:thinking` →
+/// 多次 `ai:token` → `ai:done` 事件。真 FFI 路径在 runtime 已加载时生效，
+/// 否则走 stub echo（T1.3 slice 3 之后已接入）。
+///
+/// T1.7：发送前自动采集终端 context snapshot，透传给 `run_chat_stream`。
+/// 若 session / terminal 缺失 gather_snapshot_from_state 返回空结果，
+/// 转换为 `None` 后不注入 context 块。
 #[tauri::command]
-pub async fn ai_chat_send(app: AppHandle, input: AiChatSendInput) -> AppResult<AiChatSendResult> {
+pub async fn ai_chat_send(
+    app: AppHandle,
+    session_manager: State<'_, Arc<SessionManager>>,
+    terminal_manager: State<'_, Arc<TerminalManager>>,
+    input: AiChatSendInput,
+) -> AppResult<AiChatSendResult> {
     if input.text.trim().is_empty() {
         return Err(AppError::invalid_argument("chat text cannot be empty"));
     }
@@ -106,20 +115,26 @@ pub async fn ai_chat_send(app: AppHandle, input: AiChatSendInput) -> AppResult<A
         return Err(AppError::invalid_argument("sessionId cannot be empty"));
     }
     let message_id = Uuid::new_v4().to_string();
+    let snapshot_result = gather_snapshot_from_state(
+        session_manager.inner(),
+        terminal_manager.inner(),
+        &input.session_id,
+    );
+    let prompt_context = context::to_prompt_snapshot(&snapshot_result);
     tracing::debug!(
         session_id = %input.session_id,
         message_id = %message_id,
         text_len = input.text.chars().count(),
-        "AI chat send (stub)"
+        context_present = prompt_context.is_some(),
+        "AI chat send"
     );
 
-    // spawn 异步任务驱动事件；命令立即返回 messageId 让前端登记 pending 状态。
-    // run_chat_stream 内部根据 loaded_runtime() 自动选真 generate 或 stub echo。
     tauri::async_runtime::spawn(chat::run_chat_stream(
         app,
         input.session_id,
         message_id.clone(),
         input.text,
+        prompt_context,
     ));
 
     Ok(AiChatSendResult { message_id })
@@ -160,6 +175,26 @@ pub struct AiContextSnapshotResult {
     pub recent_output: String,
 }
 
+/// 共享采集入口：`ai_context_snapshot` 命令和 `ai_chat_send` 自动注入都走这里。
+///
+/// session / terminal 任意缺失时对应字段返回空串 —— best-effort 语义。调用方
+/// 可通过 `context::to_prompt_snapshot` 判断是否需要注入 prompt。
+pub(crate) fn gather_snapshot_from_state(
+    session_manager: &Arc<SessionManager>,
+    terminal_manager: &Arc<TerminalManager>,
+    session_id: &str,
+) -> AiContextSnapshotResult {
+    let home_path = session_manager
+        .get_session(session_id)
+        .map(|s| s.home_path.clone())
+        .unwrap_or_default();
+    let raw_output = terminal_manager
+        .get_managed_terminal_by_session(session_id)
+        .map(|t| t.snapshot_recent_output())
+        .unwrap_or_default();
+    context::compose_snapshot(session_id.to_string(), home_path, raw_output)
+}
+
 /// `ai_context_snapshot`：采集指定 session 的终端上下文快照（T1.7）。
 ///
 /// session / terminal 任意缺失时对应字段返回空串 —— best-effort 语义，不 error。
@@ -173,25 +208,18 @@ pub async fn ai_context_snapshot(
     if input.session_id.trim().is_empty() {
         return Err(AppError::invalid_argument("sessionId cannot be empty"));
     }
-    let home_path = session_manager
-        .get_session(&input.session_id)
-        .map(|s| s.home_path.clone())
-        .unwrap_or_default();
-    let raw_output = terminal_manager
-        .get_managed_terminal_by_session(&input.session_id)
-        .map(|t| t.snapshot_recent_output())
-        .unwrap_or_default();
+    let result = gather_snapshot_from_state(
+        session_manager.inner(),
+        terminal_manager.inner(),
+        &input.session_id,
+    );
     tracing::debug!(
         session_id = %input.session_id,
-        raw_bytes = raw_output.len(),
-        home_present = !home_path.is_empty(),
+        recent_bytes = result.recent_output.len(),
+        home_present = !result.pwd.is_empty(),
         "AI context snapshot"
     );
-    Ok(context::compose_snapshot(
-        input.session_id,
-        home_path,
-        raw_output,
-    ))
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -360,5 +388,23 @@ mod tests {
         assert!(json.contains("\"recentOutput\""));
         let back: AiContextSnapshotResult = serde_json::from_str(&json).expect("round trip");
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn gather_snapshot_returns_empty_fields_when_session_missing() {
+        let sm = Arc::new(SessionManager::new());
+        let tm = Arc::new(TerminalManager::new());
+        let result = gather_snapshot_from_state(&sm, &tm, "nonexistent-session");
+        assert_eq!(result.session_id, "nonexistent-session");
+        assert_eq!(result.pwd, "");
+        assert_eq!(result.recent_output, "");
+    }
+
+    #[test]
+    fn gather_snapshot_result_maps_to_none_prompt_context_when_empty() {
+        let sm = Arc::new(SessionManager::new());
+        let tm = Arc::new(TerminalManager::new());
+        let result = gather_snapshot_from_state(&sm, &tm, "absent");
+        assert!(context::to_prompt_snapshot(&result).is_none());
     }
 }

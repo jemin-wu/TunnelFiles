@@ -12,6 +12,7 @@
 //!   从 `recent_output` 里的 shell prompt 推真实 cwd
 
 use crate::commands::ai::AiContextSnapshotResult;
+use crate::services::ai::prompt::ContextSnapshot;
 use crate::services::ai::scrubber;
 
 /// 行边界对齐触发阈值 —— 与 `terminal_manager::RECENT_OUTPUT_CAP` 保持一致。
@@ -34,6 +35,21 @@ pub fn compose_snapshot(
         session_id,
         pwd: home_path,
         recent_output: scrubbed,
+    }
+}
+
+/// 把 IPC 形状的 snapshot 转成 prompt 组装用的 `ContextSnapshot`。
+///
+/// pwd 和 recent_output 都空时返回 `None` —— 调用方据此决定是否注入 context 块；
+/// 任一有内容则原样传入。不重复跑 scrubber：`compose_snapshot` 已经擦过。
+pub fn to_prompt_snapshot(result: &AiContextSnapshotResult) -> Option<ContextSnapshot> {
+    if result.pwd.is_empty() && result.recent_output.is_empty() {
+        None
+    } else {
+        Some(ContextSnapshot {
+            pwd: result.pwd.clone(),
+            recent_output: result.recent_output.clone(),
+        })
     }
 }
 
@@ -153,6 +169,51 @@ mod tests {
         // 现场决定：pwd 直接透传（session.home_path 不可能含凭据；若未来 pwd
         // 来源改变，此测试作为提醒需同步评估）
         assert_eq!(result.pwd, "/home/user-AKIAIOSFODNN7EXAMPLE");
+    }
+
+    #[test]
+    fn to_prompt_snapshot_returns_none_when_both_empty() {
+        let result = AiContextSnapshotResult {
+            session_id: "s".into(),
+            pwd: String::new(),
+            recent_output: String::new(),
+        };
+        assert!(to_prompt_snapshot(&result).is_none());
+    }
+
+    #[test]
+    fn to_prompt_snapshot_returns_some_when_only_pwd_set() {
+        let result = AiContextSnapshotResult {
+            session_id: "s".into(),
+            pwd: "/home".into(),
+            recent_output: String::new(),
+        };
+        let snap = to_prompt_snapshot(&result).expect("some");
+        assert_eq!(snap.pwd, "/home");
+        assert_eq!(snap.recent_output, "");
+    }
+
+    #[test]
+    fn to_prompt_snapshot_returns_some_when_only_recent_output_set() {
+        let result = AiContextSnapshotResult {
+            session_id: "s".into(),
+            pwd: String::new(),
+            recent_output: "ls".into(),
+        };
+        let snap = to_prompt_snapshot(&result).expect("some");
+        assert_eq!(snap.recent_output, "ls");
+    }
+
+    #[test]
+    fn to_prompt_snapshot_preserves_already_scrubbed_content() {
+        // compose_snapshot 已经跑过 scrubber；to_prompt_snapshot 不二次跑
+        let result = AiContextSnapshotResult {
+            session_id: "s".into(),
+            pwd: "/home".into(),
+            recent_output: format!("safe text {}", scrubber::REDACTED_PLACEHOLDER),
+        };
+        let snap = to_prompt_snapshot(&result).expect("some");
+        assert!(snap.recent_output.contains(scrubber::REDACTED_PLACEHOLDER));
     }
 
     #[test]
