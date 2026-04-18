@@ -25,12 +25,14 @@ export interface Settings {
   terminalFollowDirectory: boolean;
   /** AI Shell Copilot 启用开关（默认 false，off-by-default） */
   aiEnabled: boolean;
-  /** AI 模型名（默认 "gemma4:e4b"） */
+  /** AI 模型名（默认 "gemma-4-E4B-it-Q4_K_M"；与 approved-model-sources.md 对齐） */
   aiModelName: string;
   /** AI 并发独立只读 probe session 上限（1-10，默认 3） */
   maxConcurrentAiProbes: number;
   /** AI 单次生成输出 token 上限（256-4096，DoS 防线） */
   aiOutputTokenCap: number;
+  /** Gemma Terms of Use 接受时间戳（Unix millis UTC）；未接受即 undefined */
+  aiLicenseAcceptedAt?: number;
 }
 
 /**
@@ -58,8 +60,8 @@ export const AI_OUTPUT_TOKEN_CAP_MIN = 256;
 export const AI_OUTPUT_TOKEN_CAP_MAX = 4096;
 export const AI_OUTPUT_TOKEN_CAP_DEFAULT = 4096;
 
-/** AI 默认模型名 */
-export const AI_MODEL_NAME_DEFAULT = "gemma4:e4b";
+/** AI 默认模型名（与 `docs/approved-model-sources.md` pin 的文件名一致） */
+export const AI_MODEL_NAME_DEFAULT = "gemma-4-E4B-it-Q4_K_M";
 
 /**
  * 默认设置

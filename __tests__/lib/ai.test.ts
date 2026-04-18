@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { aiHealthCheck, aiChatSend, aiChatCancel, aiContextSnapshot } from "@/lib/ai";
+import {
+  aiHealthCheck,
+  aiChatSend,
+  aiChatCancel,
+  aiContextSnapshot,
+  aiLicenseAccept,
+} from "@/lib/ai";
+import { DEFAULT_SETTINGS } from "@/types/settings";
 
 // lib/ai.ts 是 IPC 边界本身 —— 它的单测必须 mock invoke（上面一层禁止）。
 // 功能层测试仍要 mock `@/lib/ai`，见 core-testing.md。
@@ -16,7 +23,7 @@ describe("lib/ai", () => {
       mockedInvoke.mockResolvedValueOnce({
         runtimeReady: false,
         modelPresent: true,
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "metal",
       });
       await aiHealthCheck();
@@ -27,14 +34,14 @@ describe("lib/ai", () => {
       mockedInvoke.mockResolvedValueOnce({
         runtimeReady: true,
         modelPresent: true,
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "metal",
       });
       const result = await aiHealthCheck();
       expect(result).toEqual({
         runtimeReady: true,
         modelPresent: true,
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "metal",
       });
     });
@@ -45,7 +52,7 @@ describe("lib/ai", () => {
         mockedInvoke.mockResolvedValueOnce({
           runtimeReady: false,
           modelPresent: false,
-          modelName: "gemma4:e4b",
+          modelName: "gemma-4-E4B-it-Q4_K_M",
           acceleratorKind: kind,
         });
         const result = await aiHealthCheck();
@@ -57,7 +64,7 @@ describe("lib/ai", () => {
       mockedInvoke.mockResolvedValueOnce({
         runtimeReady: false,
         modelPresent: false,
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "cuda", // 未批准的 backend
       });
       await expect(aiHealthCheck()).rejects.toMatchObject({
@@ -70,7 +77,7 @@ describe("lib/ai", () => {
       mockedInvoke.mockResolvedValueOnce({
         runtimeReady: true,
         // modelPresent 缺失
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "metal",
       });
       await expect(aiHealthCheck()).rejects.toMatchObject({
@@ -83,7 +90,7 @@ describe("lib/ai", () => {
       mockedInvoke.mockResolvedValueOnce({
         runtimeReady: "yes", // string, 不是 boolean
         modelPresent: true,
-        modelName: "gemma4:e4b",
+        modelName: "gemma-4-E4B-it-Q4_K_M",
         acceleratorKind: "metal",
       });
       await expect(aiHealthCheck()).rejects.toMatchObject({
@@ -235,6 +242,44 @@ describe("lib/ai", () => {
       };
       mockedInvoke.mockRejectedValueOnce(appError);
       await expect(aiContextSnapshot("  ")).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiLicenseAccept", () => {
+    it("invokes ai_license_accept with no args", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        ...DEFAULT_SETTINGS,
+        aiLicenseAcceptedAt: 1700000000000,
+      });
+      await aiLicenseAccept();
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_license_accept");
+    });
+
+    it("returns parsed Settings with accepted_at timestamp", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        ...DEFAULT_SETTINGS,
+        aiLicenseAcceptedAt: 1700000000000,
+      });
+      const result = await aiLicenseAccept();
+      expect(result.aiLicenseAcceptedAt).toBe(1700000000000);
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({ wrongField: "x" });
+      await expect(aiLicenseAccept()).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_license_accept"),
+      });
+    });
+
+    it("propagates invoke rejection unchanged", async () => {
+      const appError = {
+        code: "LOCAL_IO_ERROR",
+        message: "db locked",
+        retryable: true,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiLicenseAccept()).rejects.toBe(appError);
     });
   });
 });

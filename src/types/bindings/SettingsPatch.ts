@@ -4,4 +4,9 @@ import type { LogLevel } from "./LogLevel";
 /**
  * 设置更新补丁
  */
-export type SettingsPatch = { defaultDownloadDir: string | null, maxConcurrentTransfers: number | null, connectionTimeoutSecs: number | null, transferRetryCount: number | null, logLevel: LogLevel | null, terminalFontSize: number | null, terminalScrollbackLines: number | null, terminalFollowDirectory: boolean | null, aiEnabled: boolean | null, aiModelName: string | null, maxConcurrentAiProbes: number | null, aiOutputTokenCap: number | null, };
+export type SettingsPatch = { defaultDownloadDir: string | null, maxConcurrentTransfers: number | null, connectionTimeoutSecs: number | null, transferRetryCount: number | null, logLevel: LogLevel | null, terminalFontSize: number | null, terminalScrollbackLines: number | null, terminalFollowDirectory: boolean | null, aiEnabled: boolean | null, aiModelName: string | null, maxConcurrentAiProbes: number | null, aiOutputTokenCap: number | null, 
+/**
+ * License accept 时间戳。设置 `Some(ts)` 写入；设置 `Some(0)` 或
+ * `settings_reset` 清空。patch 里缺省（None）= 不变动。
+ */
+aiLicenseAcceptedAt: number | null, };

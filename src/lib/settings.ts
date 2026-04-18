@@ -27,6 +27,7 @@ const SettingsSchema = z.object({
   aiModelName: z.string(),
   maxConcurrentAiProbes: z.number(),
   aiOutputTokenCap: z.number(),
+  aiLicenseAcceptedAt: z.number().optional(),
 });
 
 // ============================================================================

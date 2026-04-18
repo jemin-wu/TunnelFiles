@@ -12,6 +12,7 @@ import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
 import type { AiChatCancelResult } from "@/types/bindings/AiChatCancelResult";
 import type { AiContextSnapshotResult } from "@/types/bindings/AiContextSnapshotResult";
+import type { Settings } from "@/types/settings";
 
 // ============================================================================
 // Schemas
@@ -77,6 +78,42 @@ export async function aiChatCancel(messageId: string): Promise<AiChatCancelResul
     input: { messageId },
   });
   return parseInvokeResult(AiChatCancelResultSchema, result, "ai_chat_cancel");
+}
+
+// ============================================================================
+// License Accept (T1.5)
+// ============================================================================
+
+// 同 lib/settings.ts SettingsSchema；复制而非 import 以避免循环依赖 /
+// 耦合升级。字段增减由 bindings + 双方 schema 同步保证。
+const SettingsSchema: z.ZodType<Settings> = z.object({
+  defaultDownloadDir: z.string().optional(),
+  maxConcurrentTransfers: z.number(),
+  connectionTimeoutSecs: z.number(),
+  transferRetryCount: z.number(),
+  logLevel: z.enum(["error", "warn", "info", "debug"]),
+  terminalFontSize: z.number(),
+  terminalScrollbackLines: z.number(),
+  terminalFollowDirectory: z.boolean(),
+  aiEnabled: z.boolean(),
+  aiModelName: z.string(),
+  maxConcurrentAiProbes: z.number(),
+  aiOutputTokenCap: z.number(),
+  aiLicenseAcceptedAt: z.number().optional(),
+});
+
+/**
+ * Record that the user has accepted the Gemma Terms of Use. Must be called
+ * before `ai_model_download` — otherwise download returns AI_UNAVAILABLE
+ * with `detail: "license not accepted"`.
+ *
+ * Idempotent: repeat calls refresh the stored timestamp (for future "re-accept
+ * latest ToU" UX). Returns the updated Settings so callers can read the new
+ * `aiLicenseAcceptedAt` without a separate fetch.
+ */
+export async function aiLicenseAccept(): Promise<Settings> {
+  const result = await timedInvoke("ai_license_accept");
+  return parseInvokeResult(SettingsSchema, result, "ai_license_accept");
 }
 
 // ============================================================================

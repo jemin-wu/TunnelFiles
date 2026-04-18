@@ -18,7 +18,7 @@ use crate::models::profile::{AuthType, Profile, RecentConnection};
 use crate::models::settings::{Settings, SettingsPatch};
 
 /// 数据库版本 - 用于迁移
-const DB_VERSION: i32 = 5;
+const DB_VERSION: i32 = 6;
 
 /// 最近连接最大数量
 const MAX_RECENT_CONNECTIONS: i32 = 10;
@@ -117,9 +117,10 @@ impl Database {
                 terminal_scrollback_lines INTEGER NOT NULL DEFAULT 5000,
                 terminal_follow_directory INTEGER NOT NULL DEFAULT 1,
                 ai_enabled INTEGER NOT NULL DEFAULT 0,
-                ai_model_name TEXT NOT NULL DEFAULT 'gemma4:e4b',
+                ai_model_name TEXT NOT NULL DEFAULT 'gemma-4-E4B-it-Q4_K_M',
                 max_concurrent_ai_probes INTEGER NOT NULL DEFAULT 3,
                 ai_output_token_cap INTEGER NOT NULL DEFAULT 4096,
+                ai_license_accepted_at INTEGER,
                 updated_at INTEGER NOT NULL
             );
             INSERT OR IGNORE INTO settings (id, updated_at) VALUES (1, 0);
@@ -235,9 +236,13 @@ impl Database {
                 ("terminal_scrollback_lines", "INTEGER NOT NULL DEFAULT 5000"),
                 ("terminal_follow_directory", "INTEGER NOT NULL DEFAULT 1"),
                 ("ai_enabled", "INTEGER NOT NULL DEFAULT 0"),
+                // 旧库的 ai_model_name default 是 'gemma4:e4b'；新安装走 ensure_settings_table 的
+                // 'gemma-4-E4B-it-Q4_K_M'。现有行的值保留不动（升级时不强改用户 pin）。
                 ("ai_model_name", "TEXT NOT NULL DEFAULT 'gemma4:e4b'"),
                 ("max_concurrent_ai_probes", "INTEGER NOT NULL DEFAULT 3"),
                 ("ai_output_token_cap", "INTEGER NOT NULL DEFAULT 4096"),
+                // v5 → v6: Gemma ToU accept 时间戳（nullable 表示未接受）
+                ("ai_license_accepted_at", "INTEGER"),
             ];
 
             for (col_name, col_def) in new_cols {
@@ -749,6 +754,7 @@ impl Database {
                 ai_model_name = ?,
                 max_concurrent_ai_probes = ?,
                 ai_output_token_cap = ?,
+                ai_license_accepted_at = ?,
                 updated_at = ?
             WHERE id = 1
             "#,
@@ -765,6 +771,7 @@ impl Database {
                 settings.ai_model_name,
                 settings.max_concurrent_ai_probes,
                 settings.ai_output_token_cap,
+                settings.ai_license_accepted_at,
                 now,
             ],
         )?;
@@ -786,6 +793,7 @@ impl Database {
             ai_model_name: row.get(9)?,
             max_concurrent_ai_probes: row.get(10)?,
             ai_output_token_cap: row.get(11)?,
+            ai_license_accepted_at: row.get(12)?,
         })
     }
 
@@ -839,7 +847,7 @@ impl Database {
                    terminal_font_size, terminal_scrollback_lines,
                    terminal_follow_directory,
                    ai_enabled, ai_model_name, max_concurrent_ai_probes,
-                   ai_output_token_cap
+                   ai_output_token_cap, ai_license_accepted_at
             FROM settings WHERE id = 1
             "#,
             [],
@@ -863,7 +871,7 @@ impl Database {
                    terminal_font_size, terminal_scrollback_lines,
                    terminal_follow_directory,
                    ai_enabled, ai_model_name, max_concurrent_ai_probes,
-                   ai_output_token_cap
+                   ai_output_token_cap, ai_license_accepted_at
             FROM settings WHERE id = 1
             "#,
             [],
@@ -920,6 +928,10 @@ impl Database {
                 crate::models::settings::AI_OUTPUT_TOKEN_CAP_MIN,
                 crate::models::settings::AI_OUTPUT_TOKEN_CAP_MAX,
             );
+        }
+        if let Some(v) = patch.ai_license_accepted_at {
+            // Some(0) 视为显式清除（配合 settings_reset 以外的手动清理）
+            settings.ai_license_accepted_at = if v <= 0 { None } else { Some(v) };
         }
 
         Self::save_settings_to_db(&conn, &settings)?;
@@ -1131,9 +1143,10 @@ mod tests {
         // 新库载入 → AI 字段为默认值（off-by-default + gemma4:e4b + 3/4096）
         let loaded = db.settings_load().unwrap();
         assert!(!loaded.ai_enabled, "新库 ai_enabled 必须为 false");
-        assert_eq!(loaded.ai_model_name, "gemma4:e4b");
+        assert_eq!(loaded.ai_model_name, "gemma-4-E4B-it-Q4_K_M");
         assert_eq!(loaded.max_concurrent_ai_probes, 3);
         assert_eq!(loaded.ai_output_token_cap, 4096);
+        assert!(loaded.ai_license_accepted_at.is_none());
 
         // patch 启用 AI 并改并发/cap
         let patch = SettingsPatch {
@@ -1146,20 +1159,21 @@ mod tests {
             terminal_scrollback_lines: None,
             terminal_follow_directory: None,
             ai_enabled: Some(true),
-            ai_model_name: Some("gemma4:e2b".to_string()),
+            ai_model_name: Some("gemma-4-E4B-it-Q5_K_M".to_string()),
             max_concurrent_ai_probes: Some(50), // 越界 → 被 clamp 到 10
             ai_output_token_cap: Some(99999),   // 越界 → 被 clamp 到 4096
+            ai_license_accepted_at: None,
         };
         let updated = db.settings_update(&patch).unwrap();
         assert!(updated.ai_enabled);
-        assert_eq!(updated.ai_model_name, "gemma4:e2b");
+        assert_eq!(updated.ai_model_name, "gemma-4-E4B-it-Q5_K_M");
         assert_eq!(updated.max_concurrent_ai_probes, 10);
         assert_eq!(updated.ai_output_token_cap, 4096);
 
         // 再次 load，值持久化
         let reloaded = db.settings_load().unwrap();
         assert!(reloaded.ai_enabled);
-        assert_eq!(reloaded.ai_model_name, "gemma4:e2b");
+        assert_eq!(reloaded.ai_model_name, "gemma-4-E4B-it-Q5_K_M");
         assert_eq!(reloaded.max_concurrent_ai_probes, 10);
         assert_eq!(reloaded.ai_output_token_cap, 4096);
     }
@@ -1181,9 +1195,62 @@ mod tests {
             ai_model_name: Some("   ".to_string()),
             max_concurrent_ai_probes: None,
             ai_output_token_cap: None,
+            ai_license_accepted_at: None,
         };
         let updated = db.settings_update(&patch).unwrap();
-        assert_eq!(updated.ai_model_name, "gemma4:e4b");
+        assert_eq!(updated.ai_model_name, "gemma-4-E4B-it-Q4_K_M");
+    }
+
+    #[test]
+    fn test_settings_update_records_license_acceptance() {
+        let db = setup_test_db();
+        // 未接受 license
+        let before = db.settings_load().unwrap();
+        assert!(before.ai_license_accepted_at.is_none());
+
+        // 写入时间戳
+        let patch = SettingsPatch {
+            ai_license_accepted_at: Some(1_700_000_000_000),
+            ..Default::default()
+        };
+        let updated = db.settings_update(&patch).unwrap();
+        assert_eq!(updated.ai_license_accepted_at, Some(1_700_000_000_000));
+
+        // 持久化
+        let reloaded = db.settings_load().unwrap();
+        assert_eq!(reloaded.ai_license_accepted_at, Some(1_700_000_000_000));
+    }
+
+    #[test]
+    fn test_settings_update_license_zero_clears_acceptance() {
+        let db = setup_test_db();
+        // 先接受
+        db.settings_update(&SettingsPatch {
+            ai_license_accepted_at: Some(1_700_000_000_000),
+            ..Default::default()
+        })
+        .unwrap();
+        // 再用 0 显式清空
+        let cleared = db
+            .settings_update(&SettingsPatch {
+                ai_license_accepted_at: Some(0),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(cleared.ai_license_accepted_at.is_none());
+    }
+
+    #[test]
+    fn test_settings_reset_clears_license_acceptance() {
+        let db = setup_test_db();
+        // accept 后 reset 应清空
+        db.settings_update(&SettingsPatch {
+            ai_license_accepted_at: Some(1_700_000_000_000),
+            ..Default::default()
+        })
+        .unwrap();
+        let reset = db.settings_reset().unwrap();
+        assert!(reset.ai_license_accepted_at.is_none());
     }
 
     #[test]

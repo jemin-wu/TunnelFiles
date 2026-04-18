@@ -68,7 +68,7 @@ export const mockSettings: Settings = {
   terminalScrollbackLines: 5000,
   terminalFollowDirectory: true,
   aiEnabled: false,
-  aiModelName: "gemma4:e4b",
+  aiModelName: "gemma-4-E4B-it-Q4_K_M",
   maxConcurrentAiProbes: 3,
   aiOutputTokenCap: 4096,
 };

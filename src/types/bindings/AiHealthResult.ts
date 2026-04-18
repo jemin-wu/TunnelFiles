@@ -14,7 +14,7 @@ runtimeReady: boolean,
  */
 modelPresent: boolean, 
 /**
- * 模型名（来自 Settings.ai_model_name，例："gemma4:e4b"）
+ * 模型名（来自 Settings.ai_model_name，例："gemma-4-E4B-it-Q4_K_M"）
  */
 modelName: string, 
 /**

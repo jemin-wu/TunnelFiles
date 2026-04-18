@@ -27,7 +27,7 @@ pub struct AiHealthResult {
     pub runtime_ready: bool,
     /// GGUF 模型文件是否存在于预期路径（只 stat，不校验哈希）
     pub model_present: bool,
-    /// 模型名（来自 Settings.ai_model_name，例："gemma4:e4b"）
+    /// 模型名（来自 Settings.ai_model_name，例："gemma-4-E4B-it-Q4_K_M"）
     pub model_name: String,
     /// 当前编译目标支持的加速器
     pub accelerator_kind: AcceleratorKind,

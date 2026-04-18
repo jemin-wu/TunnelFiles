@@ -7,12 +7,12 @@ use std::path::PathBuf;
 
 /// 模型名转 GGUF 文件名。
 ///
-/// 规则：`":"` 替换为 `"-"`，追加 `"-q4_k_m.gguf"`。例："gemma4:e4b" →
-/// "gemma4-e4b-q4_k_m.gguf"。仅支持 q4_k_m 量化（SPEC §5 冻结），其他量化
-/// 等级需新量化策略落地后再扩展。
+/// 规则：`":"` 替换为 `"-"`，追加 `".gguf"`。例 "gemma-4-E4B-it-Q4_K_M" →
+/// "gemma-4-E4B-it-Q4_K_M.gguf"。量化等级已成为 model_name 的一部分（与
+/// `docs/approved-model-sources.md` 的文件命名对齐），不再强制附加 `-q4_k_m`。
 pub fn gguf_filename(model_name: &str) -> String {
     let sanitized = model_name.replace(':', "-");
-    format!("{sanitized}-q4_k_m.gguf")
+    format!("{sanitized}.gguf")
 }
 
 /// 计算当前平台下 GGUF 模型文件的绝对路径。
@@ -35,42 +35,52 @@ mod tests {
     use super::*;
 
     #[test]
+    fn gguf_filename_default_model_matches_upstream() {
+        // 与 unsloth/gemma-4-E4B-it-GGUF 仓库实际文件名对齐
+        assert_eq!(
+            gguf_filename("gemma-4-E4B-it-Q4_K_M"),
+            "gemma-4-E4B-it-Q4_K_M.gguf"
+        );
+    }
+
+    #[test]
     fn gguf_filename_replaces_colon_with_dash() {
-        assert_eq!(gguf_filename("gemma4:e4b"), "gemma4-e4b-q4_k_m.gguf");
+        // 兼容旧 ollama 风格 identifier（若用户 pin 了带冒号的 model_name）
+        assert_eq!(gguf_filename("gemma4:e4b"), "gemma4-e4b.gguf");
     }
 
     #[test]
     fn gguf_filename_replaces_multiple_colons() {
-        assert_eq!(gguf_filename("a:b:c"), "a-b-c-q4_k_m.gguf");
+        assert_eq!(gguf_filename("a:b:c"), "a-b-c.gguf");
     }
 
     #[test]
     fn gguf_filename_preserves_hyphens_and_underscores() {
-        assert_eq!(gguf_filename("my-model_v2"), "my-model_v2-q4_k_m.gguf");
+        assert_eq!(gguf_filename("my-model_v2"), "my-model_v2.gguf");
     }
 
     #[test]
     fn gguf_filename_handles_empty_name() {
-        assert_eq!(gguf_filename(""), "-q4_k_m.gguf");
+        assert_eq!(gguf_filename(""), ".gguf");
     }
 
     #[test]
     fn gguf_filename_is_stable_for_same_input() {
-        let a = gguf_filename("gemma4:e4b");
-        let b = gguf_filename("gemma4:e4b");
+        let a = gguf_filename("gemma-4-E4B-it-Q4_K_M");
+        let b = gguf_filename("gemma-4-E4B-it-Q4_K_M");
         assert_eq!(a, b);
     }
 
     #[test]
     fn model_file_path_contains_tunnelfiles_models_suffix() {
         // dirs::data_local_dir() 在 CI + 开发机都能得到值；极小概率 None
-        let path = model_file_path("gemma4:e4b");
+        let path = model_file_path("gemma-4-E4B-it-Q4_K_M");
         if let Some(p) = path {
             let s = p.to_string_lossy().to_string();
             assert!(s.contains("TunnelFiles"), "path missing TunnelFiles: {s}");
             assert!(s.contains("models"), "path missing models dir: {s}");
             assert!(
-                s.ends_with("gemma4-e4b-q4_k_m.gguf"),
+                s.ends_with("gemma-4-E4B-it-Q4_K_M.gguf"),
                 "path should end with gguf filename: {s}"
             );
         }

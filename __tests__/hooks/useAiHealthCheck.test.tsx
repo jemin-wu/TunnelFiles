@@ -13,7 +13,7 @@ import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 const baseHealth: AiHealthResult = {
   runtimeReady: false,
   modelPresent: false,
-  modelName: "gemma4:e4b",
+  modelName: "gemma-4-E4B-it-Q4_K_M",
   acceleratorKind: "metal",
 };
 
@@ -98,7 +98,7 @@ describe("useAiHealthCheck", () => {
     vi.mocked(invoke).mockResolvedValue({
       runtimeReady: false,
       modelPresent: false,
-      modelName: "gemma4:e4b",
+      modelName: "gemma-4-E4B-it-Q4_K_M",
       acceleratorKind: "metal",
     } satisfies AiHealthResult);
 
@@ -114,7 +114,7 @@ describe("useAiHealthCheck", () => {
     vi.mocked(invoke).mockResolvedValue({
       runtimeReady: true,
       modelPresent: true,
-      modelName: "gemma4:e4b",
+      modelName: "gemma-4-E4B-it-Q4_K_M",
       acceleratorKind: "metal",
     } satisfies AiHealthResult);
 
@@ -142,7 +142,7 @@ describe("useAiHealthCheck", () => {
     vi.mocked(invoke).mockResolvedValue({
       runtimeReady: true,
       modelPresent: true,
-      modelName: "gemma4:e4b",
+      modelName: "gemma-4-E4B-it-Q4_K_M",
       acceleratorKind: "metal",
     } satisfies AiHealthResult);
 

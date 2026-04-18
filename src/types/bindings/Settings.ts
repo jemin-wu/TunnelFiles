@@ -42,7 +42,8 @@ terminalFollowDirectory: boolean,
  */
 aiEnabled: boolean, 
 /**
- * AI 模型名（GGUF 标识符，默认 gemma4:e4b）
+ * AI 模型名（GGUF 文件名 stem，默认 "gemma-4-E4B-it-Q4_K_M"；与
+ * `docs/approved-model-sources.md` 中 pin 的文件对齐）
  */
 aiModelName: string, 
 /**
@@ -52,4 +53,10 @@ maxConcurrentAiProbes: number,
 /**
  * AI 单次生成输出 token 上限（256-4096，DoS 防线）
  */
-aiOutputTokenCap: number, };
+aiOutputTokenCap: number, 
+/**
+ * Gemma Terms of Use 接受时间戳（Unix millis UTC）。未接受即 None；
+ * `ai_model_download` 未接受前返回 `AiUnavailable { detail: "license not accepted" }`。
+ * SPEC §7 要求：accept 后该字段只能被用户显式重置设置清空。
+ */
+aiLicenseAcceptedAt: number | null, };

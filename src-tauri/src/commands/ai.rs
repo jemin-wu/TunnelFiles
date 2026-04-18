@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
-use crate::models::settings::Settings;
+use crate::models::settings::{Settings, SettingsPatch};
 use crate::services::ai::{chat, context, health, llama_runtime, paths};
 use crate::services::session_manager::SessionManager;
 use crate::services::storage_service::Database;
@@ -54,6 +54,36 @@ pub async fn ai_health_check(db: State<'_, Arc<Database>>) -> AppResult<AiHealth
         .await
         .map_err(|e| AppError::new(ErrorCode::Unknown, format!("健康检查任务失败: {}", e)))??;
     Ok(compute_health(&settings))
+}
+
+/// 纯函数：用当前时间构造 "接受 license" 的 settings patch。独立出来便于单测。
+pub(crate) fn build_license_accept_patch(now_millis: i64) -> SettingsPatch {
+    SettingsPatch {
+        ai_license_accepted_at: Some(now_millis),
+        ..Default::default()
+    }
+}
+
+/// `ai_license_accept`：用户在 ModelOnboardingDialog 点 "Accept & Download" 时
+/// 调用。写入 Gemma ToU 接受时间戳；未调用前 `ai_model_download` 会拒绝执行
+/// （返回 `AiUnavailable { detail: "license not accepted" }`）。
+///
+/// 幂等：重复调用刷新时间戳（用户重新 accept 最新版本 ToU 的场景）。
+#[tauri::command]
+pub async fn ai_license_accept(db: State<'_, Arc<Database>>) -> AppResult<Settings> {
+    let db = (*db).clone();
+    let now = chrono::Utc::now().timestamp_millis();
+    let patch = build_license_accept_patch(now);
+    let settings = tokio::task::spawn_blocking(move || db.settings_update(&patch))
+        .await
+        .map_err(|e| {
+            AppError::new(
+                ErrorCode::Unknown,
+                format!("license accept 任务失败: {}", e),
+            )
+        })??;
+    tracing::info!(accepted_at = now, "Gemma ToU accepted");
+    Ok(settings)
 }
 
 /// `ai_chat_send` 入参（v0.1）。
@@ -388,6 +418,29 @@ mod tests {
         assert!(json.contains("\"recentOutput\""));
         let back: AiContextSnapshotResult = serde_json::from_str(&json).expect("round trip");
         assert_eq!(back, r);
+    }
+
+    #[test]
+    fn build_license_accept_patch_carries_timestamp_only() {
+        let patch = build_license_accept_patch(1_700_000_000_000);
+        assert_eq!(patch.ai_license_accepted_at, Some(1_700_000_000_000));
+        // 其他字段必须为 None，防止 license accept 意外改动其他设置
+        assert!(patch.ai_enabled.is_none());
+        assert!(patch.ai_model_name.is_none());
+        assert!(patch.default_download_dir.is_none());
+        assert!(patch.max_concurrent_transfers.is_none());
+        assert!(patch.terminal_font_size.is_none());
+    }
+
+    #[test]
+    fn build_license_accept_patch_accepts_current_timestamp() {
+        let now = chrono::Utc::now().timestamp_millis();
+        let patch = build_license_accept_patch(now);
+        assert_eq!(patch.ai_license_accepted_at, Some(now));
+        assert!(
+            now > 1_700_000_000_000,
+            "sanity: chrono returned a post-2023 timestamp"
+        );
     }
 
     #[test]
