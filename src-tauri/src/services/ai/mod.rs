@@ -7,6 +7,7 @@ pub mod context;
 pub mod generate;
 pub mod health;
 pub mod llama_runtime;
+pub mod model_download;
 pub mod paths;
 pub mod prompt;
 pub mod scrubber;
