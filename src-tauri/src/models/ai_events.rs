@@ -88,3 +88,18 @@ pub struct AiDownloadProgressPayload {
     pub total: u64,
     pub percent: u8,
 }
+
+/// `ai:download_done` —— 下载流程终态（成功 / 取消 / 失败）。
+///
+/// - `canceled=true` 表示用户通过 `ai_model_download_cancel` 中断；`error=None`
+/// - `error=Some` 表示任意环节失败（HTTP / sha256 / 磁盘 IO）；`canceled=false`
+/// - 两者都 false 表示正常完成（verify 通过，GGUF 可被下次 health check 发现）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiDownloadDonePayload {
+    pub canceled: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<AppError>,
+}

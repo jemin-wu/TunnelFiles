@@ -12,6 +12,7 @@ import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
 import type { AiChatCancelResult } from "@/types/bindings/AiChatCancelResult";
 import type { AiContextSnapshotResult } from "@/types/bindings/AiContextSnapshotResult";
+import type { AiModelDownloadCancelResult } from "@/types/bindings/AiModelDownloadCancelResult";
 import type { Settings } from "@/types/settings";
 
 // ============================================================================
@@ -143,4 +144,41 @@ export async function aiContextSnapshot(sessionId: string): Promise<AiContextSna
     input: { sessionId },
   });
   return parseInvokeResult(AiContextSnapshotResultSchema, result, "ai_context_snapshot");
+}
+
+// ============================================================================
+// Model Download (T1.5)
+// ============================================================================
+
+const AiModelDownloadCancelResultSchema: z.ZodType<AiModelDownloadCancelResult> = z.object({
+  canceled: z.boolean(),
+});
+
+/**
+ * Start downloading the pinned Gemma 4 E4B Q4_K_M GGUF. Resolves immediately
+ * with `void` once the backend has validated preconditions (license accepted,
+ * disk space, no concurrent download) and spawned the async task. Actual
+ * progress reaches the UI via `ai:download_progress` + `ai:download_done`
+ * events — subscribe there.
+ *
+ * Rejects synchronously with an AppError when:
+ * - license not accepted → `AI_UNAVAILABLE` with `detail: "license not accepted"`
+ * - insufficient disk → `AI_UNAVAILABLE`, `retryable=false`
+ * - another download already running → `AI_UNAVAILABLE`, `retryable=false`
+ *
+ * The 300000 ms timeout covers only the bootstrap phase; the download itself
+ * drives its lifecycle via events and is not bounded by `timedInvoke`.
+ */
+export async function aiModelDownload(): Promise<void> {
+  await timedInvoke("ai_model_download", undefined, 300_000);
+}
+
+/**
+ * Cancel the in-flight model download. `canceled === false` means no active
+ * download was found (either already finished or never started) — safe to
+ * ignore.
+ */
+export async function aiModelDownloadCancel(): Promise<AiModelDownloadCancelResult> {
+  const result = await timedInvoke("ai_model_download_cancel");
+  return parseInvokeResult(AiModelDownloadCancelResultSchema, result, "ai_model_download_cancel");
 }

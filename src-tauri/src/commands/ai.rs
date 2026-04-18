@@ -3,21 +3,33 @@
 //! 命令层只做参数解析 + spawn_blocking + 错误包装；健康检查 / 路径 /
 //! runtime 业务在 `services::ai::*`。
 
-use std::sync::Arc;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
+use tokio_util::sync::CancellationToken;
 #[cfg(test)]
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::models::ai_events::{AiDownloadPhase, AiDownloadProgressPayload};
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::settings::{Settings, SettingsPatch};
+use crate::services::ai::model_download::{
+    self, DownloadOutcome, SysDiskProbe, MODEL_DISK_REQUIRED_BYTES, MODEL_DOWNLOAD_URL,
+    MODEL_EXPECTED_SHA256_HEX, MODEL_EXPECTED_SIZE_BYTES,
+};
 use crate::services::ai::{chat, context, health, llama_runtime, paths};
 use crate::services::session_manager::SessionManager;
 use crate::services::storage_service::Database;
 use crate::services::terminal_manager::TerminalManager;
+
+// Download 事件名 —— `ai:download_progress` 每阶段重复；`ai:download_done` 终态
+// 仅发一次。命名约定与 chat 事件（`ai:thinking` / `ai:token` / `ai:done`）对齐。
+pub(crate) const EVENT_DOWNLOAD_PROGRESS: &str = "ai:download_progress";
+pub(crate) const EVENT_DOWNLOAD_DONE: &str = "ai:download_done";
 
 /// 不依赖 Tauri State 的底层健康检查 —— 单测入口。
 ///
@@ -252,6 +264,228 @@ pub async fn ai_context_snapshot(
     Ok(result)
 }
 
+// ---- ai_model_download ------------------------------------------------------
+
+/// `ai_model_download_cancel` 返回值。
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiModelDownloadCancelResult {
+    /// 是否成功取消了一个正在进行的下载。false 代表没有活跃下载（race-tolerant noop）。
+    pub canceled: bool,
+}
+
+/// 单例 cancel 槽 —— v0.1 只允许一次一个下载（模型本身就一份）。
+/// 并发 `ai_model_download` 发起会在 `try_register_download_cancel` 处被拒。
+static DOWNLOAD_CANCEL_SLOT: OnceLock<Mutex<Option<CancellationToken>>> = OnceLock::new();
+
+fn download_slot() -> &'static Mutex<Option<CancellationToken>> {
+    DOWNLOAD_CANCEL_SLOT.get_or_init(|| Mutex::new(None))
+}
+
+/// 尝试登记一个新的下载 cancel token。已有下载在进行 → 返回 None（调用方应
+/// 返回 `AiUnavailable`，提示用户等待 / 手动 cancel）。
+fn try_register_download_cancel() -> Option<CancellationToken> {
+    let mut slot = download_slot().lock().ok()?;
+    if slot.is_some() {
+        return None;
+    }
+    let token = CancellationToken::new();
+    *slot = Some(token.clone());
+    Some(token)
+}
+
+/// 下载结束后清除槽位 —— 即便失败 / 取消也要清，否则 second start 会被永久拒。
+fn clear_download_cancel() {
+    if let Ok(mut slot) = download_slot().lock() {
+        *slot = None;
+    }
+}
+
+/// 取消活跃下载。返回 true 表示找到并触发了 cancel；false 表示槽位为空。
+fn cancel_active_download() -> bool {
+    let mut slot = match download_slot().lock() {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+    if let Some(token) = slot.take() {
+        token.cancel();
+        true
+    } else {
+        false
+    }
+}
+
+/// 纯函数：license 门检查。Settings 可从数据库读，也可从单测直接构造。
+pub(crate) fn check_license_accepted(settings: &Settings) -> AppResult<()> {
+    if settings.ai_license_accepted_at.is_some() {
+        return Ok(());
+    }
+    Err(
+        AppError::new(ErrorCode::AiUnavailable, "需先接受 Gemma Terms of Use")
+            .with_detail("license not accepted")
+            .with_retryable(false),
+    )
+}
+
+/// 根据 settings 中的模型名解析目标 GGUF 路径；解析失败说明系统没有 data_local_dir
+/// （罕见：非 Linux desktop 无 XDG_DATA_HOME）。
+fn resolve_model_dest(settings: &Settings) -> AppResult<PathBuf> {
+    paths::model_file_path(&settings.ai_model_name).ok_or_else(|| {
+        AppError::new(ErrorCode::AiUnavailable, "无法解析模型存储路径")
+            .with_detail("dirs::data_local_dir() returned None")
+            .with_retryable(false)
+    })
+}
+
+/// `ai_model_download`：启动 Gemma 4 E4B Q4_K_M GGUF 下载（SPEC §5 T1.5）。
+///
+/// 立即返回 `Ok(())` —— 实际下载在 spawned task 中跑，通过
+/// `ai:download_progress` + `ai:download_done` 事件反馈。并发调用（前一次未结束时
+/// 再点击 "Download"）返回 `AiUnavailable { retryable=false }`。
+///
+/// 前置检查（同步发生，错误会立即返回，不 spawn task）：
+/// 1. license 已接受
+/// 2. 磁盘空间 ≥ 7GB（SysDiskProbe 查不到时 fail-open）
+/// 3. 无活跃下载
+#[tauri::command]
+pub async fn ai_model_download(app: AppHandle, db: State<'_, Arc<Database>>) -> AppResult<()> {
+    let db = (*db).clone();
+    let settings = tokio::task::spawn_blocking({
+        let db = db.clone();
+        move || db.settings_load()
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("读取 settings 失败: {}", e)))??;
+
+    check_license_accepted(&settings)?;
+    let dest = resolve_model_dest(&settings)?;
+
+    let dest_dir = dest.parent().ok_or_else(|| {
+        AppError::new(ErrorCode::AiUnavailable, "模型路径无父目录")
+            .with_detail(dest.display().to_string())
+            .with_retryable(false)
+    })?;
+    model_download::check_disk_available(&SysDiskProbe, dest_dir, MODEL_DISK_REQUIRED_BYTES)?;
+
+    let token = try_register_download_cancel().ok_or_else(|| {
+        AppError::new(ErrorCode::AiUnavailable, "模型下载已在进行中")
+            .with_detail("concurrent ai_model_download rejected")
+            .with_retryable(false)
+    })?;
+
+    tracing::info!(
+        dest = %dest.display(),
+        expected_size = MODEL_EXPECTED_SIZE_BYTES,
+        "AI 模型下载开始"
+    );
+
+    tauri::async_runtime::spawn(run_model_download(app, dest, token));
+    Ok(())
+}
+
+/// 下载编排：download_gguf → verify_sha256 → 终态事件。
+///
+/// 任何失败都汇总成一个 `ai:download_done { canceled, error }` 事件；调用方
+/// （前端）据此决定重试 / 转报错 UI。
+async fn run_model_download(app: AppHandle, dest: PathBuf, token: CancellationToken) {
+    let outcome = do_model_download(&app, &dest, &token).await;
+    clear_download_cancel();
+
+    let payload = match outcome {
+        Ok(DownloadOutcome::Completed) | Ok(DownloadOutcome::AlreadyPresent) => {
+            crate::models::ai_events::AiDownloadDonePayload {
+                canceled: false,
+                error: None,
+            }
+        }
+        Ok(DownloadOutcome::Cancelled) => crate::models::ai_events::AiDownloadDonePayload {
+            canceled: true,
+            error: None,
+        },
+        Err(error) => crate::models::ai_events::AiDownloadDonePayload {
+            canceled: false,
+            error: Some(error),
+        },
+    };
+    let _ = app.emit(EVENT_DOWNLOAD_DONE, &payload);
+    tracing::info!(
+        canceled = payload.canceled,
+        has_error = payload.error.is_some(),
+        "AI 模型下载结束"
+    );
+}
+
+async fn do_model_download(
+    app: &AppHandle,
+    dest: &std::path::Path,
+    token: &CancellationToken,
+) -> AppResult<DownloadOutcome> {
+    // --- Phase 1: fetching ----
+    let app_for_cb = app.clone();
+    let emit_fetching = move |tick: model_download::ProgressTick| {
+        let _ = app_for_cb.emit(
+            EVENT_DOWNLOAD_PROGRESS,
+            &AiDownloadProgressPayload {
+                phase: AiDownloadPhase::Fetching,
+                downloaded: tick.downloaded,
+                total: tick.total,
+                percent: tick.percent,
+            },
+        );
+    };
+    let outcome = model_download::download_gguf(
+        MODEL_DOWNLOAD_URL,
+        dest,
+        MODEL_EXPECTED_SIZE_BYTES,
+        emit_fetching,
+        token,
+    )
+    .await?;
+
+    if matches!(outcome, DownloadOutcome::Cancelled) {
+        return Ok(outcome);
+    }
+
+    // --- Phase 2: verifying ----
+    let _ = app.emit(
+        EVENT_DOWNLOAD_PROGRESS,
+        &AiDownloadProgressPayload {
+            phase: AiDownloadPhase::Verifying,
+            downloaded: 0,
+            total: MODEL_EXPECTED_SIZE_BYTES,
+            percent: 0,
+        },
+    );
+    let dest_owned = dest.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        model_download::verify_sha256(&dest_owned, MODEL_EXPECTED_SHA256_HEX)
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("verify 任务 join 失败: {}", e)))??;
+    let _ = app.emit(
+        EVENT_DOWNLOAD_PROGRESS,
+        &AiDownloadProgressPayload {
+            phase: AiDownloadPhase::Verifying,
+            downloaded: MODEL_EXPECTED_SIZE_BYTES,
+            total: MODEL_EXPECTED_SIZE_BYTES,
+            percent: 100,
+        },
+    );
+
+    Ok(outcome)
+}
+
+/// `ai_model_download_cancel`：中断正在进行的下载。返回 `{ canceled: false }`
+/// 是良性 noop（下载已结束 / 从未启动）。
+#[tauri::command]
+pub async fn ai_model_download_cancel() -> AppResult<AiModelDownloadCancelResult> {
+    let canceled = cancel_active_download();
+    tracing::debug!(canceled, "AI 模型下载取消请求");
+    Ok(AiModelDownloadCancelResult { canceled })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -441,6 +675,93 @@ mod tests {
             now > 1_700_000_000_000,
             "sanity: chrono returned a post-2023 timestamp"
         );
+    }
+
+    // ---- ai_model_download gate + singleton ---------------------------
+
+    #[test]
+    fn check_license_accepted_rejects_when_missing() {
+        let settings = Settings::default();
+        let err = check_license_accepted(&settings).unwrap_err();
+        assert_eq!(err.code, ErrorCode::AiUnavailable);
+        assert_eq!(err.retryable, Some(false));
+        assert_eq!(err.detail.as_deref(), Some("license not accepted"));
+    }
+
+    #[test]
+    fn check_license_accepted_passes_when_timestamp_present() {
+        let mut settings = Settings::default();
+        settings.ai_license_accepted_at = Some(1_700_000_000_000);
+        check_license_accepted(&settings).expect("ok");
+    }
+
+    #[test]
+    fn download_singleton_register_twice_rejects_second() {
+        // 前一轮测试可能留下的状态：强制清一次以保证本测试起始干净
+        clear_download_cancel();
+
+        let first = try_register_download_cancel();
+        assert!(first.is_some(), "首次登记必须成功");
+        let second = try_register_download_cancel();
+        assert!(second.is_none(), "未清空时第二次登记必须返回 None");
+
+        // 清理后再次登记又可以成功
+        clear_download_cancel();
+        assert!(try_register_download_cancel().is_some());
+        clear_download_cancel(); // tear down
+    }
+
+    #[test]
+    fn cancel_active_download_triggers_token_and_clears_slot() {
+        clear_download_cancel();
+        let token = try_register_download_cancel().expect("register");
+        assert!(!token.is_cancelled());
+
+        assert!(cancel_active_download(), "有活跃下载 → 返回 true");
+        assert!(token.is_cancelled(), "cancel 必须触发 token");
+
+        // 再次 cancel 应为 noop
+        assert!(!cancel_active_download(), "已清空 → 返回 false");
+        clear_download_cancel(); // defensive
+    }
+
+    #[test]
+    fn cancel_active_download_is_noop_when_no_active_download() {
+        clear_download_cancel();
+        assert!(!cancel_active_download());
+    }
+
+    #[test]
+    fn ai_model_download_cancel_result_uses_camel_case() {
+        let r = AiModelDownloadCancelResult { canceled: true };
+        let json = serde_json::to_string(&r).expect("serialize");
+        assert!(json.contains("\"canceled\""));
+    }
+
+    #[tokio::test]
+    async fn ai_model_download_cancel_returns_false_when_idle() {
+        clear_download_cancel();
+        let result = ai_model_download_cancel().await.expect("ok");
+        assert!(!result.canceled);
+    }
+
+    #[tokio::test]
+    async fn ai_model_download_cancel_returns_true_when_active() {
+        clear_download_cancel();
+        let _token = try_register_download_cancel().expect("register");
+        let result = ai_model_download_cancel().await.expect("ok");
+        assert!(result.canceled);
+        clear_download_cancel();
+    }
+
+    #[test]
+    fn resolve_model_dest_uses_ai_model_name_from_settings() {
+        let mut s = Settings::default();
+        s.ai_model_name = "gemma-4-E4B-it-Q4_K_M".into();
+        let path = resolve_model_dest(&s).expect("dest");
+        let s = path.to_string_lossy();
+        assert!(s.ends_with("gemma-4-E4B-it-Q4_K_M.gguf"));
+        assert!(s.contains("TunnelFiles"));
     }
 
     #[test]

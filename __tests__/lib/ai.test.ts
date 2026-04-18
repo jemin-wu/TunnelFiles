@@ -6,6 +6,8 @@ import {
   aiChatCancel,
   aiContextSnapshot,
   aiLicenseAccept,
+  aiModelDownload,
+  aiModelDownloadCancel,
 } from "@/lib/ai";
 import { DEFAULT_SETTINGS } from "@/types/settings";
 
@@ -280,6 +282,69 @@ describe("lib/ai", () => {
       };
       mockedInvoke.mockRejectedValueOnce(appError);
       await expect(aiLicenseAccept()).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiModelDownload", () => {
+    it("invokes ai_model_download with no args", async () => {
+      mockedInvoke.mockResolvedValueOnce(null);
+      await aiModelDownload();
+      // 不传 args（undefined 作为可选参数） —— 后端命令签名不收 input
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_model_download");
+    });
+
+    it("resolves void on success", async () => {
+      mockedInvoke.mockResolvedValueOnce(null);
+      await expect(aiModelDownload()).resolves.toBeUndefined();
+    });
+
+    it("propagates AI_UNAVAILABLE from license gate", async () => {
+      const appError = {
+        code: "AI_UNAVAILABLE",
+        message: "需先接受 Gemma Terms of Use",
+        detail: "license not accepted",
+        retryable: false,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiModelDownload()).rejects.toBe(appError);
+    });
+
+    it("propagates AI_UNAVAILABLE from concurrent-download gate", async () => {
+      const appError = {
+        code: "AI_UNAVAILABLE",
+        message: "模型下载已在进行中",
+        retryable: false,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiModelDownload()).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiModelDownloadCancel", () => {
+    it("invokes ai_model_download_cancel with no args", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: true });
+      await aiModelDownloadCancel();
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_model_download_cancel");
+    });
+
+    it("returns canceled=true when active download was cancelled", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: true });
+      const result = await aiModelDownloadCancel();
+      expect(result.canceled).toBe(true);
+    });
+
+    it("returns canceled=false when idle (race-tolerant noop)", async () => {
+      mockedInvoke.mockResolvedValueOnce({ canceled: false });
+      const result = await aiModelDownloadCancel();
+      expect(result.canceled).toBe(false);
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({ wrongField: true });
+      await expect(aiModelDownloadCancel()).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_model_download_cancel"),
+      });
     });
   });
 });

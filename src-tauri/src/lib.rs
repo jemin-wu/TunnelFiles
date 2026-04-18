@@ -171,6 +171,8 @@ pub fn run() {
             commands::ai::ai_chat_cancel,
             commands::ai::ai_context_snapshot,
             commands::ai::ai_license_accept,
+            commands::ai::ai_model_download,
+            commands::ai::ai_model_download_cancel,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
