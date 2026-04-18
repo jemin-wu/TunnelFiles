@@ -173,6 +173,7 @@ pub fn run() {
             commands::ai::ai_license_accept,
             commands::ai::ai_model_download,
             commands::ai::ai_model_download_cancel,
+            commands::ai::ai_model_delete,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

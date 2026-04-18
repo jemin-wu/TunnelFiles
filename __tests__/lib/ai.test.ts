@@ -6,6 +6,7 @@ import {
   aiChatCancel,
   aiContextSnapshot,
   aiLicenseAccept,
+  aiModelDelete,
   aiModelDownload,
   aiModelDownloadCancel,
 } from "@/lib/ai";
@@ -345,6 +346,47 @@ describe("lib/ai", () => {
         code: "UNKNOWN",
         message: expect.stringContaining("ai_model_download_cancel"),
       });
+    });
+  });
+
+  describe("aiModelDelete", () => {
+    it("invokes ai_model_delete with no args", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        deleted: true,
+        path: "/Users/x/Library/Application Support/TunnelFiles/models/gemma-4.gguf",
+      });
+      await aiModelDelete();
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_model_delete");
+    });
+
+    it("returns deleted=true with path on success", async () => {
+      mockedInvoke.mockResolvedValueOnce({ deleted: true, path: "/tmp/m.gguf" });
+      const result = await aiModelDelete();
+      expect(result).toEqual({ deleted: true, path: "/tmp/m.gguf" });
+    });
+
+    it("returns deleted=false when file was already absent (noop)", async () => {
+      mockedInvoke.mockResolvedValueOnce({ deleted: false, path: "/tmp/m.gguf" });
+      const result = await aiModelDelete();
+      expect(result.deleted).toBe(false);
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({ wrongField: true });
+      await expect(aiModelDelete()).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_model_delete"),
+      });
+    });
+
+    it("propagates AI_UNAVAILABLE when download is in progress", async () => {
+      const appError = {
+        code: "AI_UNAVAILABLE",
+        message: "下载进行中，无法删除模型。请先取消下载。",
+        retryable: false,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiModelDelete()).rejects.toBe(appError);
     });
   });
 });

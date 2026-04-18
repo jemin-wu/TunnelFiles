@@ -19,7 +19,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -48,6 +47,7 @@ import { FullPageLoader } from "@/components/ui/LoadingSpinner";
 import { useSettings } from "@/hooks/useSettings";
 import { useAiHealthCheck } from "@/hooks/useAiHealthCheck";
 import { AiHealthBadge } from "@/components/ai/AiHealthBadge";
+import { InlineModelRow } from "@/components/ai/InlineModelRow";
 import { ModelOnboardingDialog } from "@/components/ai/ModelOnboardingDialog";
 import { useModelOnboarding } from "@/hooks/useModelOnboarding";
 import { KnownHostsList } from "@/components/settings/KnownHostsList";
@@ -144,7 +144,7 @@ function SettingRow({ label, description, children }: SettingRowProps) {
 export function SettingsPage() {
   const navigate = useNavigate();
   const { settings, updateSettings, isLoading, isUpdating } = useSettings();
-  const { status: aiHealthStatus } = useAiHealthCheck(settings.aiEnabled);
+  const { status: aiHealthStatus, refetch: refetchHealth } = useAiHealthCheck(settings.aiEnabled);
   const onboarding = useModelOnboarding();
   const [activeSection, setActiveSection] = useState<SettingsSection>("transfer");
 
@@ -507,19 +507,6 @@ export function SettingsPage() {
                   <div className="mb-1 flex items-center gap-2">
                     <h2 className="text-base font-semibold">AI Shell Copilot</h2>
                     <AiHealthBadge status={aiHealthStatus} />
-                    {aiHealthStatus === "model-missing" && (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="ml-auto h-7"
-                        onClick={onboarding.openDialog}
-                        data-testid="download-model-button"
-                      >
-                        <Download className="size-3.5" />
-                        Download model
-                      </Button>
-                    )}
                   </div>
                   <p className="text-muted-foreground mb-6 text-xs">
                     Local-only terminal assistant. Default off.
@@ -550,23 +537,14 @@ export function SettingsPage() {
                       )}
                     />
 
-                    <SettingRow
-                      label="Model"
-                      description="Pinned in v0.1 — see approved-model-sources.md"
-                    >
-                      <div className="flex flex-col items-end gap-1">
-                        <code className="font-mono text-xs">{settings.aiModelName}</code>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void openUrl("https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF")
-                          }
-                          className="text-muted-foreground hover:text-foreground text-xs underline underline-offset-2"
-                        >
-                          ≈ 5 GB · unsloth/gemma-4-E4B-it-GGUF ↗
-                        </button>
-                      </div>
-                    </SettingRow>
+                    <div className="py-3">
+                      <InlineModelRow
+                        aiHealthStatus={aiHealthStatus}
+                        onboarding={onboarding}
+                        licenseAcceptedAt={settings.aiLicenseAcceptedAt}
+                        onModelStateChanged={refetchHealth}
+                      />
+                    </div>
 
                     <FormField
                       control={form.control}

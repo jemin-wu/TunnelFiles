@@ -12,6 +12,7 @@ import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
 import type { AiChatCancelResult } from "@/types/bindings/AiChatCancelResult";
 import type { AiContextSnapshotResult } from "@/types/bindings/AiContextSnapshotResult";
+import type { AiModelDeleteResult } from "@/types/bindings/AiModelDeleteResult";
 import type { AiModelDownloadCancelResult } from "@/types/bindings/AiModelDownloadCancelResult";
 import type { Settings } from "@/types/settings";
 
@@ -181,4 +182,19 @@ export async function aiModelDownload(): Promise<void> {
 export async function aiModelDownloadCancel(): Promise<AiModelDownloadCancelResult> {
   const result = await timedInvoke("ai_model_download_cancel");
   return parseInvokeResult(AiModelDownloadCancelResultSchema, result, "ai_model_download_cancel");
+}
+
+const AiModelDeleteResultSchema: z.ZodType<AiModelDeleteResult> = z.object({
+  deleted: z.boolean(),
+  path: z.string(),
+});
+
+/**
+ * Delete the downloaded GGUF from disk. License acceptance is preserved so the
+ * user can re-download without re-accepting the ToU. Rejects with
+ * AI_UNAVAILABLE if a download is currently in progress (cancel it first).
+ */
+export async function aiModelDelete(): Promise<AiModelDeleteResult> {
+  const result = await timedInvoke("ai_model_delete");
+  return parseInvokeResult(AiModelDeleteResultSchema, result, "ai_model_delete");
 }

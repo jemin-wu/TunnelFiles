@@ -486,6 +486,65 @@ pub async fn ai_model_download_cancel() -> AppResult<AiModelDownloadCancelResult
     Ok(AiModelDownloadCancelResult { canceled })
 }
 
+/// `ai_model_delete` 返回值。
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiModelDeleteResult {
+    /// 本次调用前文件是否存在（true = 实际删除；false = 本来就不在 = noop）
+    pub deleted: bool,
+    /// 解析出的目标路径（便于调试 / UI 展示）
+    pub path: String,
+}
+
+/// `ai_model_delete`：删除已下载的 GGUF。license accept 记录保留 —— 用户已知情
+/// 同意，重新下载不需要再 accept 一次。下载进行中调用 → 拒绝（先 cancel 再删）。
+#[tauri::command]
+pub async fn ai_model_delete(db: State<'_, Arc<Database>>) -> AppResult<AiModelDeleteResult> {
+    // 下载进行中禁止删除 —— 不然同时 remove + write 同一文件 UB
+    if download_slot()
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref().map(|_| ()))
+        .is_some()
+    {
+        return Err(AppError::new(
+            ErrorCode::AiUnavailable,
+            "下载进行中，无法删除模型。请先取消下载。",
+        )
+        .with_retryable(false));
+    }
+
+    let db = (*db).clone();
+    let settings = tokio::task::spawn_blocking({
+        let db = db.clone();
+        move || db.settings_load()
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("读取 settings 失败: {}", e)))??;
+
+    let dest = resolve_model_dest(&settings)?;
+    let path_str = dest.to_string_lossy().into_owned();
+
+    let existed = dest.exists();
+    if existed {
+        let dest_owned = dest.clone();
+        tokio::task::spawn_blocking(move || std::fs::remove_file(&dest_owned))
+            .await
+            .map_err(|e| AppError::new(ErrorCode::Unknown, format!("删除任务 join 失败: {}", e)))?
+            .map_err(AppError::from)?;
+        tracing::info!(path = %dest.display(), "AI 模型已删除");
+    } else {
+        tracing::debug!(path = %dest.display(), "ai_model_delete: 文件不存在，noop");
+    }
+
+    Ok(AiModelDeleteResult {
+        deleted: existed,
+        path: path_str,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -729,6 +788,19 @@ mod tests {
     fn cancel_active_download_is_noop_when_no_active_download() {
         clear_download_cancel();
         assert!(!cancel_active_download());
+    }
+
+    #[test]
+    fn ai_model_delete_result_round_trips_camel_case() {
+        let r = AiModelDeleteResult {
+            deleted: true,
+            path: "/tmp/model.gguf".into(),
+        };
+        let json = serde_json::to_string(&r).expect("serialize");
+        assert!(json.contains("\"deleted\""));
+        assert!(json.contains("\"path\""));
+        let back: AiModelDeleteResult = serde_json::from_str(&json).expect("round trip");
+        assert_eq!(back, r);
     }
 
     #[test]
