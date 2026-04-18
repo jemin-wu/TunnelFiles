@@ -268,10 +268,12 @@ function RowActions({
   onRetry: () => void;
 }) {
   if (deleting) return null;
+  // 这些按钮在 SettingsPage 的 <form> 里 —— 必须显式 type="button"，否则默认
+  // type="submit" 会触发表单提交（走 updateSettings → 弹 "设置已更新" toast）。
   switch (view.kind) {
     case "missing":
       return (
-        <Button size="sm" variant="outline" onClick={onDownload} className="h-7">
+        <Button type="button" size="sm" variant="outline" onClick={onDownload} className="h-7">
           <Download className="size-3.5" /> Download
         </Button>
       );
@@ -279,13 +281,14 @@ function RowActions({
     case "downloading":
     case "verifying":
       return (
-        <Button size="sm" variant="outline" onClick={onCancel} className="h-7">
+        <Button type="button" size="sm" variant="outline" onClick={onCancel} className="h-7">
           Cancel
         </Button>
       );
     case "ready":
       return (
         <Button
+          type="button"
           size="sm"
           variant="ghost"
           onClick={onDelete}
@@ -298,13 +301,13 @@ function RowActions({
       );
     case "canceled":
       return (
-        <Button size="sm" variant="outline" onClick={onRetry} className="h-7">
+        <Button type="button" size="sm" variant="outline" onClick={onRetry} className="h-7">
           Resume
         </Button>
       );
     case "error":
       return view.retryable ? (
-        <Button size="sm" variant="outline" onClick={onRetry} className="h-7">
+        <Button type="button" size="sm" variant="outline" onClick={onRetry} className="h-7">
           Retry
         </Button>
       ) : null;

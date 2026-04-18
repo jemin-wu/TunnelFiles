@@ -100,10 +100,14 @@ function LicensePromptView({ onboarding }: { onboarding: UseModelOnboardingRetur
         </label>
       </div>
       <DialogFooter>
-        <Button variant="outline" onClick={onboarding.dismiss}>
+        <Button type="button" variant="outline" onClick={onboarding.dismiss}>
           Cancel
         </Button>
-        <Button disabled={!accepted} onClick={() => void onboarding.acceptAndDownload()}>
+        <Button
+          type="button"
+          disabled={!accepted}
+          onClick={() => void onboarding.acceptAndDownload()}
+        >
           Accept &amp; Download
         </Button>
       </DialogFooter>
