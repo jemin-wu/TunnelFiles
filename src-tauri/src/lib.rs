@@ -167,6 +167,7 @@ pub fn run() {
             commands::terminal::terminal_get_by_session,
             // AI 命令
             commands::ai::ai_health_check,
+            commands::ai::ai_chat_send,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,12 +5,16 @@
 
 use std::sync::Arc;
 
-use tauri::State;
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, State};
+#[cfg(test)]
+use ts_rs::TS;
+use uuid::Uuid;
 
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::settings::Settings;
-use crate::services::ai::{health, paths};
+use crate::services::ai::{chat, health, paths};
 use crate::services::storage_service::Database;
 
 /// 不依赖 Tauri State 的底层健康检查 —— 单测入口。
@@ -36,6 +40,55 @@ pub async fn ai_health_check(db: State<'_, Arc<Database>>) -> AppResult<AiHealth
         .await
         .map_err(|e| AppError::new(ErrorCode::Unknown, format!("健康检查任务失败: {}", e)))??;
     Ok(compute_health(&settings))
+}
+
+/// `ai_chat_send` 入参（v0.1）。
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatSendInput {
+    pub session_id: String,
+    pub text: String,
+}
+
+/// `ai_chat_send` 返回值。
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatSendResult {
+    pub message_id: String,
+}
+
+/// `ai_chat_send` (v0.1 stub)：立即返回 messageId，异步发射 `ai:thinking`
+/// → 多次 `ai:token` → `ai:done` 事件。真实 LlamaRuntime::generate 在
+/// T1.3 slice 3 之后接入；事件契约不会变。
+#[tauri::command]
+pub async fn ai_chat_send(app: AppHandle, input: AiChatSendInput) -> AppResult<AiChatSendResult> {
+    if input.text.trim().is_empty() {
+        return Err(AppError::invalid_argument("chat text cannot be empty"));
+    }
+    if input.session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("sessionId cannot be empty"));
+    }
+    let message_id = Uuid::new_v4().to_string();
+    tracing::debug!(
+        session_id = %input.session_id,
+        message_id = %message_id,
+        text_len = input.text.chars().count(),
+        "AI chat send (stub)"
+    );
+
+    // spawn 异步任务驱动事件；命令立即返回 messageId 让前端登记 pending 状态
+    tauri::async_runtime::spawn(chat::run_stub_stream(
+        app,
+        input.session_id,
+        message_id.clone(),
+        input.text,
+    ));
+
+    Ok(AiChatSendResult { message_id })
 }
 
 #[cfg(test)]
@@ -83,5 +136,30 @@ mod tests {
         assert_eq!(result.accelerator_kind, AcceleratorKind::Metal);
         #[cfg(not(target_os = "macos"))]
         assert_eq!(result.accelerator_kind, AcceleratorKind::Cpu);
+    }
+
+    #[test]
+    fn ai_chat_send_input_round_trips_camel_case() {
+        let input = AiChatSendInput {
+            session_id: "tab-1".into(),
+            text: "ping".into(),
+        };
+        let json = serde_json::to_string(&input).expect("serialize");
+        assert!(json.contains("\"sessionId\""));
+        assert!(json.contains("\"text\""));
+        let back: AiChatSendInput = serde_json::from_str(&json).expect("round trip");
+        assert_eq!(back.session_id, "tab-1");
+        assert_eq!(back.text, "ping");
+    }
+
+    #[test]
+    fn ai_chat_send_result_round_trips_camel_case() {
+        let r = AiChatSendResult {
+            message_id: "abc".into(),
+        };
+        let json = serde_json::to_string(&r).expect("serialize");
+        assert!(json.contains("\"messageId\""));
+        let back: AiChatSendResult = serde_json::from_str(&json).expect("round trip");
+        assert_eq!(back, r);
     }
 }

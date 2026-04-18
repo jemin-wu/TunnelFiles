@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { parseInvokeResult, timedInvoke } from "./error";
 import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
+import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
 
 // ============================================================================
 // Schemas
@@ -34,4 +35,25 @@ const AiHealthResultSchema: z.ZodType<AiHealthResult> = z.object({
 export async function aiHealthCheck(): Promise<AiHealthResult> {
   const result = await timedInvoke("ai_health_check");
   return parseInvokeResult(AiHealthResultSchema, result, "ai_health_check");
+}
+
+// ============================================================================
+// Chat Send
+// ============================================================================
+
+const AiChatSendResultSchema: z.ZodType<AiChatSendResult> = z.object({
+  messageId: z.string(),
+});
+
+/**
+ * Submit a chat message. Returns the assigned messageId immediately;
+ * the actual response streams over `ai:token` events tagged with that id.
+ *
+ * v0.1: backend is an echo stub until LlamaRuntime::generate lands.
+ */
+export async function aiChatSend(sessionId: string, text: string): Promise<AiChatSendResult> {
+  const result = await timedInvoke("ai_chat_send", {
+    input: { sessionId, text },
+  });
+  return parseInvokeResult(AiChatSendResultSchema, result, "ai_chat_send");
 }

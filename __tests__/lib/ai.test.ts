@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
-import { aiHealthCheck } from "@/lib/ai";
+import { aiHealthCheck, aiChatSend } from "@/lib/ai";
 
 // lib/ai.ts 是 IPC 边界本身 —— 它的单测必须 mock invoke（上面一层禁止）。
 // 功能层测试仍要 mock `@/lib/ai`，见 core-testing.md。
@@ -99,6 +99,40 @@ describe("lib/ai", () => {
       };
       mockedInvoke.mockRejectedValueOnce(appError);
       await expect(aiHealthCheck()).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiChatSend", () => {
+    it("invokes ai_chat_send with input wrapper carrying sessionId + text", async () => {
+      mockedInvoke.mockResolvedValueOnce({ messageId: "abc-123" });
+      await aiChatSend("tab-1", "hello");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_chat_send", {
+        input: { sessionId: "tab-1", text: "hello" },
+      });
+    });
+
+    it("returns the parsed messageId", async () => {
+      mockedInvoke.mockResolvedValueOnce({ messageId: "abc-123" });
+      const result = await aiChatSend("tab-1", "hello");
+      expect(result).toEqual({ messageId: "abc-123" });
+    });
+
+    it("rejects with AppError when backend returns wrong shape", async () => {
+      mockedInvoke.mockResolvedValueOnce({ wrongField: "x" });
+      await expect(aiChatSend("tab-1", "hello")).rejects.toMatchObject({
+        code: "UNKNOWN",
+        message: expect.stringContaining("ai_chat_send"),
+      });
+    });
+
+    it("propagates invoke rejection unchanged", async () => {
+      const appError = {
+        code: "INVALID_ARGUMENT",
+        message: "chat text cannot be empty",
+        retryable: false,
+      };
+      mockedInvoke.mockRejectedValueOnce(appError);
+      await expect(aiChatSend("tab-1", "  ")).rejects.toBe(appError);
     });
   });
 });
