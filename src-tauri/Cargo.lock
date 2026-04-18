@@ -5023,6 +5023,7 @@ dependencies = [
  "dirs 5.0.1",
  "futures",
  "keyring",
+ "libc",
  "llama-cpp-2",
  "openssl",
  "regex",

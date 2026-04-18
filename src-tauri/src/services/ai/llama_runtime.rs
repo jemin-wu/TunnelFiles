@@ -19,9 +19,81 @@ use crate::models::error::{AppError, AppResult};
 /// E4B q4_k_m 载入 ~4GB + KV cache ~1GB + 余量 = 6GB 硬门槛（SPEC §5）。
 pub const MIN_RAM_BYTES: u64 = 6 * 1024 * 1024 * 1024;
 
-/// 内存探针抽象 —— 生产实现读系统可用 RAM；测试用 FakeProbe 注入固定值。
+/// 内存探针抽象 —— 生产实现读总物理 RAM；测试用 FakeProbe 注入固定值。
+///
+/// `available_ram_bytes` 命名描述"调用方关心的量"；生产实现实际返回总物理
+/// RAM（"机器档次"代理），不读 free/available 实时值 —— 后者波动太大不
+/// 适合做启动 gate，且实际是否够装下模型由 `LlamaModel::load_from_file`
+/// 的真失败兜底。
 pub trait MemoryProbe: Send + Sync {
     fn available_ram_bytes(&self) -> u64;
+}
+
+/// 生产用 RAM 探针：macOS 走 `sysctlbyname("hw.memsize")`；Linux 读
+/// `/proc/meminfo` `MemTotal`；其他平台返回 0（启动 gate 必失败，安全侧）。
+///
+/// Windows 支持留给后续 Ask First（`sysinfo` 依赖审批），目前 v0.1 主战场
+/// 是 Mac/Linux。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SystemRamProbe;
+
+impl MemoryProbe for SystemRamProbe {
+    fn available_ram_bytes(&self) -> u64 {
+        physical_ram_bytes().unwrap_or(0)
+    }
+}
+
+/// 实际探测函数 —— 平台分派。
+fn physical_ram_bytes() -> Option<u64> {
+    #[cfg(target_os = "macos")]
+    {
+        macos_physical_ram_bytes()
+    }
+    #[cfg(target_os = "linux")]
+    {
+        linux_physical_ram_bytes()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        None
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn macos_physical_ram_bytes() -> Option<u64> {
+    // SAFETY: sysctlbyname 是 BSD/macOS 标准只读 syscall。`hw.memsize`
+    // 返回 u64（字节）。我们传 u64 缓冲 + 正确的 size_t 长度。
+    let mut mem: u64 = 0;
+    let mut len: libc::size_t = std::mem::size_of::<u64>();
+    let name = std::ffi::CString::new("hw.memsize").ok()?;
+    let result = unsafe {
+        libc::sysctlbyname(
+            name.as_ptr(),
+            &mut mem as *mut u64 as *mut libc::c_void,
+            &mut len,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if result == 0 && len == std::mem::size_of::<u64>() {
+        Some(mem)
+    } else {
+        None
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn linux_physical_ram_bytes() -> Option<u64> {
+    // /proc/meminfo 的 MemTotal 单位是 kB（kibibyte = 1024 bytes，行尾
+    // 标识 "kB" 实际就是 KiB —— Linux 内核传统）。
+    let content = std::fs::read_to_string("/proc/meminfo").ok()?;
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("MemTotal:") {
+            let kib: u64 = rest.split_whitespace().next()?.parse().ok()?;
+            return Some(kib.saturating_mul(1024));
+        }
+    }
+    None
 }
 
 /// 加载模型前的资源检查（SPEC §5 T1.3 Verify）。
@@ -438,5 +510,36 @@ mod tests {
         assert_eq!(layers, u32::MAX);
         #[cfg(not(target_os = "macos"))]
         assert_eq!(layers, 0);
+    }
+
+    // ---- SystemRamProbe tests ----------------------------------------------
+
+    #[test]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn system_ram_probe_returns_nonzero_on_supported_platforms() {
+        // 任何能跑测试的开发机 / CI runner 都至少有 1 字节 RAM
+        let probe = SystemRamProbe;
+        let bytes = probe.available_ram_bytes();
+        assert!(bytes > 0, "SystemRamProbe returned 0 on supported platform");
+    }
+
+    #[test]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn system_ram_probe_returns_at_least_1_gib_on_supported_platforms() {
+        // 任何现代开发 / CI 机至少 2GiB；用 1GiB 做下界放宽
+        let probe = SystemRamProbe;
+        let bytes = probe.available_ram_bytes();
+        assert!(
+            bytes >= 1 * 1024 * 1024 * 1024,
+            "SystemRamProbe returned suspiciously low value: {bytes}"
+        );
+    }
+
+    #[test]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    fn system_ram_probe_is_clone_and_default_constructible() {
+        // unit struct 用例：UI / IPC 命令需要默认构造
+        let _: SystemRamProbe = SystemRamProbe;
+        let _: SystemRamProbe = Default::default();
     }
 }
