@@ -14,20 +14,32 @@ use uuid::Uuid;
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::settings::Settings;
-use crate::services::ai::{chat, health, paths};
+use crate::services::ai::{chat, health, llama_runtime, paths};
 use crate::services::storage_service::Database;
 
 /// 不依赖 Tauri State 的底层健康检查 —— 单测入口。
-pub(crate) fn compute_health(settings: &Settings) -> AiHealthResult {
+///
+/// 显式接收 `runtime_ready` —— 调用方决定真值来源（生产用全局 atomic，单测可
+/// 注入 true/false）。`compute_health_default` 是生产用的 wrapper：读全局
+/// `llama_runtime::is_runtime_loaded()`。
+pub(crate) fn compute_health_with_state(
+    settings: &Settings,
+    runtime_ready: bool,
+) -> AiHealthResult {
     match paths::model_file_path(&settings.ai_model_name) {
-        Some(path) => health::check(&path, &settings.ai_model_name),
+        Some(path) => health::check(&path, &settings.ai_model_name, runtime_ready),
         None => AiHealthResult {
-            runtime_ready: false,
+            runtime_ready,
             model_present: false,
             model_name: settings.ai_model_name.clone(),
             accelerator_kind: health::detect_accelerator(),
         },
     }
+}
+
+/// 生产用入口：runtime_ready 来自全局 `IS_LOADED` atomic。
+pub(crate) fn compute_health(settings: &Settings) -> AiHealthResult {
+    compute_health_with_state(settings, llama_runtime::is_runtime_loaded())
 }
 
 /// `ai_health_check`：5 秒轮询端点，只做廉价探测（文件 stat + 编译时
@@ -134,17 +146,31 @@ mod tests {
     }
 
     #[test]
-    fn compute_health_returns_runtime_not_ready() {
-        // 没接入 llama.cpp 前，runtime_ready 必须恒 false
+    fn compute_health_with_state_propagates_runtime_ready_false() {
+        let settings = make_settings("gemma4:e4b");
+        let result = compute_health_with_state(&settings, false);
+        assert!(!result.runtime_ready);
+    }
+
+    #[test]
+    fn compute_health_with_state_propagates_runtime_ready_true() {
+        let settings = make_settings("gemma4:e4b");
+        let result = compute_health_with_state(&settings, true);
+        assert!(result.runtime_ready);
+    }
+
+    #[test]
+    fn compute_health_reads_global_runtime_loaded_state() {
+        // 不变式：生产 wrapper 必须读全局 atomic 当下值。
         let settings = make_settings("gemma4:e4b");
         let result = compute_health(&settings);
-        assert!(!result.runtime_ready);
+        assert_eq!(result.runtime_ready, llama_runtime::is_runtime_loaded());
     }
 
     #[test]
     fn compute_health_propagates_settings_model_name() {
         let settings = make_settings("gemma5:e2b");
-        let result = compute_health(&settings);
+        let result = compute_health_with_state(&settings, false);
         assert_eq!(result.model_name, "gemma5:e2b");
     }
 
@@ -152,7 +178,7 @@ mod tests {
     fn compute_health_reports_model_absent_when_not_downloaded() {
         // 默认环境下不会预置 gemma4 GGUF 文件
         let settings = make_settings("gemma4:e4b");
-        let result = compute_health(&settings);
+        let result = compute_health_with_state(&settings, false);
         assert!(
             !result.model_present,
             "model should be absent in test env, got present=true"
@@ -162,7 +188,7 @@ mod tests {
     #[test]
     fn compute_health_returns_platform_accelerator() {
         let settings = make_settings("gemma4:e4b");
-        let result = compute_health(&settings);
+        let result = compute_health_with_state(&settings, false);
         #[cfg(target_os = "macos")]
         assert_eq!(result.accelerator_kind, AcceleratorKind::Metal);
         #[cfg(not(target_os = "macos"))]

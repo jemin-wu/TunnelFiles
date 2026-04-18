@@ -6,6 +6,7 @@
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use sha2::{Digest, Sha256};
@@ -187,6 +188,31 @@ fn hex_lower(bytes: &[u8]) -> String {
     out
 }
 
+// ---- Runtime-loaded flag ----------------------------------------------------
+
+/// 进程级 "model + backend 都已加载就绪" 标志。
+///
+/// `LlamaRuntime::load` 成功后由生产代码调 `mark_runtime_loaded()` 翻 true
+/// （目前等 slice 3 的真 generate 集成接入；当前测试环境不会触发）。
+/// `health::check` 通过 `is_runtime_loaded()` 把它透到前端 badge。
+static IS_LOADED: AtomicBool = AtomicBool::new(false);
+
+/// 当前进程是否已加载 LlamaRuntime。健康检查 5s 轮询调用，必须廉价。
+pub fn is_runtime_loaded() -> bool {
+    IS_LOADED.load(Ordering::Acquire)
+}
+
+/// 标记 runtime 已加载。`Release` 顺序确保对 model 的写入对后续读 happens-before。
+pub fn mark_runtime_loaded() {
+    IS_LOADED.store(true, Ordering::Release);
+}
+
+/// 测试用：单测之间隔离 atomic 状态。生产代码无需 unload。
+#[cfg(test)]
+pub fn reset_runtime_loaded_for_tests() {
+    IS_LOADED.store(false, Ordering::Release);
+}
+
 // ---- Backend singleton ------------------------------------------------------
 
 /// `LlamaBackend::init()` 在进程内只能调一次（再调返回 BackendAlreadyInitialized）。
@@ -288,6 +314,9 @@ impl LlamaRuntime {
                 .with_detail(format!("LlamaModel::load_from_file: {e}"))
                 .with_retryable(false)
         })?;
+
+        // 加载成功 —— 翻全局 ready 标志。健康检查后续轮询会立即看到 ready。
+        mark_runtime_loaded();
 
         Ok(Self {
             backend,
@@ -551,6 +580,36 @@ mod tests {
         // unit struct 用例：UI / IPC 命令需要默认构造
         let _: SystemRamProbe = SystemRamProbe;
         let _: SystemRamProbe = Default::default();
+    }
+
+    // ---- runtime_loaded flag -----------------------------------------------
+    // IS_LOADED 是进程级全局，cargo test 并行调度下需要序列化对它的写访问。
+
+    use std::sync::Mutex;
+    static LOADED_FLAG_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn is_runtime_loaded_returns_false_initially() {
+        let _g = LOADED_FLAG_LOCK.lock().unwrap();
+        reset_runtime_loaded_for_tests();
+        assert!(!is_runtime_loaded());
+    }
+
+    #[test]
+    fn mark_runtime_loaded_flips_to_true() {
+        let _g = LOADED_FLAG_LOCK.lock().unwrap();
+        reset_runtime_loaded_for_tests();
+        mark_runtime_loaded();
+        assert!(is_runtime_loaded());
+        reset_runtime_loaded_for_tests();
+    }
+
+    #[test]
+    fn reset_runtime_loaded_for_tests_clears_flag() {
+        let _g = LOADED_FLAG_LOCK.lock().unwrap();
+        mark_runtime_loaded();
+        reset_runtime_loaded_for_tests();
+        assert!(!is_runtime_loaded());
     }
 
     // ---- compute_gguf_sha256 tests --------------------------------------

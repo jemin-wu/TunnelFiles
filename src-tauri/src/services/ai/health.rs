@@ -27,12 +27,13 @@ pub const fn detect_accelerator() -> AcceleratorKind {
 
 /// 执行一次健康检查。
 ///
-/// 输入明确（path + name），无隐式全局状态 —— 测试可用 tempfile 任意构造
-/// 场景。runtime 就绪状态暂未接入，T1.3 后续切片会补。
-pub fn check(model_path: &Path, model_name: &str) -> AiHealthResult {
+/// 所有输入显式传入（path + name + runtime_ready）—— 无隐式全局状态读取
+/// 让单测可以穷举所有场景。生产路径下 `runtime_ready` 由
+/// `llama_runtime::is_runtime_loaded()` 提供（见 `commands::ai::compute_health`）。
+pub fn check(model_path: &Path, model_name: &str, runtime_ready: bool) -> AiHealthResult {
     let model_present = model_path.is_file();
     AiHealthResult {
-        runtime_ready: false,
+        runtime_ready,
         model_present,
         model_name: model_name.to_string(),
         accelerator_kind: detect_accelerator(),
@@ -46,11 +47,10 @@ mod tests {
     use tempfile::{NamedTempFile, TempDir};
 
     #[test]
-    fn runtime_ready_is_false_until_llama_cpp_integrated() {
-        // T1.3 runtime 未接入 → 任何状态下都应 false，防 UI 误报 "就绪"
+    fn runtime_ready_propagates_from_input() {
         let tmp = NamedTempFile::new().expect("tempfile");
-        let result = check(tmp.path(), "gemma4:e4b");
-        assert!(!result.runtime_ready);
+        assert!(!check(tmp.path(), "gemma4:e4b", false).runtime_ready);
+        assert!(check(tmp.path(), "gemma4:e4b", true).runtime_ready);
     }
 
     #[test]
@@ -58,14 +58,14 @@ mod tests {
         let mut tmp = NamedTempFile::new().expect("tempfile");
         tmp.write_all(b"fake gguf content").expect("write");
         tmp.flush().expect("flush");
-        let result = check(tmp.path(), "gemma4:e4b");
+        let result = check(tmp.path(), "gemma4:e4b", false);
         assert!(result.model_present);
     }
 
     #[test]
     fn model_present_is_false_when_file_missing() {
         let missing = std::path::PathBuf::from("/nonexistent/dir/model.gguf");
-        let result = check(&missing, "gemma4:e4b");
+        let result = check(&missing, "gemma4:e4b", false);
         assert!(!result.model_present);
     }
 
@@ -73,21 +73,21 @@ mod tests {
     fn model_present_is_false_for_directory_path() {
         // 防止 GGUF 路径误指向目录被当成"存在"
         let dir = TempDir::new().expect("tempdir");
-        let result = check(dir.path(), "gemma4:e4b");
+        let result = check(dir.path(), "gemma4:e4b", false);
         assert!(!result.model_present);
     }
 
     #[test]
     fn model_name_round_trips_from_settings() {
         let tmp = NamedTempFile::new().expect("tempfile");
-        let result = check(tmp.path(), "gemma5:e2b");
+        let result = check(tmp.path(), "gemma5:e2b", false);
         assert_eq!(result.model_name, "gemma5:e2b");
     }
 
     #[test]
     fn accelerator_matches_build_target() {
         let tmp = NamedTempFile::new().expect("tempfile");
-        let result = check(tmp.path(), "gemma4:e4b");
+        let result = check(tmp.path(), "gemma4:e4b", false);
         #[cfg(target_os = "macos")]
         assert_eq!(result.accelerator_kind, AcceleratorKind::Metal);
         #[cfg(not(target_os = "macos"))]
@@ -98,7 +98,7 @@ mod tests {
     fn health_result_is_serde_round_trip() {
         // IPC 边界：JSON round-trip 必须保持值
         let tmp = NamedTempFile::new().expect("tempfile");
-        let result = check(tmp.path(), "gemma4:e4b");
+        let result = check(tmp.path(), "gemma4:e4b", true);
         let json = serde_json::to_string(&result).expect("serialize");
         let back: AiHealthResult = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(result, back);
