@@ -115,25 +115,14 @@ pub fn resource_check(probe: &dyn MemoryProbe) -> AppResult<()> {
 /// 流式读取计算 GGUF 文件 SHA256，读缓冲避免 ~3.5GB 模型占用堆。
 const CHECKSUM_READ_BUFFER: usize = 64 * 1024;
 
-/// 校验 GGUF 模型文件 SHA256 与预期值（小写 hex，64 字符）是否匹配。
+/// 流式计算文件 SHA256，返回小写 hex（64 字符）。
 ///
-/// 失败路径（均返回 `AiUnavailable`，`retryable=false`）：
-/// - 预期 hex 长度 / 字符不合法 → `detail: "invalid expected checksum"`
-/// - 文件缺失或无权限 → `detail: "GGUF file unreadable: {io error}"`
-/// - 计算结果不匹配 → `detail: "checksum mismatch: expected {}, got {}"`
+/// 用途：
+/// - T1.5 model_download：写盘后立即算 sha 与官方常量比对
+/// - 集成测试 / 调试：手工得知本地 GGUF 的 hash
 ///
-/// 校验层故意独立于 `llama-cpp-2`：恶意量化 / 半拉下载 / 存储损坏要在进入 FFI
-/// 前拦住（SPEC §5、SPEC §7 Never "从非官方 google/gemma-*-GGUF 仓库下载"）。
-pub fn verify_gguf_checksum(path: &Path, expected_hex: &str) -> AppResult<()> {
-    if expected_hex.len() != 64 || !expected_hex.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(AppError::ai_unavailable("GGUF 校验失败")
-            .with_detail(format!(
-                "invalid expected checksum: want 64 hex chars, got {} chars",
-                expected_hex.len()
-            ))
-            .with_retryable(false));
-    }
-
+/// 失败统一为 `AiUnavailable`，`retryable=false`（坏文件重试无意义）。
+pub fn compute_gguf_sha256(path: &Path) -> AppResult<String> {
     let file = File::open(path).map_err(|e| {
         AppError::ai_unavailable("GGUF 文件不可读")
             .with_detail(format!("GGUF file unreadable: {e}"))
@@ -153,8 +142,29 @@ pub fn verify_gguf_checksum(path: &Path, expected_hex: &str) -> AppResult<()> {
         }
         hasher.update(&buf[..n]);
     }
-    let got = hasher.finalize();
-    let got_hex = hex_lower(&got);
+    Ok(hex_lower(&hasher.finalize()))
+}
+
+/// 校验 GGUF 模型文件 SHA256 与预期值（小写 hex，64 字符）是否匹配。
+///
+/// 失败路径（均返回 `AiUnavailable`，`retryable=false`）：
+/// - 预期 hex 长度 / 字符不合法 → `detail: "invalid expected checksum"`
+/// - 文件缺失或无权限 → `detail: "GGUF file unreadable: {io error}"`
+/// - 计算结果不匹配 → `detail: "checksum mismatch: expected {}, got {}"`
+///
+/// 校验层故意独立于 `llama-cpp-2`：恶意量化 / 半拉下载 / 存储损坏要在进入 FFI
+/// 前拦住（SPEC §5、SPEC §7 Never "从非官方 google/gemma-*-GGUF 仓库下载"）。
+pub fn verify_gguf_checksum(path: &Path, expected_hex: &str) -> AppResult<()> {
+    if expected_hex.len() != 64 || !expected_hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::ai_unavailable("GGUF 校验失败")
+            .with_detail(format!(
+                "invalid expected checksum: want 64 hex chars, got {} chars",
+                expected_hex.len()
+            ))
+            .with_retryable(false));
+    }
+
+    let got_hex = compute_gguf_sha256(path)?;
     // 比较时 lowercase 两边，防用户填大写
     let expected_lower = expected_hex.to_ascii_lowercase();
     if got_hex != expected_lower {
@@ -541,5 +551,39 @@ mod tests {
         // unit struct 用例：UI / IPC 命令需要默认构造
         let _: SystemRamProbe = SystemRamProbe;
         let _: SystemRamProbe = Default::default();
+    }
+
+    // ---- compute_gguf_sha256 tests --------------------------------------
+
+    #[test]
+    fn compute_gguf_sha256_matches_known_hash() {
+        let f = make_file(b"hello");
+        let sha = compute_gguf_sha256(f.path()).expect("compute");
+        assert_eq!(sha, HELLO_SHA256);
+    }
+
+    #[test]
+    fn compute_gguf_sha256_returns_lowercase_hex_64_chars() {
+        let f = make_file(b"anything");
+        let sha = compute_gguf_sha256(f.path()).expect("compute");
+        assert_eq!(sha.len(), 64);
+        assert!(sha
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+    }
+
+    #[test]
+    fn compute_gguf_sha256_errors_on_missing_file() {
+        let missing = std::path::PathBuf::from("/nonexistent/x.gguf");
+        let err = compute_gguf_sha256(&missing).unwrap_err();
+        assert_eq!(err.code, ErrorCode::AiUnavailable);
+    }
+
+    #[test]
+    fn compute_gguf_sha256_round_trips_with_verify() {
+        // 自洽性：算出来的 sha 反过来 verify 必通过
+        let f = make_file(b"some random content for round trip");
+        let sha = compute_gguf_sha256(f.path()).expect("compute");
+        assert!(verify_gguf_checksum(f.path(), &sha).is_ok());
     }
 }
