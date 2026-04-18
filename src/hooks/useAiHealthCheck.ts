@@ -5,8 +5,10 @@
  * 完全不发请求、不加载 llama.cpp（SPEC §7 Always: "AI 默认关闭"）。
  */
 
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { aiHealthCheck } from "@/lib/ai";
+import { aiHealthCheck, aiRuntimeLoad } from "@/lib/ai";
+import { showErrorToast } from "@/lib/error";
 import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 
 export type AiHealthStatus =
@@ -55,6 +57,36 @@ export function useAiHealthCheck(aiEnabled: boolean): UseAiHealthCheckReturn {
     staleTime: AI_HEALTH_REFETCH_MS - 500,
     retry: false,
   });
+
+  // 自动 bootstrap runtime：一旦 health 确认 modelPresent=true 但
+  // runtimeReady=false（app 启动且模型已下好但没人调 load 的场景），触发
+  // `ai_runtime_load`。单次触发 —— 用 ref guard 防止 5 秒轮询反复打 FFI load。
+  // 失败不重试（报错给用户），因为 runtime load 失败通常是 RAM 不够 / 文件
+  // 损坏，反复试也徒劳。
+  const loadTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!aiEnabled) {
+      // 禁用 AI 时允许下次启用重试
+      loadTriggeredRef.current = false;
+      return;
+    }
+    const health = query.data;
+    if (!health) return;
+    if (!health.modelPresent) return;
+    if (health.runtimeReady) return;
+    if (loadTriggeredRef.current) return;
+
+    loadTriggeredRef.current = true;
+    void aiRuntimeLoad()
+      .then(() => {
+        // 下次 refetch 就能看到 runtimeReady=true；无需手工刷新
+      })
+      .catch((err) => {
+        // 失败 → 允许用户后续手工重试（例如释放 RAM 后切 AI off/on）
+        loadTriggeredRef.current = false;
+        showErrorToast(err);
+      });
+  }, [aiEnabled, query.data]);
 
   return {
     status: deriveAiHealthStatus(aiEnabled, query.data, query.error),

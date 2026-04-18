@@ -24,6 +24,32 @@ use tauri::Emitter;
 use commands::session::SessionStatusPayload;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// 一次性文件名迁移：旧版本 settings.ai_model_name = "gemma4:e4b"  → GGUF
+/// 保存为 "gemma4-e4b.gguf"；新版 T1.5 pin 文件名是
+/// "gemma-4-E4B-it-Q4_K_M.gguf"。若旧文件存在且新文件不存在，无感 rename。
+///
+/// 幂等：两者都存在时不动（以新文件为准）；两者都不存在也无操作。失败
+/// 记 warn 但不阻塞启动 —— 用户最多需要重新下载一次。
+fn migrate_legacy_gguf_filename() {
+    let Some(base) = dirs::data_local_dir() else {
+        return;
+    };
+    let models_dir = base.join("TunnelFiles").join("models");
+    let legacy = models_dir.join("gemma4-e4b.gguf");
+    let canonical = models_dir.join("gemma-4-E4B-it-Q4_K_M.gguf");
+    if !legacy.exists() || canonical.exists() {
+        return;
+    }
+    match std::fs::rename(&legacy, &canonical) {
+        Ok(()) => tracing::info!(
+            from = %legacy.display(),
+            to = %canonical.display(),
+            "旧 GGUF 文件名迁移成功"
+        ),
+        Err(e) => tracing::warn!(error = %e, "旧 GGUF 文件名迁移失败；用户可能需手动 rename"),
+    }
+}
+
 pub fn run() {
     // 1. 初始化数据库（设置现在存储在数据库中）
     let database = match Database::init() {
@@ -66,6 +92,11 @@ pub fn run() {
     if let Err(e) = cleanup_old_logs(7) {
         tracing::warn!(error = %e, "清理旧日志失败");
     }
+
+    // 6.5 一次性迁移：旧 settings.ai_model_name = "gemma4:e4b" 对应的 GGUF 文件
+    // 曾以 "gemma4-e4b.gguf" 保存；T1.5 改 pin 到 "gemma-4-E4B-it-Q4_K_M" 后
+    // 路径 resolver 不再找得到旧文件。此处无感改名，避免用户白白再下 5GB。
+    migrate_legacy_gguf_filename();
 
     // 7. 构建 Tauri 应用
     let sm_for_cleanup = session_manager.clone();
@@ -174,6 +205,7 @@ pub fn run() {
             commands::ai::ai_model_download,
             commands::ai::ai_model_download_cancel,
             commands::ai::ai_model_delete,
+            commands::ai::ai_runtime_load,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

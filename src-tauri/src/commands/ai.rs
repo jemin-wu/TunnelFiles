@@ -17,6 +17,7 @@ use crate::models::ai_events::{AiDownloadPhase, AiDownloadProgressPayload};
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::settings::{Settings, SettingsPatch};
+use crate::services::ai::llama_runtime::{LlamaRuntime, LoadOptions, SystemRamProbe};
 use crate::services::ai::model_download::{
     self, DownloadOutcome, SysDiskProbe, MODEL_DISK_REQUIRED_BYTES, MODEL_DOWNLOAD_URL,
     MODEL_EXPECTED_SHA256_HEX, MODEL_EXPECTED_SIZE_BYTES,
@@ -474,6 +475,38 @@ async fn do_model_download(
         },
     );
 
+    // --- Phase 3: loading (runtime mmap + Metal buffers) ----
+    let _ = app.emit(
+        EVENT_DOWNLOAD_PROGRESS,
+        &AiDownloadProgressPayload {
+            phase: AiDownloadPhase::Loading,
+            downloaded: 0,
+            total: MODEL_EXPECTED_SIZE_BYTES,
+            percent: 0,
+        },
+    );
+    let dest_for_load = dest.to_path_buf();
+    tokio::task::spawn_blocking(move || {
+        LlamaRuntime::load(
+            &dest_for_load,
+            MODEL_EXPECTED_SHA256_HEX,
+            LoadOptions::default(),
+            &SystemRamProbe,
+        )
+        .map(|_| ())
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("runtime load join 失败: {}", e)))??;
+    let _ = app.emit(
+        EVENT_DOWNLOAD_PROGRESS,
+        &AiDownloadProgressPayload {
+            phase: AiDownloadPhase::Loading,
+            downloaded: MODEL_EXPECTED_SIZE_BYTES,
+            total: MODEL_EXPECTED_SIZE_BYTES,
+            percent: 100,
+        },
+    );
+
     Ok(outcome)
 }
 
@@ -484,6 +517,53 @@ pub async fn ai_model_download_cancel() -> AppResult<AiModelDownloadCancelResult
     let canceled = cancel_active_download();
     tracing::debug!(canceled, "AI 模型下载取消请求");
     Ok(AiModelDownloadCancelResult { canceled })
+}
+
+/// `ai_runtime_load`：把磁盘上已存在的 GGUF 载入到 llama.cpp runtime。
+///
+/// 幂等：runtime 已加载直接返回 Ok（LOADED_RUNTIME OnceLock 首次 set 后后续 set 被忽略，
+/// mark_runtime_loaded 二次 store(true) 也是 noop）。
+/// 前置：模型文件必须在 paths::model_file_path 解析出的路径上存在；sha256 必须匹配 pin。
+/// 用途：
+///   - 前端健康检查看到 `modelPresent && !runtimeReady` 时触发（app 重启场景）
+///   - 下载成功时内部已调一次，不需要前端再调
+#[tauri::command]
+pub async fn ai_runtime_load(db: State<'_, Arc<Database>>) -> AppResult<()> {
+    if llama_runtime::is_runtime_loaded() {
+        tracing::debug!("ai_runtime_load: runtime 已加载，noop");
+        return Ok(());
+    }
+    let db = (*db).clone();
+    let settings = tokio::task::spawn_blocking({
+        let db = db.clone();
+        move || db.settings_load()
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("读取 settings 失败: {}", e)))??;
+
+    let path = resolve_model_dest(&settings)?;
+    if !path.exists() {
+        return Err(
+            AppError::new(ErrorCode::AiUnavailable, "模型文件不存在，请先下载")
+                .with_detail(path.display().to_string())
+                .with_retryable(false),
+        );
+    }
+
+    tracing::info!(path = %path.display(), "AI runtime 开始加载");
+    tokio::task::spawn_blocking(move || {
+        LlamaRuntime::load(
+            &path,
+            MODEL_EXPECTED_SHA256_HEX,
+            LoadOptions::default(),
+            &SystemRamProbe,
+        )
+        .map(|_| ())
+    })
+    .await
+    .map_err(|e| AppError::new(ErrorCode::Unknown, format!("runtime load join 失败: {}", e)))??;
+    tracing::info!("AI runtime 加载完成");
+    Ok(())
 }
 
 /// `ai_model_delete` 返回值。
@@ -587,12 +667,14 @@ mod tests {
 
     #[test]
     fn compute_health_reports_model_absent_when_not_downloaded() {
-        // 默认环境下不会预置 gemma4 GGUF 文件
-        let settings = make_settings("gemma4:e4b");
+        // 用随机 UUID 当模型名 —— 保证 paths::model_file_path 解析出的路径
+        // 在任何开发机 / CI / 已下载过其他模型的机器上都不存在
+        let name = format!("definitely-absent-{}", uuid::Uuid::new_v4());
+        let settings = make_settings(&name);
         let result = compute_health_with_state(&settings, false);
         assert!(
             !result.model_present,
-            "model should be absent in test env, got present=true"
+            "model should be absent for random name, got present=true"
         );
     }
 

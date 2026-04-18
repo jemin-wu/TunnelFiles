@@ -198,3 +198,21 @@ export async function aiModelDelete(): Promise<AiModelDeleteResult> {
   const result = await timedInvoke("ai_model_delete");
   return parseInvokeResult(AiModelDeleteResultSchema, result, "ai_model_delete");
 }
+
+/**
+ * Load the pinned GGUF into the llama.cpp runtime. Idempotent: already-loaded
+ * returns Ok immediately. Used for the "model was downloaded in a previous
+ * session, app just restarted, need to bring the runtime up" path.
+ *
+ * The download command chains this internally after verify-sha256, so callers
+ * only need to invoke this explicitly during health-check-driven recovery.
+ *
+ * May take 2–5 s on Metal (GGUF mmap + backend buffer init) — runs in a
+ * spawn_blocking so it won't peg the async runtime, but the IPC round-trip
+ * waits for completion.
+ */
+export async function aiRuntimeLoad(): Promise<void> {
+  // Loading can take ~5 s cold; give the IPC a generous budget even though
+  // the backend itself has no timeout.
+  await timedInvoke("ai_runtime_load", undefined, 60_000);
+}
