@@ -1,8 +1,9 @@
-import { useCallback, useState, type FormEvent, type KeyboardEvent } from "react";
-import { Send, Square } from "lucide-react";
+import { useCallback, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { AlertTriangle, Send, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { detectInputWarnings } from "@/lib/inputSafetyWarnings";
 
 interface ChatInputProps {
   /** 用户提交后回调，参数已 trim。返回 promise/void 都行。 */
@@ -31,6 +32,9 @@ interface ChatInputProps {
  */
 export function ChatInput({ onSubmit, disabled, onStop, placeholder, className }: ChatInputProps) {
   const [value, setValue] = useState("");
+
+  // 实时安全告警 —— 不阻塞 submit，仅 inline 提醒。后端仍会再 scrub 一次。
+  const warnings = useMemo(() => detectInputWarnings(value), [value]);
 
   const submit = useCallback(async () => {
     const trimmed = value.trim();
@@ -61,45 +65,67 @@ export function ChatInput({ onSubmit, disabled, onStop, placeholder, className }
   return (
     <form
       onSubmit={handleSubmit}
-      className={cn("flex items-end gap-2", className)}
+      className={cn("flex flex-col gap-1.5", className)}
       data-slot="chat-input"
     >
-      <textarea
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={disabled}
-        placeholder={placeholder ?? "Ask the local assistant..."}
-        rows={2}
-        aria-label="Chat input"
-        className={cn(
-          "border-input bg-background text-foreground placeholder:text-muted-foreground",
-          "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-          "min-h-16 flex-1 resize-none rounded-md border px-3 py-2 text-xs outline-none",
-          "disabled:cursor-not-allowed disabled:opacity-60"
-        )}
-      />
-      {disabled && onStop ? (
-        <Button
-          type="button"
-          size="icon"
-          variant="destructive"
-          onClick={onStop}
-          aria-label="Stop response"
-          data-slot="chat-stop"
+      {warnings.length > 0 && (
+        <ul
+          className="text-destructive border-destructive/30 bg-destructive/5 flex flex-col gap-1 rounded-md border px-2 py-1.5 text-[11px]"
+          role="status"
+          aria-live="polite"
+          data-slot="chat-input-warnings"
         >
-          <Square />
-        </Button>
-      ) : (
-        <Button
-          type="submit"
-          size="icon"
-          disabled={disabled || value.trim().length === 0}
-          aria-label="Send message"
-        >
-          <Send />
-        </Button>
+          {warnings.map((w, i) => (
+            <li key={`${w.kind}-${i}`} className="flex items-start gap-1.5">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>
+                <span className="font-medium">{w.label}</span>
+                <span className="text-muted-foreground ml-1">
+                  — 后端仍会脱敏，但建议确认后再发送
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
+      <div className="flex items-end gap-2">
+        <textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={disabled}
+          placeholder={placeholder ?? "Ask the local assistant..."}
+          rows={2}
+          aria-label="Chat input"
+          className={cn(
+            "border-input bg-background text-foreground placeholder:text-muted-foreground",
+            "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+            "min-h-16 flex-1 resize-none rounded-md border px-3 py-2 text-xs outline-none",
+            "disabled:cursor-not-allowed disabled:opacity-60"
+          )}
+        />
+        {disabled && onStop ? (
+          <Button
+            type="button"
+            size="icon"
+            variant="destructive"
+            onClick={onStop}
+            aria-label="Stop response"
+            data-slot="chat-stop"
+          >
+            <Square />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            size="icon"
+            disabled={disabled || value.trim().length === 0}
+            aria-label="Send message"
+          >
+            <Send />
+          </Button>
+        )}
+      </div>
     </form>
   );
 }

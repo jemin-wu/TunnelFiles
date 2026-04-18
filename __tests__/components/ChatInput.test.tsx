@@ -142,4 +142,51 @@ describe("ChatInput", () => {
       expect(screen.queryByLabelText("Stop response")).not.toBeInTheDocument();
     });
   });
+
+  describe("inline safety warnings", () => {
+    it("does not render warning panel when input is safe prose", async () => {
+      const user = userEvent.setup();
+      render(<ChatInput onSubmit={vi.fn()} />);
+      await user.type(screen.getByLabelText("Chat input"), "how do I list listening ports");
+      expect(document.querySelector("[data-slot='chat-input-warnings']")).toBeNull();
+    });
+
+    it("surfaces an AWS access key warning chip", async () => {
+      const user = userEvent.setup();
+      render(<ChatInput onSubmit={vi.fn()} />);
+      await user.type(screen.getByLabelText("Chat input"), "key AKIAIOSFODNN7EXAMPLE here");
+      const panel = await screen.findByRole("status");
+      expect(panel).toHaveTextContent("AWS access key");
+    });
+
+    it("does NOT block submit when warnings exist (warn-not-block policy)", async () => {
+      const user = userEvent.setup();
+      const onSubmit = vi.fn();
+      render(<ChatInput onSubmit={onSubmit} />);
+      await user.type(
+        screen.getByLabelText("Chat input"),
+        "this AKIAIOSFODNN7EXAMPLE looks like a key"
+      );
+      await user.keyboard("{Enter}");
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears warnings when textarea returns to a safe state", async () => {
+      const user = userEvent.setup();
+      render(<ChatInput onSubmit={vi.fn()} />);
+      const input = screen.getByLabelText("Chat input");
+      await user.type(input, "AKIAIOSFODNN7EXAMPLE");
+      expect(document.querySelector("[data-slot='chat-input-warnings']")).not.toBeNull();
+      await user.clear(input);
+      expect(document.querySelector("[data-slot='chat-input-warnings']")).toBeNull();
+    });
+
+    it("warning panel has aria-live=polite to be announced by screen readers", async () => {
+      const user = userEvent.setup();
+      render(<ChatInput onSubmit={vi.fn()} />);
+      await user.type(screen.getByLabelText("Chat input"), "AKIAIOSFODNN7EXAMPLE");
+      const panel = await screen.findByRole("status");
+      expect(panel.getAttribute("aria-live")).toBe("polite");
+    });
+  });
 });
