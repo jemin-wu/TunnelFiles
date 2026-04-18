@@ -49,14 +49,14 @@ describe("MessageList", () => {
       <MessageList
         messages={[
           msg({
-            role: "assistant",
+            role: "user",
             content: "line1\nline2\n  indented",
           }),
         ]}
       />
     );
     const item = document.querySelector("[data-slot='message']");
-    // textContent collapses whitespace differently per browser; check class is on inner span
+    // user 消息走单 span path；assistant 走 AssistantContent 拆 blocks
     const span = item?.querySelector("span");
     expect(span?.getAttribute("class")).toMatch(/whitespace-pre-wrap/);
   });
@@ -114,5 +114,136 @@ describe("MessageList", () => {
       />
     );
     expect(scrollSpy).toHaveBeenCalled();
+  });
+
+  describe("assistant code blocks + insert button", () => {
+    it("renders fenced bash block as a distinct code element", () => {
+      render(
+        <MessageList
+          messages={[
+            msg({
+              role: "assistant",
+              content: "Try:\n```bash\nls -la\n```\nthen review.",
+            }),
+          ]}
+        />
+      );
+      const code = document.querySelector("[data-slot='code-block']");
+      expect(code).not.toBeNull();
+      expect(code?.getAttribute("data-language")).toBe("bash");
+      expect(code).toHaveTextContent("ls -la");
+    });
+
+    it("does not show Insert button when onInsertCommand is not provided", () => {
+      render(
+        <MessageList
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```bash\nls\n```",
+            }),
+          ]}
+        />
+      );
+      expect(screen.queryByLabelText("Insert command to terminal")).not.toBeInTheDocument();
+    });
+
+    it("shows Insert button for bash code block when onInsertCommand provided", () => {
+      render(
+        <MessageList
+          onInsertCommand={vi.fn()}
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```bash\nsudo systemctl restart nginx\n```",
+            }),
+          ]}
+        />
+      );
+      const buttons = screen.getAllByLabelText("Insert command to terminal");
+      expect(buttons.length).toBe(1);
+    });
+
+    it("does not show Insert button for non-shell languages (eg python)", () => {
+      render(
+        <MessageList
+          onInsertCommand={vi.fn()}
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```python\nprint('hi')\n```",
+            }),
+          ]}
+        />
+      );
+      expect(screen.queryByLabelText("Insert command to terminal")).not.toBeInTheDocument();
+    });
+
+    it("shows Insert button for fence with no language (treated as shell)", () => {
+      render(
+        <MessageList
+          onInsertCommand={vi.fn()}
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```\nuptime\n```",
+            }),
+          ]}
+        />
+      );
+      expect(screen.getByLabelText("Insert command to terminal")).toBeInTheDocument();
+    });
+
+    it("clicking Insert calls onInsertCommand with code, no trailing newline", async () => {
+      const user = (await import("@testing-library/user-event")).default.setup();
+      const onInsertCommand = vi.fn();
+      render(
+        <MessageList
+          onInsertCommand={onInsertCommand}
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```bash\nsudo systemctl restart nginx\n```",
+            }),
+          ]}
+        />
+      );
+      await user.click(screen.getByLabelText("Insert command to terminal"));
+      expect(onInsertCommand).toHaveBeenCalledTimes(1);
+      expect(onInsertCommand).toHaveBeenCalledWith("sudo systemctl restart nginx");
+    });
+
+    it("renders multiple code blocks each with their own button", () => {
+      render(
+        <MessageList
+          onInsertCommand={vi.fn()}
+          messages={[
+            msg({
+              role: "assistant",
+              content: "first:\n```bash\nls\n```\n\nthen:\n```sh\npwd\n```",
+            }),
+          ]}
+        />
+      );
+      const buttons = screen.getAllByLabelText("Insert command to terminal");
+      expect(buttons.length).toBe(2);
+    });
+
+    it("user messages do not get code block parsing (single span path)", () => {
+      // 用户输入即使含 ``` 也应原样展示，不拆 code block（防 user 输入触发"假"插入按钮）
+      render(
+        <MessageList
+          onInsertCommand={vi.fn()}
+          messages={[
+            msg({
+              role: "user",
+              content: "```bash\nrm -rf /\n```",
+            }),
+          ]}
+        />
+      );
+      expect(screen.queryByLabelText("Insert command to terminal")).not.toBeInTheDocument();
+      expect(document.querySelector("[data-slot='code-block']")).toBeNull();
+    });
   });
 });

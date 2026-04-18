@@ -5,6 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/useAiChat";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
+import { encodeTerminalData, getTerminalBySession, writeTerminalInput } from "@/lib/terminal";
 import { ChatInput } from "./ChatInput";
 import { MessageList } from "./MessageList";
 
@@ -22,6 +23,11 @@ interface ChatPanelProps {
    * 注意：传 `onSend` 时**不会**自动订阅事件 —— 调用方需自己驱动 store 收尾。
    */
   onSend?: (sessionId: string, text: string) => Promise<void>;
+  /**
+   * 覆盖代码块"插入终端"行为。**默认**通过 `getTerminalBySession` 找到当前
+   * tab 关联的 terminalId，再 `writeTerminalInput` 不带换行写入。
+   */
+  onInsertCommand?: (command: string) => void | Promise<void>;
   className?: string;
 }
 
@@ -35,7 +41,7 @@ interface ChatPanelProps {
  *
  * 真正的 IPC 订阅 / token 推送在 T1.6 chat-streaming hook 里加。
  */
-export function ChatPanel({ sessionId, onSend, className }: ChatPanelProps) {
+export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: ChatPanelProps) {
   // selector 订阅单条 session，避免其他 tab 改动触发本组件 rerender
   const session = useAiSessionStore((s) => s.sessions.get(sessionId));
   const appendUserMessage = useAiSessionStore((s) => s.appendUserMessage);
@@ -56,6 +62,24 @@ export function ChatPanel({ sessionId, onSend, className }: ChatPanelProps) {
     if (!pendingAssistantId) return;
     void cancel(pendingAssistantId);
   }, [cancel, pendingAssistantId]);
+
+  /**
+   * 默认插入流程：sessionId → 当前 terminalId → base64 → 写入 PTY，**不带换行**。
+   * 终端可能未打开（用户在 Files tab 时）—— 此时静默忽略；UI 不抛错。
+   */
+  const defaultInsertCommand = useCallback(
+    async (command: string) => {
+      const terminalId = await getTerminalBySession(sessionId);
+      if (!terminalId) return;
+      await writeTerminalInput({
+        terminalId,
+        data: encodeTerminalData(command),
+      });
+    },
+    [sessionId]
+  );
+
+  const insertCommand = onInsertCommand ?? defaultInsertCommand;
 
   const handleSubmit = useCallback(
     async (text: string) => {
@@ -85,7 +109,11 @@ export function ChatPanel({ sessionId, onSend, className }: ChatPanelProps) {
       data-stream-state={streamState}
     >
       <ScrollArea className="flex-1 px-4 py-3">
-        <MessageList messages={messages} isStreaming={isStreaming} />
+        <MessageList
+          messages={messages}
+          isStreaming={isStreaming}
+          onInsertCommand={insertCommand}
+        />
       </ScrollArea>
 
       {isError && (

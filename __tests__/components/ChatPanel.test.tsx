@@ -9,6 +9,14 @@ beforeEach(() => {
   // 重置全局 store 防 case 间状态泄漏
   useAiSessionStore.setState({ sessions: new Map() });
   Element.prototype.scrollIntoView = vi.fn();
+  // ScrollArea 使用 ResizeObserver；jsdom 不实现，stub 之
+  if (typeof globalThis.ResizeObserver === "undefined") {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
   vi.clearAllMocks();
 });
 
@@ -156,5 +164,81 @@ describe("ChatPanel", () => {
     const panel = document.querySelector("[data-slot='chat-panel']");
     expect(panel?.getAttribute("data-session-id")).toBe("tab-attrs");
     expect(panel?.getAttribute("data-stream-state")).toBe("idle");
+  });
+
+  it("default insert command writes to terminal looked up by sessionId", async () => {
+    const user = userEvent.setup();
+    // Seed an assistant message with a code block
+    useAiSessionStore.getState().appendUserMessage("tab-insert", "?");
+    const assistantId = useAiSessionStore.getState().beginThinking("tab-insert");
+    useAiSessionStore.getState().appendAssistantToken("tab-insert", "```bash\nuptime\n```");
+    useAiSessionStore.getState().completeStream("tab-insert");
+    expect(assistantId).toBeTruthy();
+
+    // Mock IPC: terminal_get_by_session → "term-xyz", terminal_input → ok
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "terminal_get_by_session") return "term-xyz";
+      if (cmd === "terminal_input") return null;
+      return null;
+    });
+
+    render(<ChatPanel sessionId="tab-insert" />);
+
+    await user.click(screen.getByLabelText("Insert command to terminal"));
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("terminal_get_by_session", {
+        sessionId: "tab-insert",
+      });
+    });
+    // base64("uptime") = "dXB0aW1l"
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith("terminal_input", {
+        input: { terminalId: "term-xyz", data: "dXB0aW1l" },
+      });
+    });
+  });
+
+  it("insert is a noop when no terminal is open for the session", async () => {
+    const user = userEvent.setup();
+    useAiSessionStore.getState().appendUserMessage("tab-noterm", "?");
+    useAiSessionStore.getState().beginThinking("tab-noterm");
+    useAiSessionStore.getState().appendAssistantToken("tab-noterm", "```bash\nls\n```");
+    useAiSessionStore.getState().completeStream("tab-noterm");
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "terminal_get_by_session") return null;
+      throw new Error("should not reach terminal_input");
+    });
+
+    render(<ChatPanel sessionId="tab-noterm" />);
+    await user.click(screen.getByLabelText("Insert command to terminal"));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("terminal_get_by_session", {
+        sessionId: "tab-noterm",
+      })
+    );
+    // terminal_input must NOT be called
+    const calls = vi.mocked(invoke).mock.calls.map((c) => c[0]);
+    expect(calls).not.toContain("terminal_input");
+  });
+
+  it("respects onInsertCommand prop override", async () => {
+    const user = userEvent.setup();
+    useAiSessionStore.getState().appendUserMessage("tab-override", "?");
+    useAiSessionStore.getState().beginThinking("tab-override");
+    useAiSessionStore.getState().appendAssistantToken("tab-override", "```\nfoo\n```");
+    useAiSessionStore.getState().completeStream("tab-override");
+
+    const onInsertCommand = vi.fn();
+    render(<ChatPanel sessionId="tab-override" onInsertCommand={onInsertCommand} />);
+
+    await user.click(screen.getByLabelText("Insert command to terminal"));
+
+    expect(onInsertCommand).toHaveBeenCalledWith("foo");
+    // 默认路径未走（不会调 terminal_get_by_session）
+    const calls = vi.mocked(invoke).mock.calls.map((c) => c[0]);
+    expect(calls).not.toContain("terminal_get_by_session");
   });
 });
