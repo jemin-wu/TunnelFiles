@@ -3,7 +3,7 @@
 //! Terminal 使用独立的非阻塞 SSH session（与 SFTP 分离）实现毫秒级响应。
 //! 连接断开时自动尝试重连（指数退避，最多 3 次），失败后可手动重连。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, AtomicU16, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -34,6 +34,32 @@ const BULK_BUFFER_LIMIT: usize = 16384;
 const INTERACTIVE_WINDOW_MS: u64 = 100;
 /// 自动重连最大尝试次数
 const MAX_RECONNECT_ATTEMPTS: u8 = 3;
+/// 最近输出环形缓冲区容量（供 AI context snapshot 读取，FIFO 淘汰）
+pub(crate) const RECENT_OUTPUT_CAP: usize = 8192;
+
+/// 将输出块追加到环形缓冲区；长度超过 RECENT_OUTPUT_CAP 时从队首丢弃
+///
+/// 独立函数（而非方法）以便单元测试直接构造 Mutex<VecDeque<u8>> 验证行为，
+/// 无需真实 SSH 会话。Mutex poisoned 时静默跳过（best-effort 语义）。
+fn append_recent_output(buf: &Mutex<VecDeque<u8>>, chunk: &[u8]) {
+    if chunk.is_empty() {
+        return;
+    }
+    if let Ok(mut guard) = buf.lock() {
+        guard.extend(chunk.iter().copied());
+        while guard.len() > RECENT_OUTPUT_CAP {
+            guard.pop_front();
+        }
+    }
+}
+
+/// 从环形缓冲区拷贝出当前内容。Mutex poisoned 时返回空 Vec
+fn snapshot_buf(buf: &Mutex<VecDeque<u8>>) -> Vec<u8> {
+    match buf.lock() {
+        Ok(guard) => guard.iter().copied().collect(),
+        Err(_) => Vec::new(),
+    }
+}
 
 /// 获取当前 epoch 毫秒时间戳
 fn epoch_millis() -> u64 {
@@ -65,6 +91,8 @@ pub struct ManagedTerminal {
     /// 最后一次用户输入的时间戳（epoch millis），用于自适应输出批量
     /// reader 线程读取此值判断交互/批量模式
     pub last_input_ts: AtomicU64,
+    /// 最近 PTY 输出环形缓冲区（≤ RECENT_OUTPUT_CAP 字节），供 AI context snapshot 读取
+    recent_output: Mutex<VecDeque<u8>>,
 }
 
 // SAFETY: ManagedTerminal 可以安全地跨线程发送和共享，原因如下：
@@ -73,6 +101,8 @@ pub struct ManagedTerminal {
 // 3. 写入操作 (write_input) 和尺寸调整 (resize) 通过 Mutex<Channel> 序列化
 // 4. AtomicU16/AtomicU64/AtomicBool 提供无锁线程安全访问（含 last_input_ts）
 // 5. RwLock<Instant> 用于 last_activity，提供线程安全的读写
+// 6. Mutex<VecDeque<u8>> (recent_output) 自身 Send+Sync；push 发生于 channel 锁
+//    释放后，永不与 ssh2 锁嵌套持有，不改变既有锁序不变量
 unsafe impl Send for ManagedTerminal {}
 unsafe impl Sync for ManagedTerminal {}
 
@@ -81,6 +111,11 @@ impl ManagedTerminal {
         if let Ok(mut last) = self.last_activity.write() {
             *last = Instant::now();
         }
+    }
+
+    /// 拷贝最近 PTY 输出（供 AI context snapshot 消费前走 scrubber 硬擦）
+    pub fn snapshot_recent_output(&self) -> Vec<u8> {
+        snapshot_buf(&self.recent_output)
     }
 }
 
@@ -149,6 +184,7 @@ impl TerminalManager {
             shutdown: AtomicBool::new(false),
             generation: AtomicU64::new(0),
             last_input_ts: AtomicU64::new(0),
+            recent_output: Mutex::new(VecDeque::with_capacity(RECENT_OUTPUT_CAP)),
         });
 
         {
@@ -350,6 +386,9 @@ impl TerminalManager {
                     };
 
                     accumulated_data.extend_from_slice(&buffer[..bytes_read]);
+
+                    // 追加到 recent_output 环形缓冲区（channel 锁已释放，不与 ssh2 锁嵌套）
+                    append_recent_output(&terminal.recent_output, &buffer[..bytes_read]);
 
                     // 自适应批量：根据最后一次用户输入判断交互/批量模式
                     let now_millis = epoch_millis();
@@ -728,5 +767,78 @@ mod tests {
         let no_input: u64 = 0;
         let is_never = no_input == 0;
         assert!(is_never);
+    }
+
+    fn make_buf() -> Mutex<VecDeque<u8>> {
+        Mutex::new(VecDeque::with_capacity(RECENT_OUTPUT_CAP))
+    }
+
+    #[test]
+    fn test_recent_output_empty_snapshot() {
+        let buf = make_buf();
+        assert_eq!(snapshot_buf(&buf), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn test_recent_output_single_push_under_cap() {
+        let buf = make_buf();
+        append_recent_output(&buf, b"hello world");
+        assert_eq!(snapshot_buf(&buf), b"hello world".to_vec());
+    }
+
+    #[test]
+    fn test_recent_output_empty_chunk_noop() {
+        let buf = make_buf();
+        append_recent_output(&buf, b"abc");
+        append_recent_output(&buf, b"");
+        assert_eq!(snapshot_buf(&buf), b"abc".to_vec());
+    }
+
+    #[test]
+    fn test_recent_output_caps_at_limit() {
+        let buf = make_buf();
+        let chunk = vec![b'X'; RECENT_OUTPUT_CAP + 4096];
+        append_recent_output(&buf, &chunk);
+        let snap = snapshot_buf(&buf);
+        assert_eq!(snap.len(), RECENT_OUTPUT_CAP);
+        assert!(snap.iter().all(|&b| b == b'X'));
+    }
+
+    #[test]
+    fn test_recent_output_fifo_eviction_preserves_tail() {
+        let buf = make_buf();
+        // 先塞满 cap 的 'A'
+        append_recent_output(&buf, &vec![b'A'; RECENT_OUTPUT_CAP]);
+        // 再追加 100 字节 'B' — 应从队首淘汰 100 个 'A'
+        append_recent_output(&buf, &vec![b'B'; 100]);
+        let snap = snapshot_buf(&buf);
+        assert_eq!(snap.len(), RECENT_OUTPUT_CAP);
+        // 前 RECENT_OUTPUT_CAP - 100 字节仍为 'A'
+        assert!(snap[..RECENT_OUTPUT_CAP - 100].iter().all(|&b| b == b'A'));
+        // 后 100 字节为 'B'
+        assert!(snap[RECENT_OUTPUT_CAP - 100..].iter().all(|&b| b == b'B'));
+    }
+
+    #[test]
+    fn test_recent_output_snapshot_is_independent_copy() {
+        let buf = make_buf();
+        append_recent_output(&buf, b"first");
+        let snap1 = snapshot_buf(&buf);
+        append_recent_output(&buf, b"-second");
+        let snap2 = snapshot_buf(&buf);
+        assert_eq!(snap1, b"first".to_vec());
+        assert_eq!(snap2, b"first-second".to_vec());
+    }
+
+    #[test]
+    fn test_recent_output_many_small_chunks_cap() {
+        let buf = make_buf();
+        // 10000 次 10 字节 push = 100KB 总量，应保留最后 8KB
+        for i in 0..10000u32 {
+            let byte = (b'0' + (i % 10) as u8) as u8;
+            append_recent_output(&buf, &[byte; 10]);
+        }
+        let snap = snapshot_buf(&buf);
+        assert_eq!(snap.len(), RECENT_OUTPUT_CAP);
     }
 }
