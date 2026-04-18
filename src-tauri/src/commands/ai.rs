@@ -111,8 +111,9 @@ pub async fn ai_chat_send(app: AppHandle, input: AiChatSendInput) -> AppResult<A
         "AI chat send (stub)"
     );
 
-    // spawn 异步任务驱动事件；命令立即返回 messageId 让前端登记 pending 状态
-    tauri::async_runtime::spawn(chat::run_stub_stream(
+    // spawn 异步任务驱动事件；命令立即返回 messageId 让前端登记 pending 状态。
+    // run_chat_stream 内部根据 loaded_runtime() 自动选真 generate 或 stub echo。
+    tauri::async_runtime::spawn(chat::run_chat_stream(
         app,
         input.session_id,
         message_id.clone(),

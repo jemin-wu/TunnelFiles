@@ -1,25 +1,25 @@
-//! Chat 流式推理（v0.1 stub）。
+//! Chat 流式推理 —— 自动选择真 LlamaRuntime 或 stub echo。
 //!
-//! 当前实现是 echo —— 字符级回放用户输入，演示完整事件流（`ai:thinking`
-//! → 多个 `ai:token` → `ai:done`）。真正的 `LlamaRuntime::generate()`
-//! 集成走 T1.3 slice 3，集成后只替换 `produce_response_chars()` 即可，
-//! 事件契约不变。
+//! 入口 `run_chat_stream` 在每条消息开始时检查 `loaded_runtime()`：
+//! - `Some(runtime)`：走真路径 —— `spawn_blocking` 包 FFI generate，
+//!   每 token emit `ai:token`；FFI 失败 emit `ai:error` 替代 `ai:done`
+//! - `None`：走 stub —— 字符级回放用户输入（v0.1 模型未下载/未加载时
+//!   仍能演示完整事件流）
 //!
-//! 取消机制：`register_cancel_token` 在每次 stream 启动时注册一个
-//! `CancellationToken`，命令层 `ai_chat_cancel(messageId)` 通过
-//! `cancel_message` 触发。流循环在 `tokio::select!` 中检查 token，
-//! 命中即 emit `ai:done { canceled: true }` 并退出。
-//!
-//! 事件命名常量集中在此模块，前端 `src/lib/ai.ts` 同步对照。
+//! 共享部分（事件命名、cancel registry、ai:thinking / ai:done 包络）保留
+//! 在本模块顶部，两条分支都复用。
 
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter};
 use tokio_util::sync::CancellationToken;
 
-use crate::models::ai_events::{AiDonePayload, AiThinkingPayload, AiTokenPayload};
+use crate::models::ai_events::{AiDonePayload, AiErrorPayload, AiThinkingPayload, AiTokenPayload};
+use crate::models::error::AppError;
+use crate::services::ai::generate::{GenerateOptions, GenerationOutcome};
+use crate::services::ai::llama_runtime::{self, LlamaRuntime};
 
 pub const EVENT_THINKING: &str = "ai:thinking";
 pub const EVENT_TOKEN: &str = "ai:token";
@@ -77,18 +77,18 @@ fn registry_size() -> usize {
     registry().lock().expect("cancel registry poisoned").len()
 }
 
-// ---- Stub stream ------------------------------------------------------------
+// ---- Stream outcome 抽象（real / stub 共享） --------------------------------
 
-/// stub 实现：把用户输入回声回去，便于打通端到端 UI。
-fn produce_response_chars(user_text: &str) -> Vec<String> {
-    let banner = "Echo (stub, no model loaded yet): ";
-    let combined = format!("{banner}{user_text}");
-    combined.chars().map(|c| c.to_string()).collect()
+#[derive(Debug, Clone)]
+enum StreamOutcome {
+    Done { canceled: bool, truncated: bool },
+    Error(AppError),
 }
 
-/// 异步驱动 stub 流。emit 失败（窗口关闭等）静默忽略 —— 不重试也不
-/// 阻塞，按 fire-and-forget 处理。
-pub async fn run_stub_stream(
+// ---- Public entrypoint ------------------------------------------------------
+
+/// chat send 命令调度的真异步入口。根据 runtime 加载状态分流。
+pub async fn run_chat_stream(
     app: AppHandle,
     session_id: String,
     message_id: String,
@@ -104,6 +104,134 @@ pub async fn run_stub_stream(
         },
     );
 
+    let outcome = match llama_runtime::loaded_runtime() {
+        Some(runtime) => {
+            run_real_stream(
+                app.clone(),
+                runtime,
+                session_id.clone(),
+                message_id.clone(),
+                user_text,
+                cancel_token,
+            )
+            .await
+        }
+        None => {
+            run_stub_stream(
+                app.clone(),
+                session_id.clone(),
+                message_id.clone(),
+                user_text,
+                cancel_token,
+            )
+            .await
+        }
+    };
+
+    match outcome {
+        StreamOutcome::Done {
+            canceled,
+            truncated,
+        } => {
+            let _ = app.emit(
+                EVENT_DONE,
+                &AiDonePayload {
+                    session_id,
+                    message_id: message_id.clone(),
+                    truncated,
+                    canceled,
+                },
+            );
+        }
+        StreamOutcome::Error(error) => {
+            let _ = app.emit(
+                EVENT_ERROR,
+                &AiErrorPayload {
+                    session_id,
+                    message_id: message_id.clone(),
+                    error,
+                },
+            );
+        }
+    }
+
+    unregister_cancel_token(&message_id);
+}
+
+// ---- Real path (FFI) --------------------------------------------------------
+
+async fn run_real_stream(
+    app: AppHandle,
+    runtime: Arc<LlamaRuntime>,
+    session_id: String,
+    message_id: String,
+    user_text: String,
+    cancel_token: CancellationToken,
+) -> StreamOutcome {
+    // FFI 调用必须在 spawn_blocking —— llama.cpp 是 sync + blocking。
+    // 闭包 move 进 worker 线程；token emit 通过 AppHandle clone（Send）。
+    let session_id_for_cb = session_id.clone();
+    let message_id_for_cb = message_id.clone();
+    let app_for_cb = app.clone();
+    let cancel_for_loop = cancel_token.clone();
+
+    let join = tokio::task::spawn_blocking(move || {
+        runtime.generate(
+            &user_text,
+            GenerateOptions::default(),
+            &cancel_for_loop,
+            |tok| {
+                let _ = app_for_cb.emit(
+                    EVENT_TOKEN,
+                    &AiTokenPayload {
+                        session_id: session_id_for_cb.clone(),
+                        message_id: message_id_for_cb.clone(),
+                        token: tok.to_string(),
+                    },
+                );
+            },
+        )
+    })
+    .await;
+
+    match join {
+        Ok(Ok(GenerationOutcome::Cancelled)) => StreamOutcome::Done {
+            canceled: true,
+            truncated: false,
+        },
+        Ok(Ok(GenerationOutcome::Truncated)) => StreamOutcome::Done {
+            canceled: false,
+            truncated: true,
+        },
+        Ok(Ok(GenerationOutcome::Completed)) => StreamOutcome::Done {
+            canceled: false,
+            truncated: false,
+        },
+        Ok(Err(app_err)) => StreamOutcome::Error(app_err),
+        Err(join_err) => StreamOutcome::Error(
+            AppError::ai_unavailable("AI 任务异常退出")
+                .with_detail(format!("spawn_blocking join error: {join_err}"))
+                .with_retryable(false),
+        ),
+    }
+}
+
+// ---- Stub path (model not loaded yet) ---------------------------------------
+
+/// stub 实现：把用户输入回声回去，便于打通端到端 UI。
+fn produce_response_chars(user_text: &str) -> Vec<String> {
+    let banner = "Echo (stub, no model loaded yet): ";
+    let combined = format!("{banner}{user_text}");
+    combined.chars().map(|c| c.to_string()).collect()
+}
+
+async fn run_stub_stream(
+    app: AppHandle,
+    session_id: String,
+    message_id: String,
+    user_text: String,
+    cancel_token: CancellationToken,
+) -> StreamOutcome {
     let tokens = produce_response_chars(&user_text);
     let mut canceled = false;
     for tok in tokens {
@@ -124,18 +252,10 @@ pub async fn run_stub_stream(
             }
         }
     }
-
-    let _ = app.emit(
-        EVENT_DONE,
-        &AiDonePayload {
-            session_id,
-            message_id: message_id.clone(),
-            truncated: false,
-            canceled,
-        },
-    );
-
-    unregister_cancel_token(&message_id);
+    StreamOutcome::Done {
+        canceled,
+        truncated: false,
+    }
 }
 
 #[cfg(test)]
@@ -213,12 +333,46 @@ mod tests {
 
     #[test]
     fn double_register_replaces_previous_token() {
-        // 同 messageId 重复注册（不应发生但要稳健）—— 后注册的覆盖前者
         let id = format!("test-msg-{}", uuid::Uuid::new_v4());
         let _t1 = register_cancel_token(&id);
         let _t2 = register_cancel_token(&id);
-        // cancel_message 取出当前 registry 里的（即 t2），t1 不变
         assert!(cancel_message(&id));
         assert!(!cancel_message(&id), "second cancel finds nothing");
+    }
+
+    // ---- Stream outcome shape ---------------------------------------------
+
+    #[test]
+    fn stream_outcome_done_carries_canceled_and_truncated_flags() {
+        // 用模式匹配验证三种 done 场景独立可区分（AppError 不实现 PartialEq，
+        // 所以 enum 走模式匹配而非整体 ==）。
+        let cases = [(true, false), (false, true), (false, false)];
+        for (canceled, truncated) in cases {
+            let outcome = StreamOutcome::Done {
+                canceled,
+                truncated,
+            };
+            match outcome {
+                StreamOutcome::Done {
+                    canceled: c,
+                    truncated: t,
+                } => {
+                    assert_eq!(c, canceled);
+                    assert_eq!(t, truncated);
+                }
+                StreamOutcome::Error(_) => panic!("expected Done variant"),
+            }
+        }
+    }
+
+    #[test]
+    fn stream_outcome_error_carries_app_error() {
+        let outcome = StreamOutcome::Error(AppError::ai_unavailable("boom"));
+        match outcome {
+            StreamOutcome::Error(e) => {
+                assert_eq!(e.code, crate::models::error::ErrorCode::AiUnavailable);
+            }
+            _ => panic!("expected Error variant"),
+        }
     }
 }
