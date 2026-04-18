@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use sha2::{Digest, Sha256};
 
@@ -213,6 +213,21 @@ pub fn reset_runtime_loaded_for_tests() {
     IS_LOADED.store(false, Ordering::Release);
 }
 
+// ---- Loaded runtime registry -----------------------------------------------
+
+/// 进程级单例：load 成功后存放的 `Arc<LlamaRuntime>`，供 chat / future
+/// generate 命令通过 `loaded_runtime()` 取用。
+///
+/// `OnceLock`：set-once 语义匹配 v0.1 "一进程一模型" 模型；reset 不暴露 ——
+/// 若需切模型需要重启进程（避免 in-flight generate 持有 Arc 时切换出现
+/// half-released FFI 状态）。
+static LOADED_RUNTIME: OnceLock<Arc<LlamaRuntime>> = OnceLock::new();
+
+/// 返回当前已加载的 runtime（如有）。chat 命令在没真模型时回退 stub。
+pub fn loaded_runtime() -> Option<Arc<LlamaRuntime>> {
+    LOADED_RUNTIME.get().cloned()
+}
+
 // ---- Backend singleton ------------------------------------------------------
 
 /// `LlamaBackend::init()` 在进程内只能调一次（再调返回 BackendAlreadyInitialized）。
@@ -295,7 +310,7 @@ impl LlamaRuntime {
         expected_sha256: &str,
         opts: LoadOptions,
         probe: &dyn MemoryProbe,
-    ) -> AppResult<Self> {
+    ) -> AppResult<Arc<Self>> {
         let path = path.as_ref();
 
         // Gate 1: 廉价的 RAM 检查（µs 级，先做）
@@ -315,14 +330,21 @@ impl LlamaRuntime {
                 .with_retryable(false)
         })?;
 
-        // 加载成功 —— 翻全局 ready 标志。健康检查后续轮询会立即看到 ready。
-        mark_runtime_loaded();
-
-        Ok(Self {
+        let runtime = Arc::new(Self {
             backend,
             model,
             num_ctx: opts.num_ctx,
-        })
+        });
+
+        // 注册到全局 registry（chat / generate 命令通过 `loaded_runtime()` 取）。
+        // OnceLock::set 第二次会失败（已加载）—— 那种场景只可能出现在 ignored
+        // 集成测试两次跑 load 的极端情况，生产路径只 load 一次。
+        let _ = LOADED_RUNTIME.set(runtime.clone());
+
+        // 加载成功 —— 翻全局 ready 标志。健康检查后续轮询会立即看到 ready。
+        mark_runtime_loaded();
+
+        Ok(runtime)
     }
 
     /// 暴露给后续切片（context / generate）使用的 model 引用。
@@ -630,6 +652,33 @@ mod tests {
         mark_runtime_loaded();
         reset_runtime_loaded_for_tests();
         assert!(!is_runtime_loaded());
+    }
+
+    // ---- loaded_runtime() registry ----------------------------------------
+    // OnceLock 不能 reset；本套测试只做 "未 load 时返回 None" 的不变量，避免
+    // 污染全局状态。真 load + Some 路径在 ignored 集成测试中验证。
+
+    #[test]
+    fn loaded_runtime_returns_none_when_no_load_has_succeeded() {
+        // 单测环境无 GGUF 文件 → load 必失败 → registry 维持 None
+        let result = loaded_runtime();
+        if result.is_some() {
+            // 若 ignored 集成测试 "leak" 了状态进单测环境，这里说明测试隔离已破
+            panic!(
+                "LOADED_RUNTIME unexpectedly populated in unit test scope; \
+                 some test (likely #[ignore]) called load() successfully without isolation"
+            );
+        }
+    }
+
+    #[test]
+    fn loaded_runtime_consistent_with_is_runtime_loaded() {
+        // 不变式：loaded_runtime().is_some() ⇒ is_runtime_loaded() === true
+        // （反向不必：marker 早于 registry set 一行，理论上 is_loaded=true 时
+        // registry 仍可能 None，但 v0.1 单进程一模型场景下这窗口可忽略）
+        if loaded_runtime().is_some() {
+            assert!(is_runtime_loaded());
+        }
     }
 
     // ---- compute_gguf_sha256 tests --------------------------------------
