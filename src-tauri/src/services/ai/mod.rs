@@ -12,5 +12,6 @@ pub mod health;
 pub mod llama_runtime;
 pub mod model_download;
 pub mod paths;
+pub mod planner;
 pub mod prompt;
 pub mod scrubber;

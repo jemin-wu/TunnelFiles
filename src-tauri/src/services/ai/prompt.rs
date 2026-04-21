@@ -70,9 +70,40 @@ pub fn wrap_untrusted(s: &str) -> String {
 
 use crate::services::ai::scrubber;
 
+/// Prompt 生成模式。
+///
+/// - `Chat`：对话模式，使用 [`SYSTEM_PROMPT`]，模型自由文字回复。
+/// - `Plan`：计划模式，使用 [`PLAN_SYSTEM_PROMPT`]，要求模型严格输出 JSON plan。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PromptMode {
+    #[default]
+    Chat,
+    Plan,
+}
+
 /// Gemma 4 turn delimiter 片段。抽常量避免字符串散落。
 const TURN_START: &str = "<start_of_turn>";
 const TURN_END: &str = "<end_of_turn>\n";
+
+/// v0.2 plan mode 系统提示（英文，模型更容易遵循格式约束）。
+///
+/// 要求模型输出**纯 JSON**，schema 为 `{ "steps": [{ "kind": "probe"|"write", ... }] }`。
+/// 两种 step：
+/// - `probe`：只读命令 `{ "kind": "probe", "command": "cat /etc/nginx/nginx.conf" }`
+/// - `write`：文件写入 `{ "kind": "write", "path": "...", "content": "..." }`
+///
+/// 重要：plan mode 禁止在 JSON 前后添加任何说明文字，只输出 JSON 对象。
+pub const PLAN_SYSTEM_PROMPT: &str = "You are a local shell assistant embedded in TunnelFiles.\n\
+You MUST respond with valid JSON only — no explanation text before or after.\n\
+Output format:\n\
+{\"steps\":[{\"kind\":\"probe\",\"command\":\"<POSIX command>\"}]}\n\
+Step kinds:\n\
+- probe: read-only command (cat, ls, ps, df, du, stat, journalctl, systemctl status, etc.)\n\
+- write: file modification {\"kind\":\"write\",\"path\":\"<abs path>\",\"content\":\"<new content>\"}\n\
+Rules:\n\
+1. Never invent file contents. Use probe steps to gather information first.\n\
+2. For write steps, first include a probe step to read the current file.\n\
+3. Only output JSON. Do not include markdown fences, backticks, or any other text.";
 
 /// v0.1 chat system prompt（双语 —— Gemma 4 E4B 这类 ~4B 小模型对 system
 /// prompt **语言** 比对"reply in user's language"的文本指令更敏感，纯英文
@@ -150,7 +181,11 @@ pub struct PromptInput {
 /// ```
 ///
 /// 最后没 `<end_of_turn>` —— 留给模型生成。
-pub fn build(input: &PromptInput) -> String {
+pub fn build(input: &PromptInput, mode: PromptMode) -> String {
+    let system = match mode {
+        PromptMode::Chat => SYSTEM_PROMPT,
+        PromptMode::Plan => PLAN_SYSTEM_PROMPT,
+    };
     let user_scrubbed = scrubber::redact_user_input(&input.user_text);
 
     let context_block = input.context.as_ref().map(|ctx| {
@@ -162,7 +197,7 @@ pub fn build(input: &PromptInput) -> String {
 
     let mut rendered = String::new();
 
-    // 历史拼接。SYSTEM_PROMPT 挂在**第一条 user** turn（历史的或 current 的，
+    // 历史拼接。系统提示挂在**第一条 user** turn（历史的或 current 的，
     // 谁先出现）—— Gemma 4 没有 system role，这是官方推荐做法。
     let mut system_consumed = false;
     for turn in &input.history {
@@ -171,7 +206,7 @@ pub fn build(input: &PromptInput) -> String {
                 let scrubbed = scrubber::redact_user_input(&turn.content).text;
                 if !system_consumed {
                     system_consumed = true;
-                    format!("{SYSTEM_PROMPT}\n\n{scrubbed}")
+                    format!("{system}\n\n{scrubbed}")
                 } else {
                     scrubbed
                 }
@@ -181,12 +216,12 @@ pub fn build(input: &PromptInput) -> String {
         push_turn(&mut rendered, turn.role, &body);
     }
 
-    // Current user turn：若 history 为空，此 turn 承载 SYSTEM_PROMPT。
+    // Current user turn：若 history 为空，此 turn 承载系统提示。
     // context_block 作为 <untrusted> 段前置于当前用户文本之前。
     let current_body = {
         let mut parts = Vec::<String>::new();
         if !system_consumed {
-            parts.push(SYSTEM_PROMPT.to_string());
+            parts.push(system.to_string());
         }
         if let Some(ctx) = &context_block {
             parts.push(format!("Context:\n{ctx}"));
@@ -320,7 +355,7 @@ mod tests {
             context: None,
             history: vec![],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         // 单轮：system prompt 在第一个 user turn 内，紧跟 user_text
         assert!(out.contains(SYSTEM_PROMPT));
         assert!(out.contains("give me disk usage"));
@@ -332,10 +367,13 @@ mod tests {
 
     #[test]
     fn build_uses_gemma_turn_delimiters() {
-        let out = build(&PromptInput {
-            user_text: "hi".to_string(),
-            ..Default::default()
-        });
+        let out = build(
+            &PromptInput {
+                user_text: "hi".to_string(),
+                ..Default::default()
+            },
+            PromptMode::Chat,
+        );
         assert!(out.contains("<start_of_turn>user\n"));
         assert!(out.contains("<end_of_turn>\n"));
         // 最后一行必须留给模型续写 —— 以 "<start_of_turn>model\n" 结尾
@@ -345,10 +383,13 @@ mod tests {
     #[test]
     fn build_never_emits_system_turn_role() {
         // Gemma 4 没有 system role；prompt 里不应出现 <start_of_turn>system
-        let out = build(&PromptInput {
-            user_text: "x".to_string(),
-            ..Default::default()
-        });
+        let out = build(
+            &PromptInput {
+                user_text: "x".to_string(),
+                ..Default::default()
+            },
+            PromptMode::Chat,
+        );
         assert!(!out.contains("<start_of_turn>system"));
     }
 
@@ -359,7 +400,7 @@ mod tests {
             context: None,
             history: vec![],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(!out.contains("Context:"));
         assert!(!out.contains(OPEN_TAG));
     }
@@ -375,7 +416,7 @@ mod tests {
             }),
             history: vec![],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(out.contains("Context:\n<untrusted>"));
         assert!(out.contains("</untrusted>"));
         assert!(out.contains("pwd: /etc/nginx"));
@@ -391,7 +432,7 @@ mod tests {
             }),
             history: vec![],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(
             !out.contains("AKIAIOSFODNN7EXAMPLE"),
             "AWS key must not survive into prompt"
@@ -405,7 +446,7 @@ mod tests {
             user_text: "debug key AKIAIOSFODNN7EXAMPLE here".to_string(),
             ..Default::default()
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(!out.contains("AKIAIOSFODNN7EXAMPLE"));
     }
 
@@ -427,7 +468,7 @@ mod tests {
                 },
             ],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         // system prompt 在第一个历史 user turn，不在 current
         let sys_pos = out.find(SYSTEM_PROMPT).expect("system must appear once");
         let first_user = out.find("查磁盘").expect("history user turn");
@@ -466,7 +507,7 @@ mod tests {
                 },
             ],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         // 2 个 history user + 1 current = 3 个 <start_of_turn>user
         assert_eq!(out.matches("<start_of_turn>user\n").count(), 3);
         // 2 个 history model + 1 trailing = 3 个 <start_of_turn>model
@@ -489,7 +530,7 @@ mod tests {
                 },
             ],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(
             !out.contains("AKIAIOSFODNN7EXAMPLE"),
             "historical user secrets must not survive"
@@ -513,7 +554,7 @@ mod tests {
                 },
             ],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         assert!(out.contains("AKIA***PLACEHOLDER"));
     }
 
@@ -537,12 +578,59 @@ mod tests {
                 },
             ],
         };
-        let out = build(&input);
+        let out = build(&input, PromptMode::Chat);
         let context_pos = out.find("Context:\n<untrusted>").expect("context block");
         let current_pos = out.find("now what?").expect("current user turn");
         let history_end = out.find("hello").expect("history model turn");
         // Context 在历史之后（即附在 current turn）
         assert!(context_pos > history_end);
         assert!(context_pos < current_pos);
+    }
+
+    // ---- build() — PromptMode::Plan ----
+
+    #[test]
+    fn build_plan_mode_uses_plan_system_prompt() {
+        let input = PromptInput {
+            user_text: "fix nginx config".to_string(),
+            context: None,
+            history: vec![],
+        };
+        let out = build(&input, PromptMode::Plan);
+        assert!(
+            out.contains(PLAN_SYSTEM_PROMPT),
+            "plan prompt must include PLAN_SYSTEM_PROMPT"
+        );
+        assert!(
+            !out.contains(SYSTEM_PROMPT),
+            "plan prompt must not include chat SYSTEM_PROMPT"
+        );
+    }
+
+    #[test]
+    fn build_plan_mode_still_uses_gemma_template() {
+        let input = PromptInput {
+            user_text: "probe nginx".to_string(),
+            context: None,
+            history: vec![],
+        };
+        let out = build(&input, PromptMode::Plan);
+        assert!(out.contains("<start_of_turn>user\n"));
+        assert!(out.ends_with("<start_of_turn>model\n"));
+    }
+
+    #[test]
+    fn build_plan_mode_system_prompt_appears_exactly_once() {
+        let input = PromptInput {
+            user_text: "hi".to_string(),
+            context: None,
+            history: vec![],
+        };
+        let out = build(&input, PromptMode::Plan);
+        assert_eq!(
+            out.matches(PLAN_SYSTEM_PROMPT).count(),
+            1,
+            "PLAN_SYSTEM_PROMPT must appear exactly once"
+        );
     }
 }

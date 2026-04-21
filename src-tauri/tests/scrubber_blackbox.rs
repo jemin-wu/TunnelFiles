@@ -10,7 +10,7 @@
 //! ⚠️ 不得修改 secret fixture 使其"更容易通过" —— 若需弱化，必须同时
 //! 新增等强或更强的 case。参考 `docs/checkpoint-b-rubric.md` G5。
 
-use tunnelfiles_lib::services::ai::prompt::{build, ContextSnapshot, PromptInput};
+use tunnelfiles_lib::services::ai::prompt::{build, ContextSnapshot, PromptInput, PromptMode};
 
 // ---- Secret fixtures --------------------------------------------------------
 // 所有常量都是**已公开的示例值**（AWS 文档 / RFC 7519 示例 / 明显测试数据），
@@ -83,8 +83,9 @@ fn secret_in_user_text_is_redacted_for_all_fixtures() {
         let input = PromptInput {
             user_text: format!("debug why auth fails: {}", fixture.secret),
             context: None,
+            history: vec![],
         };
-        let prompt = build(&input);
+        let prompt = build(&input, PromptMode::Chat);
         assert_secret_absent(&prompt, fixture, "user_text");
     }
 }
@@ -102,8 +103,9 @@ fn secret_in_context_pwd_is_redacted_for_all_fixtures() {
                 pwd: format!("/work/{}", fixture.secret),
                 recent_output: "ok".to_string(),
             }),
+            history: vec![],
         };
-        let prompt = build(&input);
+        let prompt = build(&input, PromptMode::Chat);
         assert_secret_absent(&prompt, fixture, "context.pwd");
     }
 }
@@ -122,8 +124,9 @@ fn secret_in_context_recent_output_is_redacted_for_all_fixtures() {
                     fixture.secret
                 ),
             }),
+            history: vec![],
         };
-        let prompt = build(&input);
+        let prompt = build(&input, PromptMode::Chat);
         assert_secret_absent(&prompt, fixture, "context.recent_output");
     }
 }
@@ -160,8 +163,9 @@ fn user_input_high_entropy_path_still_redacts_regex_matches() {
     let input = PromptInput {
         user_text: format!("please check {} with noise {}", AWS_KEY, entropy_noise),
         context: None,
+        history: vec![],
     };
-    let prompt = build(&input);
+    let prompt = build(&input, PromptMode::Chat);
     assert!(
         !prompt.contains(AWS_KEY),
         "AWS regex hit must be hard-erased"

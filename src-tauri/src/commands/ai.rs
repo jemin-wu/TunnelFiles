@@ -99,7 +99,40 @@ pub async fn ai_license_accept(db: State<'_, Arc<Database>>) -> AppResult<Settin
     Ok(settings)
 }
 
-/// `ai_chat_send` 入参（v0.1）。
+/// 一轮历史消息。前端从 session store 切最近 N 轮（不含 current user_text）
+/// 传入，后端拼进 Gemma 4 chat template。
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct ChatHistoryTurn {
+    /// "user" | "assistant"。使用字符串而非枚举让 ts-rs 生成 union 类型，
+    /// 与 `ChatMessage.role`（stores/useAiSessionStore.ts）直接对齐。
+    pub role: String,
+    pub content: String,
+}
+
+/// 把 IPC DTO 列表转成 `prompt::ChatTurn`。role 字符串未知值默默丢弃
+/// ——容错（前端升级先于后端时行为降级为无历史而非 500）。
+fn convert_history(turns: Vec<ChatHistoryTurn>) -> Vec<crate::services::ai::prompt::ChatTurn> {
+    use crate::services::ai::prompt::{ChatRole, ChatTurn};
+    turns
+        .into_iter()
+        .filter_map(|t| {
+            let role = match t.role.as_str() {
+                "user" => ChatRole::User,
+                "assistant" => ChatRole::Model,
+                _ => return None,
+            };
+            Some(ChatTurn {
+                role,
+                content: t.content,
+            })
+        })
+        .collect()
+}
+
+/// `ai_chat_send` 入参。
 #[derive(Debug, Clone, Deserialize)]
 #[cfg_attr(test, derive(Serialize, TS))]
 #[cfg_attr(test, ts(export))]
@@ -107,6 +140,10 @@ pub async fn ai_license_accept(db: State<'_, Arc<Database>>) -> AppResult<Settin
 pub struct AiChatSendInput {
     pub session_id: String,
     pub text: String,
+    /// 历史消息（按时间升序，不含本轮 `text`）。空 vec 表示首轮；前端负责
+    /// 滑窗截断（最近 N 轮）避免 context 溢出。
+    #[serde(default)]
+    pub history: Vec<ChatHistoryTurn>,
 }
 
 /// `ai_chat_cancel` 入参（v0.1）。
@@ -147,6 +184,7 @@ pub struct AiChatSendResult {
 #[tauri::command]
 pub async fn ai_chat_send(
     app: AppHandle,
+    db: State<'_, Arc<Database>>,
     session_manager: State<'_, Arc<SessionManager>>,
     terminal_manager: State<'_, Arc<TerminalManager>>,
     input: AiChatSendInput,
@@ -157,6 +195,14 @@ pub async fn ai_chat_send(
     if input.session_id.trim().is_empty() {
         return Err(AppError::invalid_argument("sessionId cannot be empty"));
     }
+    let db = (*db).clone();
+    let settings = tokio::task::spawn_blocking(move || db.settings_load())
+        .await
+        .map_err(|e| AppError::new(ErrorCode::Unknown, format!("settings load failed: {e}")))?
+        .unwrap_or_default();
+    // SPEC §5: token cap hard-limited to 4096 防 OOM DoS
+    let max_tokens = settings.ai_output_token_cap.min(4096);
+
     let message_id = Uuid::new_v4().to_string();
     let snapshot_result = gather_snapshot_from_state(
         session_manager.inner(),
@@ -164,11 +210,14 @@ pub async fn ai_chat_send(
         &input.session_id,
     );
     let prompt_context = context::to_prompt_snapshot(&snapshot_result);
+    let history = convert_history(input.history);
     tracing::debug!(
         session_id = %input.session_id,
         message_id = %message_id,
         text_len = input.text.chars().count(),
+        history_turns = history.len(),
         context_present = prompt_context.is_some(),
+        max_tokens,
         "AI chat send"
     );
 
@@ -178,6 +227,8 @@ pub async fn ai_chat_send(
         message_id.clone(),
         input.text,
         prompt_context,
+        history,
+        max_tokens,
     ));
 
     Ok(AiChatSendResult { message_id })
@@ -693,13 +744,16 @@ mod tests {
         let input = AiChatSendInput {
             session_id: "tab-1".into(),
             text: "ping".into(),
+            history: vec![],
         };
         let json = serde_json::to_string(&input).expect("serialize");
         assert!(json.contains("\"sessionId\""));
         assert!(json.contains("\"text\""));
+        assert!(json.contains("\"history\""));
         let back: AiChatSendInput = serde_json::from_str(&json).expect("round trip");
         assert_eq!(back.session_id, "tab-1");
         assert_eq!(back.text, "ping");
+        assert_eq!(back.history.len(), 0);
     }
 
     #[test]

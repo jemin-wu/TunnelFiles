@@ -10,7 +10,8 @@
 //! 运行：`cargo test --test injection`
 
 use tunnelfiles_lib::services::ai::prompt::{
-    build, wrap_untrusted, ChatRole, ChatTurn, ContextSnapshot, PromptInput, SYSTEM_PROMPT,
+    build, wrap_untrusted, ChatRole, ChatTurn, ContextSnapshot, PromptInput, PromptMode,
+    SYSTEM_PROMPT,
 };
 
 const OPEN_TAG: &str = "<untrusted>";
@@ -170,7 +171,7 @@ fn p10_multi_turn_accumulative_injection() {
             },
         ],
     };
-    let prompt = build(&input);
+    let prompt = build(&input, PromptMode::Chat);
 
     // Probe output must be wrapped
     let context_open = prompt.find("Context:\n<untrusted>");
@@ -253,7 +254,7 @@ fn bonus_system_prompt_appears_exactly_once_despite_injection() {
         }),
         history: vec![],
     };
-    let prompt = build(&input);
+    let prompt = build(&input, PromptMode::Chat);
     assert_eq!(
         prompt.matches(SYSTEM_PROMPT).count(),
         1,
