@@ -27,6 +27,8 @@ export interface ChatSession {
   pendingAssistantId: string | null;
   /** streamState === "error" 时填 */
   error: string | null;
+  /** Probe 并发队列位置（T2.8）：null = 不在队列，1+ = 等待中 */
+  probeQueuePosition: number | null;
 }
 
 interface AiSessionState {
@@ -51,6 +53,8 @@ interface AiSessionState {
   resetSession: (sessionId: string) => void;
   /** 彻底移除 session（tab 关闭场景）。 */
   removeSession: (sessionId: string) => void;
+  /** 更新 probe 队列位置（T2.8）：position=0 表示出队，清除 banner。 */
+  setProbeQueuePosition: (sessionId: string, position: number) => void;
 }
 
 function emptySession(): ChatSession {
@@ -59,6 +63,7 @@ function emptySession(): ChatSession {
     streamState: "idle",
     pendingAssistantId: null,
     error: null,
+    probeQueuePosition: null,
   };
 }
 
@@ -171,6 +176,17 @@ export function createAiSessionStore() {
         if (!state.sessions.has(sessionId)) return state;
         const sessions = new Map(state.sessions);
         sessions.delete(sessionId);
+        return { sessions };
+      }),
+
+    setProbeQueuePosition: (sessionId, position) =>
+      set((state) => {
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        sessions.set(sessionId, {
+          ...current,
+          probeQueuePosition: position === 0 ? null : position,
+        });
         return { sessions };
       }),
   }));

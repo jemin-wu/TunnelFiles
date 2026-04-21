@@ -89,6 +89,19 @@ pub struct AiDownloadProgressPayload {
     pub percent: u8,
 }
 
+/// `ai:probe_queued` —— probe 因并发限制进入等待队列（T2.8）。
+///
+/// UI 收到后展示"AI 队列中（第 X 位）"banner；position=0 表示已出队（清除 banner）。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiProbeQueuedPayload {
+    pub session_id: String,
+    /// 1-based 队列位置；0 表示已出队
+    pub position: u32,
+}
+
 /// `ai:download_done` —— 下载流程终态（成功 / 取消 / 失败）。
 ///
 /// - `canceled=true` 表示用户通过 `ai_model_download_cancel` 中断；`error=None`

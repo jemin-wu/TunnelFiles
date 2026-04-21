@@ -13,6 +13,7 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
+use services::ai::executor::ProbeExecutor;
 use services::session_manager::SessionManager;
 use services::storage_service::Database;
 use services::terminal_manager::TerminalManager;
@@ -88,6 +89,11 @@ pub fn run() {
     // 5. 初始化终端管理器
     let terminal_manager = Arc::new(TerminalManager::new());
 
+    // 5.5 初始化 probe 并发执行器（T2.8）
+    let probe_executor = Arc::new(ProbeExecutor::new(
+        settings.max_concurrent_ai_probes as u32,
+    ));
+
     // 6. 启动时清理旧日志（保留 7 天）
     if let Err(e) = cleanup_old_logs(7) {
         tracing::warn!(error = %e, "清理旧日志失败");
@@ -144,6 +150,7 @@ pub fn run() {
         .manage(session_manager)
         .manage(transfer_manager)
         .manage(terminal_manager)
+        .manage(probe_executor)
         .invoke_handler(tauri::generate_handler![
             // Profile 命令
             commands::profile::profile_list,

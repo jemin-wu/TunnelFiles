@@ -29,11 +29,12 @@ async function waitForListenerRegistered(name: string) {
 }
 
 describe("useAiChat", () => {
-  it("registers listeners for ai:token, ai:done, ai:error", async () => {
+  it("registers listeners for ai:token, ai:done, ai:error, ai:probe_queued", async () => {
     renderHook(() => useAiChat("tab-1"));
     await waitForListenerRegistered("ai:token");
     await waitForListenerRegistered("ai:done");
     await waitForListenerRegistered("ai:error");
+    await waitForListenerRegistered("ai:probe_queued");
   });
 
   it("appendAssistantToken on ai:token matching sessionId", async () => {
@@ -135,15 +136,57 @@ describe("useAiChat", () => {
     expect(useAiSessionStore.getState().getSession("tab-1")?.error).toBe("AI runtime error");
   });
 
-  it("unsubscribes all three listeners on unmount", async () => {
+  it("unsubscribes all four listeners on unmount", async () => {
     const { unmount } = renderHook(() => useAiChat("tab-1"));
     await waitForListenerRegistered("ai:token");
     await waitForListenerRegistered("ai:done");
     await waitForListenerRegistered("ai:error");
+    await waitForListenerRegistered("ai:probe_queued");
     unmount();
     expect(unsubscribed.has("ai:token")).toBe(true);
     expect(unsubscribed.has("ai:done")).toBe(true);
     expect(unsubscribed.has("ai:error")).toBe(true);
+    expect(unsubscribed.has("ai:probe_queued")).toBe(true);
+  });
+
+  it("sets probeQueuePosition on ai:probe_queued matching sessionId", async () => {
+    renderHook(() => useAiChat("tab-1"));
+    await waitForListenerRegistered("ai:probe_queued");
+
+    act(() => {
+      listeners.get("ai:probe_queued")!({
+        payload: { sessionId: "tab-1", position: 2 },
+      });
+    });
+
+    expect(useAiSessionStore.getState().getSession("tab-1")?.probeQueuePosition).toBe(2);
+  });
+
+  it("clears probeQueuePosition when ai:probe_queued position=0", async () => {
+    renderHook(() => useAiChat("tab-1"));
+    await waitForListenerRegistered("ai:probe_queued");
+
+    act(() => {
+      listeners.get("ai:probe_queued")!({ payload: { sessionId: "tab-1", position: 3 } });
+    });
+    act(() => {
+      listeners.get("ai:probe_queued")!({ payload: { sessionId: "tab-1", position: 0 } });
+    });
+
+    expect(useAiSessionStore.getState().getSession("tab-1")?.probeQueuePosition).toBeNull();
+  });
+
+  it("ignores ai:probe_queued for a different sessionId", async () => {
+    renderHook(() => useAiChat("tab-1"));
+    await waitForListenerRegistered("ai:probe_queued");
+
+    act(() => {
+      listeners.get("ai:probe_queued")!({
+        payload: { sessionId: "tab-OTHER", position: 1 },
+      });
+    });
+
+    expect(useAiSessionStore.getState().getSession("tab-1")).toBeUndefined();
   });
 
   it("send() invokes ai_chat_send with current sessionId", async () => {
@@ -156,7 +199,7 @@ describe("useAiChat", () => {
     });
 
     expect(invoke).toHaveBeenCalledWith("ai_chat_send", {
-      input: { sessionId: "tab-send", text: "ping" },
+      input: { sessionId: "tab-send", text: "ping", history: [] },
     });
   });
 
@@ -176,7 +219,7 @@ describe("useAiChat", () => {
       await result.current.send("after switch");
     });
     expect(invoke).toHaveBeenCalledWith("ai_chat_send", {
-      input: { sessionId: "tab-B", text: "after switch" },
+      input: { sessionId: "tab-B", text: "after switch", history: [] },
     });
   });
 

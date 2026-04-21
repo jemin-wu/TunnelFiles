@@ -114,4 +114,6 @@ export const EVENTS = {
   // 终端事件
   TERMINAL_OUTPUT: "terminal:output",
   TERMINAL_STATUS: "terminal:status",
+  // AI probe 队列事件（T2.8）
+  AI_PROBE_QUEUED: "ai:probe_queued",
 } as const;

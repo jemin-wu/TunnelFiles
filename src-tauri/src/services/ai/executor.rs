@@ -144,6 +144,88 @@ pub fn exec_remote(probe: &Arc<ManagedAiProbe>, checked: CheckedCommand) -> AppR
     result
 }
 
+// ── ProbeExecutor：并发控制 + 队列事件（T2.8）──────────────────────────────────
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+use tauri::{AppHandle, Emitter};
+use tokio::sync::Semaphore;
+
+use crate::models::ai_events::AiProbeQueuedPayload;
+
+/// Semaphore-backed 并发执行器。
+///
+/// 持有 `Arc<Semaphore>` 限制同时运行的 probe 命令数量（来自
+/// `Settings.max_concurrent_ai_probes`，默认 3）。
+/// `waiting` 计数用于计算 UI 展示的队列位置。
+pub struct ProbeExecutor {
+    semaphore: Arc<Semaphore>,
+    waiting: Arc<AtomicUsize>,
+}
+
+impl ProbeExecutor {
+    /// 创建执行器，并发上限 = `max_concurrent`（≥ 1）。
+    pub fn new(max_concurrent: u32) -> Self {
+        let permits = (max_concurrent as usize).max(1);
+        Self {
+            semaphore: Arc::new(Semaphore::new(permits)),
+            waiting: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+
+    /// 异步执行：获取 semaphore → emit 队列事件 → spawn_blocking(exec_remote)。
+    ///
+    /// 若当前所有许可均被占用，调用方 await 此函数时会挂起，并向前端发送
+    /// `ai:probe_queued` 事件（position = 队列中的等待数，1-based）。
+    /// 命令结束后发送 `position=0` 事件，通知 UI 清除 banner。
+    pub async fn execute(
+        &self,
+        app: &AppHandle,
+        probe: Arc<ManagedAiProbe>,
+        session_id: String,
+        checked: CheckedCommand,
+    ) -> AppResult<ProbeOutput> {
+        // 记录本次等待者
+        let position = self.waiting.fetch_add(1, Ordering::SeqCst) + 1;
+
+        if self.semaphore.available_permits() == 0 {
+            // 目前有人在跑，告知 UI 排队
+            app.emit(
+                "ai:probe_queued",
+                AiProbeQueuedPayload {
+                    session_id: session_id.clone(),
+                    position: position as u32,
+                },
+            )
+            .ok();
+        }
+
+        // 等待许可（若有空位则立即返回）
+        let _permit = self
+            .semaphore
+            .acquire()
+            .await
+            .map_err(|_| AppError::new(ErrorCode::Unknown, "probe semaphore closed"))?;
+
+        // 出队：通知 UI 清除 banner
+        self.waiting.fetch_sub(1, Ordering::SeqCst);
+        app.emit(
+            "ai:probe_queued",
+            AiProbeQueuedPayload {
+                session_id: session_id.clone(),
+                position: 0,
+            },
+        )
+        .ok();
+
+        // 在独立线程执行阻塞 SSH 调用
+        let probe_clone = probe.clone();
+        tokio::task::spawn_blocking(move || exec_remote(&probe_clone, checked))
+            .await
+            .map_err(|e| AppError::new(ErrorCode::Unknown, format!("spawn_blocking failed: {e}")))?
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

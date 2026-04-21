@@ -124,6 +124,31 @@ describe("useAiSessionStore", () => {
     });
   });
 
+  describe("setProbeQueuePosition", () => {
+    it("sets probeQueuePosition for an existing session", () => {
+      getState(store).appendUserMessage("tab-1", "hi");
+      getState(store).setProbeQueuePosition("tab-1", 2);
+      expect(getState(store).getSession("tab-1")!.probeQueuePosition).toBe(2);
+    });
+
+    it("position=0 clears probeQueuePosition to null", () => {
+      getState(store).appendUserMessage("tab-1", "hi");
+      getState(store).setProbeQueuePosition("tab-1", 3);
+      getState(store).setProbeQueuePosition("tab-1", 0);
+      expect(getState(store).getSession("tab-1")!.probeQueuePosition).toBeNull();
+    });
+
+    it("creates session lazily if not yet seen", () => {
+      getState(store).setProbeQueuePosition("tab-new", 1);
+      expect(getState(store).getSession("tab-new")!.probeQueuePosition).toBe(1);
+    });
+
+    it("new session starts with probeQueuePosition = null", () => {
+      getState(store).appendUserMessage("tab-1", "hi");
+      expect(getState(store).getSession("tab-1")!.probeQueuePosition).toBeNull();
+    });
+  });
+
   describe("housekeeping", () => {
     it("resetSession clears messages but keeps entry", () => {
       getState(store).appendUserMessage("tab-1", "hi");

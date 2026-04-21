@@ -1,7 +1,8 @@
 import { useCallback } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ChatContainerContent, ChatContainerRoot } from "@/components/prompt-kit/chat-container";
+import { ScrollButton } from "@/components/prompt-kit/scroll-button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/useAiChat";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
@@ -32,14 +33,13 @@ interface ChatPanelProps {
 }
 
 /**
- * 聊天面板组合体（T1.6 前置骨架）。
+ * 聊天面板组合体。
  *
  * 职责切割：
- * - **MessageList**：纯渲染消息历史
- * - **ChatInput**：纯输入 + 提交事件
- * - **ChatPanel** (本文件)：粘合 store 状态 + handleSubmit 流水线
- *
- * 真正的 IPC 订阅 / token 推送在 T1.6 chat-streaming hook 里加。
+ * - **MessageList**：纯渲染消息历史（prompt-kit Message + Markdown）
+ * - **ChatInput**：prompt-kit PromptInput 输入 + 提交事件
+ * - **ChatPanel** (本文件)：粘合 store 状态 + handleSubmit 流水线 +
+ *   滚动容器 ChatContainerRoot（use-stick-to-bottom 接管自动贴底 / 手动上滑暂停）
  */
 export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: ChatPanelProps) {
   // selector 订阅单条 session，避免其他 tab 改动触发本组件 rerender
@@ -57,6 +57,7 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
   const isStreaming = streamState === "thinking" || streamState === "streaming";
   const isError = streamState === "error";
   const pendingAssistantId = session?.pendingAssistantId ?? null;
+  const probeQueuePosition = session?.probeQueuePosition ?? null;
 
   const handleStop = useCallback(() => {
     if (!pendingAssistantId) return;
@@ -108,13 +109,31 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
       data-session-id={sessionId}
       data-stream-state={streamState}
     >
-      <ScrollArea className="flex-1 px-4 py-3">
-        <MessageList
-          messages={messages}
-          isStreaming={isStreaming}
-          onInsertCommand={insertCommand}
-        />
-      </ScrollArea>
+      <ChatContainerRoot className="relative min-h-0 flex-1">
+        <ChatContainerContent className="px-4 py-3">
+          <MessageList
+            messages={messages}
+            isStreaming={isStreaming}
+            onInsertCommand={insertCommand}
+          />
+        </ChatContainerContent>
+        <div className="pointer-events-none absolute right-3 bottom-3 z-10">
+          <div className="pointer-events-auto">
+            <ScrollButton size="icon" className="size-8" />
+          </div>
+        </div>
+      </ChatContainerRoot>
+
+      {probeQueuePosition !== null && (
+        <div
+          className="border-border/50 bg-muted text-muted-foreground flex items-center gap-2 border-t px-4 py-2 text-xs"
+          role="status"
+          data-slot="chat-probe-queue"
+        >
+          <Clock className="size-3.5 shrink-0" aria-hidden />
+          <span>AI 队列中（第 {probeQueuePosition} 位）</span>
+        </div>
+      )}
 
       {isError && (
         <div
