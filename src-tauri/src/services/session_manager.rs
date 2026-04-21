@@ -18,6 +18,7 @@ use sha2::{Digest, Sha256};
 use ssh2::{Session, Sftp};
 use zeroize::Zeroize;
 
+use crate::models::ai_probe::{ManagedAiProbe, ProbeStatus};
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::profile::{AuthType, Profile};
 use crate::services::security_service::{credential_get, verify_hostkey, HostKeyVerifyResult};
@@ -448,6 +449,73 @@ impl SessionManager {
         );
 
         Ok(session)
+    }
+
+    /// 为 AI shell copilot 创建独立探针 SSH session（T2.5 / SPEC §5）。
+    ///
+    /// 要求调用方已有该 profile 的活跃主 session（`profile_id` 对应的
+    /// `ManagedSession`），以便借用缓存凭据而不重访系统钥匙串。
+    ///
+    /// # Errors
+    /// - `NotFound`: profile 不存在，或该 profile 无活跃主 session
+    /// - `Timeout` / `NetworkLost` / `AuthFailed`: SSH 建连或认证失败
+    pub fn create_ai_probe_session(
+        &self,
+        profile_id: &str,
+        db: &crate::services::storage_service::Database,
+    ) -> AppResult<Arc<ManagedAiProbe>> {
+        // 找到该 profile 的任意一个活跃主 session，借用缓存凭据
+        let main_session: Arc<ManagedSession> = {
+            let sessions = self
+                .sessions
+                .read()
+                .map_err(|_| AppError::new(ErrorCode::Unknown, "sessions lock poisoned"))?;
+            sessions
+                .values()
+                .find(|s| s.profile_id == profile_id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::not_found(format!(
+                        "No active session for profile {profile_id}; connect first"
+                    ))
+                })?
+        };
+
+        let profile = db
+            .profile_get(profile_id)?
+            .ok_or_else(|| AppError::not_found(format!("Profile {profile_id} not found")))?;
+        let settings = db.settings_load()?;
+        let timeout = Duration::from_secs(settings.connection_timeout_secs);
+
+        let session = self.establish_ssh_session(&profile.host, profile.port, timeout)?;
+
+        main_session.with_cached_credentials(|cached_password, cached_passphrase| {
+            match profile.auth_type {
+                AuthType::Password => {
+                    let mut pwd =
+                        self.auth_password(&session, &profile.username, &profile, cached_password)?;
+                    pwd.zeroize();
+                }
+                AuthType::Key => {
+                    let mut pp =
+                        self.auth_key(&session, &profile.username, &profile, cached_passphrase)?;
+                    if let Some(ref mut passphrase) = pp {
+                        passphrase.zeroize();
+                    }
+                }
+            }
+            AppResult::Ok(())
+        })?;
+
+        let probe = Arc::new(ManagedAiProbe::new(profile_id.to_string(), session));
+        probe.set_status(ProbeStatus::Idle);
+
+        tracing::info!(
+            profile_id = %profile_id,
+            "AI probe session 已创建"
+        );
+
+        Ok(probe)
     }
 
     /// 清理超时的空闲会话

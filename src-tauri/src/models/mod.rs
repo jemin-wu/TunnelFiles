@@ -1,5 +1,6 @@
 pub mod ai_events;
 pub mod ai_health;
+pub mod ai_probe;
 pub mod error;
 pub mod file_entry;
 pub mod profile;
@@ -9,6 +10,7 @@ pub mod transfer_task;
 
 pub use ai_events::*;
 pub use ai_health::*;
+pub use ai_probe::*;
 pub use error::*;
 pub use file_entry::*;
 pub use profile::*;
