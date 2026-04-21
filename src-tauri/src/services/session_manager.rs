@@ -166,12 +166,32 @@ const AUTH_FAILURE_THRESHOLD: u32 = 5;
 /// 认证失败锁定时间（秒）
 const AUTH_LOCKOUT_SECS: u64 = 300;
 
+/// Probe 指数退避等待时间（秒），按失败次数索引（0-based = 第1次失败开始）。
+/// [5s, 10s, 30s, 120s, 300s(5min lock)]。5次后进入 5min 锁定，锁定期间不刷新。
+const PROBE_BACKOFF_SECS: &[u64] = &[5, 10, 30, 120, 300];
+
+/// Probe 失败次数达到此阈值进入锁定（不再刷新 last_failure）。
+const PROBE_LOCK_THRESHOLD: u32 = 5;
+
+/// Probe auth failure key 命名空间前缀（与主 session 隔离）。
+const PROBE_AUTH_KEY_PREFIX: &str = "ai_probe:";
+
+/// 根据失败次数返回 probe 退避等待秒数。
+fn probe_backoff_secs(count: u32) -> u64 {
+    let idx = (count as usize)
+        .saturating_sub(1)
+        .min(PROBE_BACKOFF_SECS.len() - 1);
+    PROBE_BACKOFF_SECS[idx]
+}
+
 /// 会话管理器
 pub struct SessionManager {
     /// 会话池
     sessions: RwLock<HashMap<String, Arc<ManagedSession>>>,
-    /// 认证失败计数 (key: profile_id)
+    /// 认证失败计数（key: profile_id 或 "ai_probe:{profile_id}"）
     auth_failures: RwLock<HashMap<String, AuthFailureRecord>>,
+    /// AI probe 池（key: session_id，即 probe 所服务的主 session）
+    probes: RwLock<HashMap<String, Arc<ManagedAiProbe>>>,
 }
 
 impl SessionManager {
@@ -180,6 +200,7 @@ impl SessionManager {
         Self {
             sessions: RwLock::new(HashMap::new()),
             auth_failures: RwLock::new(HashMap::new()),
+            probes: RwLock::new(HashMap::new()),
         }
     }
 
@@ -349,7 +370,9 @@ impl SessionManager {
                 "会话已关闭"
             );
         }
+        drop(sessions); // 释放 sessions 写锁，再获取 probes 写锁，避免锁序反转
 
+        self.destroy_probes_for_session(session_id);
         Ok(())
     }
 
@@ -453,36 +476,22 @@ impl SessionManager {
 
     /// 为 AI shell copilot 创建独立探针 SSH session（T2.5 / SPEC §5）。
     ///
-    /// 要求调用方已有该 profile 的活跃主 session（`profile_id` 对应的
-    /// `ManagedSession`），以便借用缓存凭据而不重访系统钥匙串。
+    /// 基于已有的主 session（`session_id`）借用缓存凭据创建独立 SSH 连接。
+    /// 调用前需通过 `check_probe_auth_backoff` 验证未处于指数退避等待期。
     ///
     /// # Errors
-    /// - `NotFound`: profile 不存在，或该 profile 无活跃主 session
+    /// - `NotFound`: session_id 无对应活跃会话，或 profile 不存在
     /// - `Timeout` / `NetworkLost` / `AuthFailed`: SSH 建连或认证失败
-    pub fn create_ai_probe_session(
+    fn create_ai_probe_session(
         &self,
-        profile_id: &str,
+        session_id: &str,
         db: &crate::services::storage_service::Database,
     ) -> AppResult<Arc<ManagedAiProbe>> {
-        // 找到该 profile 的任意一个活跃主 session，借用缓存凭据
-        let main_session: Arc<ManagedSession> = {
-            let sessions = self
-                .sessions
-                .read()
-                .map_err(|_| AppError::new(ErrorCode::Unknown, "sessions lock poisoned"))?;
-            sessions
-                .values()
-                .find(|s| s.profile_id == profile_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::not_found(format!(
-                        "No active session for profile {profile_id}; connect first"
-                    ))
-                })?
-        };
+        let main_session = self.get_session(session_id)?;
+        let profile_id = main_session.profile_id.clone();
 
         let profile = db
-            .profile_get(profile_id)?
+            .profile_get(&profile_id)?
             .ok_or_else(|| AppError::not_found(format!("Profile {profile_id} not found")))?;
         let settings = db.settings_load()?;
         let timeout = Duration::from_secs(settings.connection_timeout_secs);
@@ -507,15 +516,142 @@ impl SessionManager {
             AppResult::Ok(())
         })?;
 
-        let probe = Arc::new(ManagedAiProbe::new(profile_id.to_string(), session));
+        let probe = Arc::new(ManagedAiProbe::new(profile_id.clone(), session));
         probe.set_status(ProbeStatus::Idle);
 
         tracing::info!(
+            session_id = %session_id,
             profile_id = %profile_id,
             "AI probe session 已创建"
         );
 
         Ok(probe)
+    }
+
+    /// 懒创建：获取已有 probe 或新建。
+    ///
+    /// 若该 session 已有活跃 probe，直接返回；否则检查退避期后新建。
+    pub fn get_or_create_probe(
+        &self,
+        session_id: &str,
+        db: &crate::services::storage_service::Database,
+    ) -> AppResult<Arc<ManagedAiProbe>> {
+        // 快速路径：probe 已存在
+        if let Ok(probes) = self.probes.read() {
+            if let Some(p) = probes.get(session_id) {
+                p.touch();
+                return Ok(p.clone());
+            }
+        }
+
+        // 慢路径：创建前检查退避
+        let main_session = self.get_session(session_id)?;
+        let profile_id = main_session.profile_id.clone();
+        self.check_probe_auth_backoff(&profile_id)?;
+
+        let probe = match self.create_ai_probe_session(session_id, db) {
+            Ok(p) => {
+                self.clear_probe_auth_failures(&profile_id);
+                p
+            }
+            Err(e) if e.code == ErrorCode::AuthFailed => {
+                self.record_probe_auth_failure(&profile_id);
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        };
+
+        if let Ok(mut probes) = self.probes.write() {
+            probes.insert(session_id.to_string(), probe.clone());
+        }
+        Ok(probe)
+    }
+
+    /// 销毁指定主 session 关联的 probe（tab 关闭 / 主 session 断开时调用）。
+    pub fn destroy_probes_for_session(&self, session_id: &str) {
+        if let Ok(mut probes) = self.probes.write() {
+            if probes.remove(session_id).is_some() {
+                tracing::debug!(session_id = %session_id, "AI probe 已销毁（随主 session 清理）");
+            }
+        }
+    }
+
+    /// 清理空闲超过 `ttl_secs` 的孤儿 probe（启动扫描 / 定期调用）。
+    pub fn cleanup_stale_probes(&self, ttl_secs: u64) -> usize {
+        let stale: Vec<String> = {
+            let Ok(probes) = self.probes.read() else {
+                return 0;
+            };
+            probes
+                .iter()
+                .filter(|(_, p)| p.idle_secs() >= ttl_secs)
+                .map(|(k, _)| k.clone())
+                .collect()
+        };
+
+        let count = stale.len();
+        if count > 0 {
+            if let Ok(mut probes) = self.probes.write() {
+                for k in &stale {
+                    probes.remove(k);
+                }
+            }
+            tracing::info!(count = count, "孤儿 AI probe 已清理");
+        }
+        count
+    }
+
+    /// Probe 指数退避检查：返回 `AuthFailed` 若仍在等待期。
+    ///
+    /// 等待期 = PROBE_BACKOFF_SECS[min(count-1, 4)]。
+    /// 锁定阶段（count ≥ 5）：等待 300s，期间不刷新 last_failure。
+    fn check_probe_auth_backoff(&self, profile_id: &str) -> AppResult<()> {
+        let key = format!("{PROBE_AUTH_KEY_PREFIX}{profile_id}");
+        let Ok(failures) = self.auth_failures.read() else {
+            return Ok(());
+        };
+        let Some(record) = failures.get(&key) else {
+            return Ok(());
+        };
+
+        let backoff = probe_backoff_secs(record.count);
+        let elapsed = record.last_failure.elapsed().as_secs();
+        if elapsed < backoff {
+            let remaining = backoff - elapsed;
+            return Err(AppError::new(
+                ErrorCode::AuthFailed,
+                format!("AI probe 退避中，请等待 {remaining}s 后重试"),
+            )
+            .with_retryable(false));
+        }
+        Ok(())
+    }
+
+    fn record_probe_auth_failure(&self, profile_id: &str) {
+        let key = format!("{PROBE_AUTH_KEY_PREFIX}{profile_id}");
+        if let Ok(mut failures) = self.auth_failures.write() {
+            let record = failures.entry(key).or_insert(AuthFailureRecord {
+                count: 0,
+                last_failure: Instant::now(),
+            });
+            record.count += 1;
+            // 锁定阶段（count >= 5）不刷新 last_failure，防止攻击者持续戳延长锁定
+            if record.count < PROBE_LOCK_THRESHOLD {
+                record.last_failure = Instant::now();
+            }
+            tracing::warn!(
+                profile_id,
+                failure_count = record.count,
+                "AI probe 认证失败"
+            );
+        }
+    }
+
+    fn clear_probe_auth_failures(&self, profile_id: &str) {
+        let key = format!("{PROBE_AUTH_KEY_PREFIX}{profile_id}");
+        if let Ok(mut failures) = self.auth_failures.write() {
+            failures.remove(&key);
+        }
     }
 
     /// 清理超时的空闲会话
@@ -1173,5 +1309,113 @@ mod tests {
         assert_eq!(err.retryable, Some(false));
         // Record is still present — we didn't remove during active window.
         assert!(mgr.auth_failures.read().unwrap().contains_key("p4"));
+    }
+
+    // ---- T2.6 probe backoff tests -------------------------------------------
+
+    #[test]
+    fn probe_backoff_secs_table_values() {
+        // 1st failure → 5s, 2nd → 10s, 3rd → 30s, 4th → 120s, 5th+ → 300s
+        assert_eq!(probe_backoff_secs(1), 5);
+        assert_eq!(probe_backoff_secs(2), 10);
+        assert_eq!(probe_backoff_secs(3), 30);
+        assert_eq!(probe_backoff_secs(4), 120);
+        assert_eq!(probe_backoff_secs(5), 300);
+        assert_eq!(probe_backoff_secs(99), 300); // clamped at max
+    }
+
+    #[test]
+    fn probe_backoff_zero_failures_no_backoff() {
+        // No failures yet → check passes immediately
+        let mgr = SessionManager::new();
+        assert!(mgr.check_probe_auth_backoff("profile-x").is_ok());
+    }
+
+    #[test]
+    fn probe_failure_key_isolated_from_main_session_key() {
+        let mgr = SessionManager::new();
+        // Record failures under the probe namespace
+        for _ in 0..PROBE_LOCK_THRESHOLD {
+            mgr.record_probe_auth_failure("isolated");
+        }
+        // Probe is in backoff
+        let probe_err = mgr.check_probe_auth_backoff("isolated");
+        assert!(
+            probe_err.is_err(),
+            "probe should be in backoff after 5 failures"
+        );
+
+        // Main session lockout check (plain profile_id key) must NOT be affected
+        let main_result = mgr.check_auth_lockout("isolated");
+        assert!(
+            main_result.is_ok(),
+            "main session must NOT be blocked by probe failures"
+        );
+    }
+
+    #[test]
+    fn probe_record_failure_does_not_refresh_last_failure_at_lock_threshold() {
+        // After reaching PROBE_LOCK_THRESHOLD, additional failures must not
+        // extend the lockout by refreshing last_failure.
+        let mgr = SessionManager::new();
+        // Reach lockout threshold
+        for _ in 0..PROBE_LOCK_THRESHOLD {
+            mgr.record_probe_auth_failure("no-refresh");
+        }
+        let key = format!("{PROBE_AUTH_KEY_PREFIX}no-refresh");
+        let first_last_failure = mgr
+            .auth_failures
+            .read()
+            .unwrap()
+            .get(&key)
+            .map(|r| r.last_failure)
+            .expect("record must exist");
+
+        // Record another failure (attacker continues probing)
+        mgr.record_probe_auth_failure("no-refresh");
+
+        let second_last_failure = mgr
+            .auth_failures
+            .read()
+            .unwrap()
+            .get(&key)
+            .map(|r| r.last_failure)
+            .expect("record must still exist");
+
+        // Timestamps must be equal — no refresh at/after threshold
+        assert_eq!(
+            first_last_failure, second_last_failure,
+            "last_failure must not be refreshed after lock threshold"
+        );
+    }
+
+    #[test]
+    fn probe_clear_removes_backoff_record() {
+        let mgr = SessionManager::new();
+        mgr.record_probe_auth_failure("cleared");
+        mgr.record_probe_auth_failure("cleared");
+        // After clearing, no backoff
+        mgr.clear_probe_auth_failures("cleared");
+        assert!(
+            mgr.check_probe_auth_backoff("cleared").is_ok(),
+            "backoff must be cleared on success"
+        );
+    }
+
+    #[test]
+    fn destroy_probes_for_session_is_idempotent() {
+        let mgr = SessionManager::new();
+        // Destroying a non-existent probe should not panic
+        mgr.destroy_probes_for_session("ghost-session");
+        mgr.destroy_probes_for_session("ghost-session"); // second call also fine
+    }
+
+    #[test]
+    fn cleanup_stale_probes_removes_idle_entries() {
+        let mgr = SessionManager::new();
+        // Manually insert a probe with default last_activity (just created → idle_secs ≈ 0)
+        // We use a very high TTL, so nothing is cleaned
+        let cleaned = mgr.cleanup_stale_probes(9999);
+        assert_eq!(cleaned, 0, "nothing should be cleaned when no probes exist");
     }
 }
