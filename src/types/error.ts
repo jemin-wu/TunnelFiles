@@ -15,6 +15,7 @@ export enum ErrorCode {
   CANCELED = "CANCELED",
   INVALID_ARGUMENT = "INVALID_ARGUMENT",
   AI_UNAVAILABLE = "AI_UNAVAILABLE",
+  ALLOWLIST_DENIED = "ALLOWLIST_DENIED",
   UNKNOWN = "UNKNOWN",
 }
 
@@ -45,5 +46,6 @@ export const ERROR_MESSAGES: Record<ErrorCode, string> = {
   [ErrorCode.CANCELED]: "操作已取消",
   [ErrorCode.INVALID_ARGUMENT]: "参数无效",
   [ErrorCode.AI_UNAVAILABLE]: "AI 功能暂不可用",
+  [ErrorCode.ALLOWLIST_DENIED]: "命令不在安全白名单中",
   [ErrorCode.UNKNOWN]: "未知错误",
 };

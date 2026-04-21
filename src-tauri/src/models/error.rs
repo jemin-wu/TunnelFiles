@@ -22,6 +22,7 @@ pub enum ErrorCode {
     Canceled,
     InvalidArgument,
     AiUnavailable,
+    AllowlistDenied,
     Unknown,
 }
 
@@ -110,6 +111,10 @@ impl AppError {
 
     pub fn ai_unavailable(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::AiUnavailable, message).with_retryable(true)
+    }
+
+    pub fn allowlist_denied(message: impl Into<String>) -> Self {
+        Self::new(ErrorCode::AllowlistDenied, message)
     }
 }
 
@@ -415,5 +420,20 @@ mod tests {
         // domain-errors.md: message 通用，technical detail 放 .detail
         let err = AppError::ai_unavailable("AI 功能暂不可用").with_detail("license not accepted");
         assert_eq!(err.detail.as_deref(), Some("license not accepted"));
+    }
+
+    #[test]
+    fn test_error_code_allowlist_denied_serialization() {
+        let code = ErrorCode::AllowlistDenied;
+        let json = serde_json::to_string(&code).unwrap();
+        assert_eq!(json, "\"ALLOWLIST_DENIED\"");
+    }
+
+    #[test]
+    fn test_allowlist_denied_not_retryable() {
+        let err = AppError::allowlist_denied("rm -rf / 不在命令白名单中");
+        assert_eq!(err.code, ErrorCode::AllowlistDenied);
+        assert_eq!(err.retryable, None);
+        assert!(!err.message.is_empty());
     }
 }
