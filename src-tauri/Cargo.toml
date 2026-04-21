@@ -95,6 +95,12 @@ libc = "0.2"
 # encoding_rs 已经以传递依赖存在于 llama-cpp-2，升级为直接依赖无新依赖树影响。
 encoding_rs = "0.8"
 
+# Shell 命令 AST 解析（SPEC §5 T2.2，Ask First 已批准）。
+# tree-sitter-bash 0.21 对应 tree-sitter 0.22 API（language() fn）。
+# 严格 pin 防 bash grammar 升级破坏 deny-node-kinds 集合。
+tree-sitter = "=0.22.6"
+tree-sitter-bash = "=0.21.0"
+
 # AI 推理运行时（SPEC §5 T1.3，Ask First 已批准 2026-04-17）。
 # 严格 pin 版本防 bundled llama.cpp 升级回归（SPEC §5 llama-cpp-2 pin 说明）。
 # Feature 白名单：macOS → metal；Windows/Linux → default（CPU）。
