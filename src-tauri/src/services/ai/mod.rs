@@ -6,6 +6,7 @@ pub mod allowlist;
 pub mod chat;
 pub mod checksum_cache;
 pub mod context;
+pub mod executor;
 pub mod generate;
 pub mod health;
 pub mod llama_runtime;
