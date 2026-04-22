@@ -24,6 +24,21 @@ use crate::models::profile::{AuthType, Profile};
 use crate::services::security_service::{credential_get, verify_hostkey, HostKeyVerifyResult};
 use crate::services::storage_service::Database;
 
+// ── Clock trait（T2.11 fake-clock 单测）────────────────────────────────────────
+
+/// 时钟抽象：生产使用 [`SystemClock`]，单测注入 [`FakeClock`]。
+pub trait Clock: Send + Sync {
+    fn now(&self) -> Instant;
+}
+
+/// 生产时钟：委托 `Instant::now()`。
+pub struct SystemClock;
+impl Clock for SystemClock {
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+}
+
 /// 缓存的认证凭据（用于 Terminal 等需要独立 session 的场景）
 ///
 /// 这避免了多次访问系统钥匙串，用户无需在没有点"始终允许"时输入多次密码。
@@ -578,13 +593,19 @@ impl SessionManager {
 
     /// 清理空闲超过 `ttl_secs` 的孤儿 probe（启动扫描 / 定期调用）。
     pub fn cleanup_stale_probes(&self, ttl_secs: u64) -> usize {
+        self.cleanup_stale_probes_with_clock(ttl_secs, &SystemClock)
+    }
+
+    /// 可注入时钟的内部实现（T2.11 fake-clock 单测入口）。
+    pub fn cleanup_stale_probes_with_clock<C: Clock>(&self, ttl_secs: u64, clock: &C) -> usize {
+        let now = clock.now();
         let stale: Vec<String> = {
             let Ok(probes) = self.probes.read() else {
                 return 0;
             };
             probes
                 .iter()
-                .filter(|(_, p)| p.idle_secs() >= ttl_secs)
+                .filter(|(_, p)| p.idle_secs_at(now) >= ttl_secs)
                 .map(|(k, _)| k.clone())
                 .collect()
         };
@@ -1413,9 +1434,145 @@ mod tests {
     #[test]
     fn cleanup_stale_probes_removes_idle_entries() {
         let mgr = SessionManager::new();
-        // Manually insert a probe with default last_activity (just created → idle_secs ≈ 0)
-        // We use a very high TTL, so nothing is cleaned
+        // no probes → nothing cleaned regardless of TTL
         let cleaned = mgr.cleanup_stale_probes(9999);
         assert_eq!(cleaned, 0, "nothing should be cleaned when no probes exist");
+    }
+
+    // ── T2.11: fake-clock probe lifecycle tests ───────────────────────────────
+
+    /// 测试专用时钟：持有基准 Instant + 可前进的秒数偏移。
+    struct FakeClock {
+        base: Instant,
+        offset_secs: Arc<std::sync::atomic::AtomicU64>,
+    }
+
+    impl FakeClock {
+        fn new() -> Self {
+            FakeClock {
+                base: Instant::now(),
+                offset_secs: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            }
+        }
+
+        fn advance(&self, secs: u64) {
+            self.offset_secs
+                .fetch_add(secs, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+
+    impl Clock for FakeClock {
+        fn now(&self) -> Instant {
+            self.base
+                + Duration::from_secs(self.offset_secs.load(std::sync::atomic::Ordering::SeqCst))
+        }
+    }
+
+    /// 辅助函数：创建 last_activity 固定在指定 `base` Instant 的 probe。
+    /// 使用裸 `ssh2::Session::new()` — 不连接任何主机，纯内存对象。
+    fn make_probe_at(base: Instant) -> Arc<ManagedAiProbe> {
+        let session = ssh2::Session::new().expect("ssh2::Session::new() must succeed");
+        let probe = Arc::new(ManagedAiProbe::new("test-profile".to_string(), session));
+        // 覆盖 last_activity 为 base
+        if let Ok(mut last) = probe.last_activity.write() {
+            *last = base;
+        }
+        probe
+    }
+
+    #[test]
+    fn fake_clock_probe_not_cleaned_before_ttl() {
+        let mgr = SessionManager::new();
+        let clock = FakeClock::new();
+
+        // 插入 last_activity = clock.base（刚创建）
+        let probe = make_probe_at(clock.base);
+        mgr.probes
+            .write()
+            .unwrap()
+            .insert("session-A".to_string(), probe);
+
+        // 推进到 TTL-1 秒
+        clock.advance(299);
+        let cleaned = mgr.cleanup_stale_probes_with_clock(300, &clock);
+        assert_eq!(
+            cleaned, 0,
+            "probe must NOT be cleaned 1s before TTL (elapsed=299 < ttl=300)"
+        );
+    }
+
+    #[test]
+    fn fake_clock_probe_cleaned_at_ttl() {
+        let mgr = SessionManager::new();
+        let clock = FakeClock::new();
+
+        let probe = make_probe_at(clock.base);
+        mgr.probes
+            .write()
+            .unwrap()
+            .insert("session-B".to_string(), probe);
+
+        // 推进到恰好等于 TTL
+        clock.advance(300);
+        let cleaned = mgr.cleanup_stale_probes_with_clock(300, &clock);
+        assert_eq!(
+            cleaned, 1,
+            "probe must be cleaned when elapsed >= ttl (elapsed=300, ttl=300)"
+        );
+    }
+
+    #[test]
+    fn fake_clock_multiple_probes_selective_cleanup() {
+        let mgr = SessionManager::new();
+        let clock = FakeClock::new();
+
+        // probe A: 空闲 400s（过期）
+        let probe_a = make_probe_at(clock.base - Duration::from_secs(400));
+        // probe B: 空闲 0s（刚创建，last_activity = clock.base）
+        let probe_b = make_probe_at(clock.base);
+
+        {
+            let mut probes = mgr.probes.write().unwrap();
+            probes.insert("session-old".to_string(), probe_a);
+            probes.insert("session-new".to_string(), probe_b);
+        }
+
+        // 时钟不推进，TTL = 300s。probe_a 空闲 400s > 300 → 应被清理
+        let cleaned = mgr.cleanup_stale_probes_with_clock(300, &clock);
+        assert_eq!(cleaned, 1, "only the stale probe should be cleaned");
+
+        // probe_b 应仍存在
+        let remaining = mgr.probes.read().unwrap().len();
+        assert_eq!(remaining, 1, "fresh probe must survive cleanup");
+    }
+
+    #[test]
+    fn fake_clock_touch_resets_idle_timer() {
+        let mgr = SessionManager::new();
+        let clock = FakeClock::new();
+
+        let probe = make_probe_at(clock.base);
+        let probe_clone = probe.clone();
+        mgr.probes
+            .write()
+            .unwrap()
+            .insert("session-C".to_string(), probe);
+
+        // 推进 250s
+        clock.advance(250);
+
+        // touch 重置 last_activity（使用真实 Instant::now()，会晚于 clock.base）
+        // 为保证 fake-clock 一致性，手动设置 last_activity = clock.now()
+        if let Ok(mut last) = probe_clone.last_activity.write() {
+            *last = clock.now();
+        }
+
+        // 再推进 100s（总计 350s，但 touch 后只空闲 100s）
+        clock.advance(100);
+        let cleaned = mgr.cleanup_stale_probes_with_clock(300, &clock);
+        assert_eq!(
+            cleaned, 0,
+            "touched probe should not be cleaned (idle=100s < ttl=300s)"
+        );
     }
 }

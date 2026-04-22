@@ -72,9 +72,14 @@ impl ManagedAiProbe {
 
     /// 返回自上次活跃以来经过的秒数。
     pub fn idle_secs(&self) -> u64 {
+        self.idle_secs_at(Instant::now())
+    }
+
+    /// 以外部提供的 `now` 计算空闲秒数，用于 fake-clock 单测。
+    pub fn idle_secs_at(&self, now: Instant) -> u64 {
         self.last_activity
             .read()
-            .map(|t| t.elapsed().as_secs())
+            .map(|t| now.saturating_duration_since(*t).as_secs())
             .unwrap_or(0)
     }
 
