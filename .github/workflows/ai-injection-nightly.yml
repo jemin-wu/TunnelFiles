@@ -1,0 +1,161 @@
+name: AI Injection Nightly
+
+# Dual-gate strategy (T2.12 / SPEC §5):
+#   Stage 1 — injection-static: pure string assertions, runs on ubuntu-latest,
+#              no model required. Acts as a fast gate; if this fails, skip stage 2.
+#   Stage 2 — injection-nightly: real llama.cpp inference on a self-hosted runner
+#              with a pre-loaded GGUF model. Asserts AI plan output stays safe
+#              across all 12 injection payloads.
+#
+# On any failure: auto-creates a GitHub issue tagged [ai-security].
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 每天 UTC 03:00
+  workflow_dispatch:        # 支持手动触发（验收 / 热修复后回归）
+
+concurrency:
+  group: ai-injection-nightly
+  cancel-in-progress: false  # nightly 不允许取消中断，防止漏报
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 1: Static injection tests (pure string assertions, no model)
+  # Runs on standard ubuntu-latest — fast, cheap, always required.
+  # ──────────────────────────────────────────────────────────────────────────────
+  injection-static:
+    name: Injection Static (no model)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32  # v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf cmake
+
+      - name: Run static injection tests
+        run: cargo test --test injection -- --nocapture
+
+      - name: Run scrubber blackbox tests
+        run: cargo test --test scrubber_blackbox -- --nocapture
+
+      - name: Create issue on static test failure
+        if: failure()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[AI Injection Static] ❌ Test failure ${date}`,
+              body: [
+                '## Injection Static Test Failure',
+                '',
+                `**Date:** ${date}`,
+                `**Run:** [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '**Affected gates:** `cargo test --test injection` and/or `cargo test --test scrubber_blackbox`',
+                '',
+                '**Required action:** Review the failed assertions before merging any AI-related changes.',
+              ].join('\n'),
+              labels: ['ai-security', 'bug'],
+            });
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  # Stage 2: Nightly real-LLM injection tests (self-hosted runner with GGUF model)
+  # Runs only after Stage 1 passes. Requires:
+  #   - Runner label: [self-hosted, llm]
+  #   - Repository variable LLAMA_MODEL_PATH pointing to pre-loaded GGUF
+  # ──────────────────────────────────────────────────────────────────────────────
+  injection-nightly:
+    name: Injection Nightly (real LLM)
+    runs-on: [self-hosted, llm]
+    needs: injection-static
+    defaults:
+      run:
+        working-directory: src-tauri
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32  # v2
+        with:
+          workspaces: src-tauri
+
+      - name: Verify model file exists
+        run: |
+          MODEL="${{ vars.LLAMA_MODEL_PATH }}"
+          if [ -z "$MODEL" ]; then
+            echo "::error::LLAMA_MODEL_PATH repository variable is not set"
+            exit 1
+          fi
+          if [ ! -f "$MODEL" ]; then
+            echo "::error::Model file not found at: $MODEL"
+            exit 1
+          fi
+          echo "Model found: $MODEL ($(du -h "$MODEL" | cut -f1))"
+
+      - name: Run nightly injection tests (real LLM)
+        env:
+          LLAMA_MODEL_PATH: ${{ vars.LLAMA_MODEL_PATH }}
+        run: |
+          cargo test --test injection_nightly -- --ignored --nocapture 2>&1 | tee /tmp/nightly-output.txt
+          # Preserve exit code through tee
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload test output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-injection-output
+          path: /tmp/nightly-output.txt
+          retention-days: 7
+
+      - name: Create issue on nightly LLM test failure
+        if: failure()
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[AI Injection Nightly] ❌ Real-LLM test failure ${date}`,
+              body: [
+                '## Injection Nightly (Real LLM) Failure',
+                '',
+                `**Date:** ${date}`,
+                `**Run:** [${context.runId}](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`,
+                '',
+                '**What failed:** One or more of the 12 injection payloads produced a non-compliant AI plan.',
+                '',
+                '**Required action (within 24h):**',
+                '1. Download artifact `nightly-injection-output` for the raw failure log.',
+                '2. Identify which payload broke through (`p01`–`p12` or bonus).',
+                '3. Harden `wrap_untrusted` / `PLAN_SYSTEM_PROMPT` as needed.',
+                '4. Verify the fix locally: `LLAMA_MODEL_PATH=... cargo test --test injection_nightly -- --ignored`',
+                '5. Re-trigger this workflow via workflow_dispatch to confirm fix.',
+                '',
+                '> ⚠️ Do NOT merge AI-related changes while this issue is open.',
+              ].join('\n'),
+              labels: ['ai-security', 'bug', 'nightly-failure'],
+            });
