@@ -404,7 +404,7 @@ pub async fn revise_plan(
             .cloned()
             .collect::<Vec<_>>();
         let mut steps = preserved;
-        steps.extend(revised_suffix.steps.into_iter());
+        steps.extend(revised_suffix.steps);
 
         execution.plan.summary = revised_suffix.summary;
         execution.plan.risks = revised_suffix.risks;
@@ -1897,13 +1897,9 @@ pub fn dispatch_action_step(step: &AiStep) -> AppResult<CheckedCommand> {
 }
 
 fn strip_fence(s: &str) -> Option<&str> {
-    let s = if let Some(stripped) = s.strip_prefix("```json") {
-        stripped
-    } else if let Some(stripped) = s.strip_prefix("```") {
-        stripped
-    } else {
-        return None;
-    };
+    let s = s
+        .strip_prefix("```json")
+        .or_else(|| s.strip_prefix("```"))?;
     let s = s.trim_start_matches('\n');
     if let Some(end) = s.rfind("```") {
         Some(&s[..end])

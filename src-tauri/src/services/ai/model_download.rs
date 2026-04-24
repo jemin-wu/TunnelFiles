@@ -263,14 +263,13 @@ impl ProgressTracker {
     }
 
     fn tick(&self) -> ProgressTick {
-        let percent = if self.total == 0 {
-            0
-        } else {
-            // floor 策略；total == 0 时走上分支。u64 乘 100 在极端情况下不会溢
-            // 出（downloaded ≤ total < 2^57 对 5GB 量级足够）
-            let raw = (self.downloaded.saturating_mul(100)) / self.total;
-            u64::min(raw, 100) as u8
-        };
+        // floor 策略；total == 0 时返回 0。
+        let raw = self
+            .downloaded
+            .saturating_mul(100)
+            .checked_div(self.total)
+            .unwrap_or(0);
+        let percent = u64::min(raw, 100) as u8;
         ProgressTick {
             downloaded: self.downloaded,
             total: self.total,
