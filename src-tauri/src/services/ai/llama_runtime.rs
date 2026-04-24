@@ -672,7 +672,7 @@ mod tests {
         let probe = SystemRamProbe;
         let bytes = probe.available_ram_bytes();
         assert!(
-            bytes >= 1 * 1024 * 1024 * 1024,
+            bytes >= 1024 * 1024 * 1024,
             "SystemRamProbe returned suspiciously low value: {bytes}"
         );
     }

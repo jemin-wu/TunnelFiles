@@ -1003,9 +1003,10 @@ mod tests {
     use crate::models::ai_health::AcceleratorKind;
 
     fn make_settings(model_name: &str) -> Settings {
-        let mut s = Settings::default();
-        s.ai_model_name = model_name.to_string();
-        s
+        Settings {
+            ai_model_name: model_name.to_string(),
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -1221,8 +1222,10 @@ mod tests {
 
     #[test]
     fn check_license_accepted_passes_when_timestamp_present() {
-        let mut settings = Settings::default();
-        settings.ai_license_accepted_at = Some(1_700_000_000_000);
+        let settings = Settings {
+            ai_license_accepted_at: Some(1_700_000_000_000),
+            ..Default::default()
+        };
         check_license_accepted(&settings).expect("ok");
     }
 
@@ -1300,8 +1303,10 @@ mod tests {
 
     #[test]
     fn resolve_model_dest_uses_ai_model_name_from_settings() {
-        let mut s = Settings::default();
-        s.ai_model_name = "gemma-4-E4B-it-Q4_K_M".into();
+        let s = Settings {
+            ai_model_name: "gemma-4-E4B-it-Q4_K_M".into(),
+            ..Default::default()
+        };
         let path = resolve_model_dest(&s).expect("dest");
         let s = path.to_string_lossy();
         assert!(s.ends_with("gemma-4-E4B-it-Q4_K_M.gguf"));

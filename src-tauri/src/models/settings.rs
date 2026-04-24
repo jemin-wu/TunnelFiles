@@ -212,16 +212,20 @@ mod tests {
 
     #[test]
     fn test_settings_serializes_license_timestamp_when_set() {
-        let mut settings = Settings::default();
-        settings.ai_license_accepted_at = Some(1_700_000_000_000);
+        let settings = Settings {
+            ai_license_accepted_at: Some(1_700_000_000_000),
+            ..Default::default()
+        };
         let json = serde_json::to_string(&settings).unwrap();
         assert!(json.contains("\"aiLicenseAcceptedAt\":1700000000000"));
     }
 
     #[test]
     fn test_settings_deserialization_round_trips_license_timestamp() {
-        let mut original = Settings::default();
-        original.ai_license_accepted_at = Some(42);
+        let original = Settings {
+            ai_license_accepted_at: Some(42),
+            ..Default::default()
+        };
         let json = serde_json::to_string(&original).unwrap();
         let back: Settings = serde_json::from_str(&json).unwrap();
         assert_eq!(back.ai_license_accepted_at, Some(42));

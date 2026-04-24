@@ -2120,7 +2120,7 @@ mod tests {
         let manager = create_test_manager(3);
         // 默认是 3（从 settings）
         let available = manager.semaphore.available_permits();
-        assert!(available >= 1 && available <= 6); // Settings 范围 1-6
+        assert!((1..=6).contains(&available)); // Settings 范围 1-6
     }
 
     #[tokio::test]

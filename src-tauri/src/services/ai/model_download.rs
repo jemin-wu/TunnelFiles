@@ -478,12 +478,9 @@ mod tests {
     #[test]
     fn pinned_disk_threshold_exceeds_model_size() {
         // 防止磁盘 gate 小于模型本身，留出量化 / 临时文件余量
-        assert!(
-            MODEL_DISK_REQUIRED_BYTES > MODEL_EXPECTED_SIZE_BYTES,
-            "磁盘阈值 {} 必须 > 模型字节数 {}",
-            MODEL_DISK_REQUIRED_BYTES,
-            MODEL_EXPECTED_SIZE_BYTES
-        );
+        const {
+            assert!(MODEL_DISK_REQUIRED_BYTES > MODEL_EXPECTED_SIZE_BYTES);
+        }
     }
 
     // ---- compute_sha256_hex -----------------------------------------------

@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_from_io_error_other() {
-        let io_err = std::io::Error::new(std::io::ErrorKind::Other, "something else");
+        let io_err = std::io::Error::other("something else");
         let app_err = AppError::from(io_err);
         assert_eq!(app_err.code, ErrorCode::LocalIoError);
         assert!(!app_err.message.is_empty());

@@ -752,10 +752,14 @@ mod tests {
     #[test]
     fn test_adaptive_batching_constants() {
         // 交互模式比批量模式更激进
-        assert!(INTERACTIVE_THROTTLE_MS < BULK_THROTTLE_MS);
-        assert!(INTERACTIVE_BUFFER_LIMIT < BULK_BUFFER_LIMIT);
+        const {
+            assert!(INTERACTIVE_THROTTLE_MS < BULK_THROTTLE_MS);
+            assert!(INTERACTIVE_BUFFER_LIMIT < BULK_BUFFER_LIMIT);
+        }
         // 交互窗口合理范围
-        assert!(INTERACTIVE_WINDOW_MS > 0 && INTERACTIVE_WINDOW_MS <= 500);
+        const {
+            assert!(INTERACTIVE_WINDOW_MS > 0 && INTERACTIVE_WINDOW_MS <= 500);
+        }
     }
 
     #[test]
@@ -819,7 +823,7 @@ mod tests {
         // 先塞满 cap 的 'A'
         append_recent_output(&buf, &vec![b'A'; RECENT_OUTPUT_CAP]);
         // 再追加 100 字节 'B' — 应从队首淘汰 100 个 'A'
-        append_recent_output(&buf, &vec![b'B'; 100]);
+        append_recent_output(&buf, &[b'B'; 100]);
         let snap = snapshot_buf(&buf);
         assert_eq!(snap.len(), RECENT_OUTPUT_CAP);
         // 前 RECENT_OUTPUT_CAP - 100 字节仍为 'A'
@@ -844,7 +848,7 @@ mod tests {
         let buf = make_buf();
         // 10000 次 10 字节 push = 100KB 总量，应保留最后 8KB
         for i in 0..10000u32 {
-            let byte = (b'0' + (i % 10) as u8) as u8;
+            let byte = b'0' + (i % 10) as u8;
             append_recent_output(&buf, &[byte; 10]);
         }
         let snap = snapshot_buf(&buf);
