@@ -47,6 +47,7 @@ pub fn to_prompt_snapshot(result: &AiContextSnapshotResult) -> Option<ContextSna
         None
     } else {
         Some(ContextSnapshot {
+            connection: None,
             pwd: result.pwd.clone(),
             recent_output: result.recent_output.clone(),
         })

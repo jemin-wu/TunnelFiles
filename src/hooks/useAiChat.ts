@@ -69,6 +69,7 @@ export function useAiChat(sessionId: string): UseAiChatReturn {
       const u2 = await listen<AiDonePayload>(AI_EVENT_DONE, (e) => {
         if (cancelled) return;
         if (e.payload.sessionId !== sessionIdRef.current) return;
+        if (e.payload.kind !== "chat") return;
         completeStream(sessionIdRef.current);
       });
       const u3 = await listen<AiErrorPayload>(AI_EVENT_ERROR, (e) => {

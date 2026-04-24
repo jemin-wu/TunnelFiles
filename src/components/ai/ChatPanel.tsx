@@ -1,14 +1,18 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Clock } from "lucide-react";
 
 import { ChatContainerContent, ChatContainerRoot } from "@/components/prompt-kit/chat-container";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAiChat } from "@/hooks/useAiChat";
+import { useAiPlan } from "@/hooks/useAiPlan";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
 import { encodeTerminalData, getTerminalBySession, writeTerminalInput } from "@/lib/terminal";
 import { ChatInput } from "./ChatInput";
+import { ConfirmWriteDialog } from "./ConfirmWriteDialog";
 import { MessageList } from "./MessageList";
+import { PlanCard } from "./PlanCard";
 
 interface ChatPanelProps {
   /** Tab / terminal session id —— per-tab 隔离的对话归属。 */
@@ -47,10 +51,14 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
   const appendUserMessage = useAiSessionStore((s) => s.appendUserMessage);
   const beginThinking = useAiSessionStore((s) => s.beginThinking);
   const failStream = useAiSessionStore((s) => s.failStream);
+  const [mode, setMode] = useState<"chat" | "plan">("chat");
+  const [planBusy, setPlanBusy] = useState(false);
 
   // 默认订阅 IPC 事件 + 提供 send 回调；外部 onSend 覆盖时仅作为发送入口，
   // listener 仍然订阅（事件契约固定，外部 handler 改不了响应通路）。
   const { send: defaultSend, cancel } = useAiChat(sessionId);
+  const { plans, createPlan, executeNext, confirmWrite, revisePlan, cancelPlan, rollbackStep } =
+    useAiPlan(sessionId);
 
   const messages = session?.messages ?? [];
   const streamState = session?.streamState ?? "idle";
@@ -58,6 +66,10 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
   const isError = streamState === "error";
   const pendingAssistantId = session?.pendingAssistantId ?? null;
   const probeQueuePosition = session?.probeQueuePosition ?? null;
+  const activeAwaitConfirm = useMemo(
+    () => [...plans].reverse().find((item) => item.awaitingConfirm)?.awaitingConfirm ?? null,
+    [plans]
+  );
 
   const handleStop = useCallback(() => {
     if (!pendingAssistantId) return;
@@ -82,24 +94,55 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
 
   const insertCommand = onInsertCommand ?? defaultInsertCommand;
 
+  const runPlanAction = useCallback(async (action: () => Promise<void>) => {
+    setPlanBusy(true);
+    try {
+      await action();
+    } finally {
+      setPlanBusy(false);
+    }
+  }, []);
+
   const handleSubmit = useCallback(
     async (text: string) => {
       appendUserMessage(sessionId, text);
-      beginThinking(sessionId);
       try {
-        if (onSend) {
-          await onSend(sessionId, text);
+        if (mode === "plan" && !onSend) {
+          await runPlanAction(async () => {
+            const created = await createPlan(text);
+            await executeNext(created.planId);
+          });
         } else {
-          await defaultSend(text);
+          beginThinking(sessionId);
         }
-        // 流式收尾由 ai:done 事件驱动（useAiChat 内部）；外部 onSend 也
-        // 应通过同样的事件流推动 store。这里不在 try 块内 complete。
+        if (mode !== "plan") {
+          if (onSend) {
+            await onSend(sessionId, text);
+          } else {
+            await defaultSend(text);
+          }
+          // 流式收尾由 ai:done 事件驱动（useAiChat 内部）；外部 onSend 也
+          // 应通过同样的事件流推动 store。这里不在 try 块内 complete。
+        } else if (onSend) {
+          await onSend(sessionId, text);
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         failStream(sessionId, msg);
       }
     },
-    [sessionId, onSend, defaultSend, appendUserMessage, beginThinking, failStream]
+    [
+      sessionId,
+      mode,
+      onSend,
+      createPlan,
+      executeNext,
+      defaultSend,
+      appendUserMessage,
+      beginThinking,
+      failStream,
+      runPlanAction,
+    ]
   );
 
   return (
@@ -111,11 +154,29 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
     >
       <ChatContainerRoot className="relative min-h-0 flex-1">
         <ChatContainerContent className="px-4 py-3">
-          <MessageList
-            messages={messages}
-            isStreaming={isStreaming}
-            onInsertCommand={insertCommand}
-          />
+          <div className="flex flex-col gap-4">
+            {(messages.length > 0 || plans.length === 0) && (
+              <MessageList
+                messages={messages}
+                isStreaming={isStreaming}
+                onInsertCommand={insertCommand}
+              />
+            )}
+            {plans.map((plan) => (
+              <PlanCard
+                key={plan.planId}
+                plan={plan}
+                busy={planBusy}
+                onExecuteNext={(planId) => runPlanAction(() => executeNext(planId).then(() => {}))}
+                onRevise={(planId, observation) =>
+                  runPlanAction(() => revisePlan(planId, observation).then(() => {}))
+                }
+                onRollback={(planId, stepId) =>
+                  runPlanAction(() => rollbackStep(planId, stepId).then(() => {}))
+                }
+              />
+            ))}
+          </div>
         </ChatContainerContent>
         <div className="pointer-events-none absolute right-3 bottom-3 z-10">
           <div className="pointer-events-auto">
@@ -149,13 +210,48 @@ export function ChatPanel({ sessionId, onSend, onInsertCommand, className }: Cha
       )}
 
       <div className="border-border/50 bg-background border-t px-4 py-3">
+        {!onSend && (
+          <div className="mb-2 flex items-center justify-end gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "chat" ? "default" : "outline"}
+              className="h-7 px-3 text-[11px]"
+              onClick={() => setMode("chat")}
+            >
+              Chat
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={mode === "plan" ? "default" : "outline"}
+              className="h-7 px-3 text-[11px]"
+              onClick={() => setMode("plan")}
+            >
+              Plan
+            </Button>
+          </div>
+        )}
         <ChatInput
           onSubmit={handleSubmit}
-          disabled={isStreaming}
+          disabled={isStreaming || planBusy}
           onStop={pendingAssistantId ? handleStop : undefined}
-          placeholder={isStreaming ? "Waiting for response..." : "Ask the local assistant..."}
+          placeholder={
+            mode === "plan"
+              ? "Describe the change you want the local assistant to execute..."
+              : isStreaming
+                ? "Waiting for response..."
+                : "Ask the local assistant..."
+          }
         />
       </div>
+
+      <ConfirmWriteDialog
+        payload={activeAwaitConfirm}
+        pending={planBusy}
+        onConfirm={(planId) => runPlanAction(() => confirmWrite(planId).then(() => {}))}
+        onCancel={(planId) => runPlanAction(() => cancelPlan(planId).then(() => {}))}
+      />
     </div>
   );
 }

@@ -279,8 +279,8 @@ function PageToolbar({
         <TooltipContent className="text-xs">Terminal</TooltipContent>
       </Tooltip>
 
-      {/* AI chat launcher (only renders when settings.aiEnabled) */}
-      <ChatPanelLauncher sessionId={sessionId} />
+      {/* AI chat launcher: only visible in terminal mode */}
+      {activeTab === "terminal" && <ChatPanelLauncher sessionId={sessionId} />}
     </div>
   );
 }

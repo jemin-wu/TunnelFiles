@@ -73,8 +73,8 @@ export function ChatPanelLauncher({ sessionId }: ChatPanelLauncherProps) {
       </Tooltip>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full max-w-md p-0 sm:max-w-md">
-          <SheetHeader className="border-border border-b px-4 py-3">
+        <SheetContent side="right" className="w-full max-w-md gap-0 p-0 sm:max-w-md">
+          <SheetHeader className="border-border shrink-0 border-b px-4 py-3">
             <SheetTitle className="flex items-center gap-2 text-sm">
               <Sparkles className="text-primary size-3.5" />
               AI Chat
@@ -83,9 +83,7 @@ export function ChatPanelLauncher({ sessionId }: ChatPanelLauncherProps) {
               Local-only AI assistant scoped to this terminal session.
             </SheetDescription>
           </SheetHeader>
-          <div className="flex-1 overflow-hidden">
-            <ChatPanel sessionId={sessionId} className="h-full" />
-          </div>
+          <ChatPanel sessionId={sessionId} className="min-h-0 flex-1" />
         </SheetContent>
       </Sheet>
     </>

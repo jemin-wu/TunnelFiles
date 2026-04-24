@@ -1,6 +1,6 @@
 [package]
 name = "tunnelfiles"
-version = "3.1.1"
+version = "3.2.0-beta.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -95,11 +95,20 @@ libc = "0.2"
 # encoding_rs 已经以传递依赖存在于 llama-cpp-2，升级为直接依赖无新依赖树影响。
 encoding_rs = "0.8"
 
+# Unicode NFKC 规范化（SPEC §5 T2.4 wrap_untrusted 流水线）。
+# 将全角/兼容字符规范到 ASCII，防止 ＜／ｕｎｔｒｕｓｔｅｄ＞ 绕过 strip_close_tag。
+# unicode-normalization 已以传递依赖存在（regex 依赖树），升级为直接依赖。
+unicode-normalization = "0.1"
+
 # Shell 命令 AST 解析（SPEC §5 T2.2，Ask First 已批准）。
 # tree-sitter-bash 0.21 对应 tree-sitter 0.22 API（language() fn）。
 # 严格 pin 防 bash grammar 升级破坏 deny-node-kinds 集合。
 tree-sitter = "=0.22.6"
 tree-sitter-bash = "=0.21.0"
+
+# 文本 diff 生成（SPEC §5 T3.3）。
+# 仅用于 snapshot 确认预览 / rollback 审计，后端输出 unified diff 字符串。
+similar = "2"
 
 # AI 推理运行时（SPEC §5 T1.3，Ask First 已批准 2026-04-17）。
 # 严格 pin 版本防 bundled llama.cpp 升级回归（SPEC §5 llama-cpp-2 pin 说明）。
@@ -117,4 +126,3 @@ llama-cpp-2 = { version = "=0.1.143", default-features = false }
 tempfile = "3"
 futures = "0.3"
 ts-rs = { version = "12.0.1", features = ["serde-compat"] }
-

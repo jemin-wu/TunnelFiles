@@ -1,4 +1,10 @@
 import { create } from "zustand";
+import type { AiAwaitConfirmPayload } from "@/types/bindings/AiAwaitConfirmPayload";
+import type { AiDonePayload } from "@/types/bindings/AiDonePayload";
+import type { AiPlan } from "@/types/bindings/AiPlan";
+import type { AiRollbackProgressPayload } from "@/types/bindings/AiRollbackProgressPayload";
+import type { AiServiceStateWarningPayload } from "@/types/bindings/AiServiceStateWarningPayload";
+import type { AiStepEventPayload } from "@/types/bindings/AiStepEventPayload";
 
 /**
  * Per-tab AI chat 会话状态。每个 terminal tab 对应一条独立的对话，
@@ -20,6 +26,18 @@ export interface ChatMessage {
 
 export type StreamState = "idle" | "thinking" | "streaming" | "error";
 
+export interface PlanRuntimeState {
+  planId: string;
+  plan: AiPlan;
+  createdAt: number;
+  currentStepId: string | null;
+  awaitingConfirm: AiAwaitConfirmPayload | null;
+  rollbackProgress: AiRollbackProgressPayload | null;
+  serviceWarnings: AiServiceStateWarningPayload[];
+  lastDone: AiDonePayload | null;
+  stepEvents: Record<string, AiStepEventPayload>;
+}
+
 export interface ChatSession {
   messages: ChatMessage[];
   streamState: StreamState;
@@ -29,6 +47,8 @@ export interface ChatSession {
   error: string | null;
   /** Probe 并发队列位置（T2.8）：null = 不在队列，1+ = 等待中 */
   probeQueuePosition: number | null;
+  /** 当前 tab 下的所有 AI plan（按创建时间持久保留直到 tab/session 清理）。 */
+  plans: PlanRuntimeState[];
 }
 
 interface AiSessionState {
@@ -55,6 +75,23 @@ interface AiSessionState {
   removeSession: (sessionId: string) => void;
   /** 更新 probe 队列位置（T2.8）：position=0 表示出队，清除 banner。 */
   setProbeQueuePosition: (sessionId: string, position: number) => void;
+  /** 新建或整体覆盖一条 plan 的最新快照。 */
+  upsertPlan: (
+    sessionId: string,
+    planId: string,
+    plan: AiPlan,
+    currentStepId?: string | null
+  ) => void;
+  /** 根据 ai:step 增量更新 step 运行态。 */
+  applyPlanStepEvent: (sessionId: string, payload: AiStepEventPayload) => void;
+  /** 写入确认暂停事件。 */
+  setPlanAwaitConfirm: (sessionId: string, payload: AiAwaitConfirmPayload) => void;
+  /** rollback 进度事件。 */
+  setPlanRollbackProgress: (sessionId: string, payload: AiRollbackProgressPayload) => void;
+  /** 服务状态警告事件。 */
+  pushPlanServiceWarning: (sessionId: string, payload: AiServiceStateWarningPayload) => void;
+  /** plan done 事件。 */
+  setPlanDone: (sessionId: string, payload: AiDonePayload) => void;
 }
 
 function emptySession(): ChatSession {
@@ -64,7 +101,45 @@ function emptySession(): ChatSession {
     pendingAssistantId: null,
     error: null,
     probeQueuePosition: null,
+    plans: [],
   };
+}
+
+function patchPlanSteps(plan: AiPlan, payload: AiStepEventPayload): AiPlan {
+  const steps = plan.steps.map((step, index) =>
+    step.id === payload.stepId || index === payload.stepIndex
+      ? { ...step, status: payload.status }
+      : step
+  );
+  return {
+    ...plan,
+    status: derivePlanStatusFromStepEvent(plan.status, steps, payload.status),
+    steps,
+  };
+}
+
+function derivePlanStatusFromStepEvent(
+  currentStatus: AiPlan["status"],
+  steps: AiPlan["steps"],
+  stepStatus: AiStepEventPayload["status"]
+): AiPlan["status"] {
+  switch (stepStatus) {
+    case "failed":
+    case "rolled_back":
+      return "failed";
+    case "canceled":
+      return "canceled";
+    case "awaiting_confirm":
+      return "awaiting_confirm";
+    case "running":
+    case "executing":
+    case "verifying":
+      return "running";
+    case "done":
+      return steps.every((step) => step.status === "done") ? "done" : "ready";
+    default:
+      return currentStatus;
+  }
 }
 
 function newId(): string {
@@ -187,6 +262,119 @@ export function createAiSessionStore() {
           ...current,
           probeQueuePosition: position === 0 ? null : position,
         });
+        return { sessions };
+      }),
+
+    upsertPlan: (sessionId, planId, plan, currentStepId = null) =>
+      set((state) => {
+        const sessions = new Map(state.sessions);
+        const current = sessions.get(sessionId) ?? emptySession();
+        const existing = current.plans.find((item) => item.planId === planId);
+        const nextPlan: PlanRuntimeState = existing
+          ? {
+              ...existing,
+              plan,
+              currentStepId,
+              awaitingConfirm: plan.status === "awaiting_confirm" ? existing.awaitingConfirm : null,
+            }
+          : {
+              planId,
+              plan,
+              createdAt: Date.now(),
+              currentStepId,
+              awaitingConfirm: null,
+              rollbackProgress: null,
+              serviceWarnings: [],
+              lastDone: null,
+              stepEvents: {},
+            };
+        const plans = existing
+          ? current.plans.map((item) => (item.planId === planId ? nextPlan : item))
+          : [...current.plans, nextPlan];
+        sessions.set(sessionId, { ...current, plans });
+        return { sessions };
+      }),
+
+    applyPlanStepEvent: (sessionId, payload) =>
+      set((state) => {
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        const plans = current.plans.map((item) =>
+          item.planId === payload.planId
+            ? {
+                ...item,
+                plan: patchPlanSteps(item.plan, payload),
+                currentStepId: payload.stepId,
+                awaitingConfirm:
+                  payload.status === "awaiting_confirm" ? item.awaitingConfirm : null,
+                stepEvents: { ...item.stepEvents, [payload.stepId]: payload },
+              }
+            : item
+        );
+        sessions.set(sessionId, { ...current, plans });
+        return { sessions };
+      }),
+
+    setPlanAwaitConfirm: (sessionId, payload) =>
+      set((state) => {
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        const plans = current.plans.map((item) =>
+          item.planId === payload.planId
+            ? {
+                ...item,
+                currentStepId: payload.stepId,
+                awaitingConfirm: payload,
+              }
+            : item
+        );
+        sessions.set(sessionId, { ...current, plans });
+        return { sessions };
+      }),
+
+    setPlanRollbackProgress: (sessionId, payload) =>
+      set((state) => {
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        const plans = current.plans.map((item) =>
+          item.planId === payload.planId ? { ...item, rollbackProgress: payload } : item
+        );
+        sessions.set(sessionId, { ...current, plans });
+        return { sessions };
+      }),
+
+    pushPlanServiceWarning: (sessionId, payload) =>
+      set((state) => {
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        const plans = current.plans.map((item) =>
+          item.planId === payload.planId
+            ? {
+                ...item,
+                serviceWarnings: [...item.serviceWarnings, payload],
+              }
+            : item
+        );
+        sessions.set(sessionId, { ...current, plans });
+        return { sessions };
+      }),
+
+    setPlanDone: (sessionId, payload) =>
+      set((state) => {
+        const planId = payload.planId ?? null;
+        if (!planId) return state;
+        const current = state.sessions.get(sessionId) ?? emptySession();
+        const sessions = new Map(state.sessions);
+        const plans = current.plans.map((item) =>
+          item.planId === planId
+            ? {
+                ...item,
+                lastDone: payload,
+                awaitingConfirm: payload.canceled ? null : item.awaitingConfirm,
+              }
+            : item
+        );
+        sessions.set(sessionId, { ...current, plans });
         return { sessions };
       }),
   }));

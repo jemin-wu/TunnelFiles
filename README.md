@@ -9,6 +9,7 @@
 - **文件操作** - 新建文件夹、重命名、删除
 - **文件传输** - 拖拽上传、下载队列、进度显示、并发控制
 - **安全认证** - Host Key 指纹校验、密码存储到系统钥匙串
+- **本地 AI 计划执行** - 基于本机 llama.cpp + Gemma 4 E4B GGUF，支持 plan card、逐步确认、snapshot、文件级 rollback
 
 ## 安装
 
@@ -66,6 +67,44 @@ cd TunnelFiles
 pnpm install
 pnpm tauri build
 ```
+
+## 本地 AI 运行要求
+
+TunnelFiles 的 AI 功能只使用本机 in-process `llama.cpp` runtime，不调用云端模型服务，也不监听本地 TCP/UDP 端口。
+
+### 硬件门槛
+
+- 推荐：Apple Silicon 或同等级本机，16 GB RAM 以上。
+- 最低运行门槛：加载模型前会检查系统内存；内存不足时 AI runtime 会 fail closed，不会加载 GGUF。
+- 模型文件约 4.98 GB，首次下载前需要至少 7 GB 可用磁盘空间。
+
+### GGUF 模型路径
+
+默认模型文件：
+
+```text
+{data_local_dir}/TunnelFiles/models/gemma-4-E4B-it-Q4_K_M.gguf
+```
+
+当前允许来源记录在 `docs/approved-model-sources.md`。新增 GGUF 来源必须先经过审核并固定 URL / sha256。
+
+### Gemma License Accept 流程
+
+1. 打开 Settings → AI。
+2. 当模型缺失时点击 "Download model"。
+3. 勾选 Gemma Terms of Use 确认框。
+4. 点击 "Accept & Download"。
+5. 下载完成后应用会校验 sha256，然后加载本地 runtime。
+
+### Snapshot / Rollback 路径
+
+AI write step 在写入前会创建本地 snapshot。路径固定在：
+
+```text
+{data_local_dir}/TunnelFiles/ai-backups/{profile_id}/{session_uuid}/{step_id}/
+```
+
+snapshot 只用于文件级 rollback，不反向恢复服务状态；例如 `systemctl reload` 后只提示服务状态 warning。
 
 ## 技术栈
 

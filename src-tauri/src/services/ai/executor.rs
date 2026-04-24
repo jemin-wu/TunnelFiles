@@ -39,14 +39,31 @@ pub struct ProbeOutput {
 
 pub const OUTPUT_CAP: usize = 64 * 1024; // 64 KB
 const EXEC_TIMEOUT_MS: u32 = 10_000; // 10s
-pub const REMOTE_PROLOG: &str =
-    "set -f; unalias -a; unset HISTFILE; export PATH=/usr/bin:/bin:/usr/local/bin; ";
+pub const REMOTE_PROLOG: &str = "set -f; unalias -a; unset HISTFILE; export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin; ";
 
 /// POSIX 单引号包裹：`'<s>'`，内嵌单引号转义为 `'\''`。
 ///
 /// 保证远端 shell 不展开 `$VAR`、不做 glob、不做 brace-expansion。
 pub fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+struct ProbeStatusReset {
+    probe: Arc<ManagedAiProbe>,
+}
+
+impl ProbeStatusReset {
+    fn new(probe: Arc<ManagedAiProbe>) -> Self {
+        probe.set_status(ProbeStatus::Running);
+        Self { probe }
+    }
+}
+
+impl Drop for ProbeStatusReset {
+    fn drop(&mut self) {
+        self.probe.set_status(ProbeStatus::Idle);
+        self.probe.touch();
+    }
 }
 
 /// 在 probe session 上同步执行已通过白名单的命令。
@@ -65,7 +82,7 @@ pub fn exec_remote(probe: &Arc<ManagedAiProbe>, checked: CheckedCommand) -> AppR
         "AI probe 执行命令"
     );
 
-    probe.set_status(ProbeStatus::Running);
+    let _status_reset = ProbeStatusReset::new(probe.clone());
 
     // 2. 获取 session 锁，设超时，创建 channel，执行命令，读取输出。
     //    全程持 session 锁，channel 作局部变量——不需要额外获取 probe.channel 锁，
@@ -139,8 +156,6 @@ pub fn exec_remote(probe: &Arc<ManagedAiProbe>, checked: CheckedCommand) -> AppR
         })
     };
 
-    probe.set_status(ProbeStatus::Idle);
-    probe.touch();
     result
 }
 
@@ -262,6 +277,21 @@ mod tests {
     #[test]
     fn quote_arg_with_backslash() {
         assert_eq!(shell_quote("a\\b"), "'a\\b'");
+    }
+
+    #[test]
+    fn probe_status_reset_guard_returns_probe_to_idle() {
+        let probe = Arc::new(ManagedAiProbe::new(
+            "profile-1".to_string(),
+            ssh2::Session::new().expect("session can be constructed"),
+        ));
+
+        {
+            let _guard = ProbeStatusReset::new(probe.clone());
+            assert_eq!(probe.status(), ProbeStatus::Running);
+        }
+
+        assert_eq!(probe.status(), ProbeStatus::Idle);
     }
 
     #[test]

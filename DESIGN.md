@@ -41,22 +41,22 @@
 
 All colors use CSS custom properties mapped through `@theme inline`. No hardcoded hex values in TSX components (hex values confined to terminal colors in CSS for xterm.js compatibility).
 
-**Core palette** (oklch color space, hue 260 base):
+**Core palette** (oklch color space, cyan-teal base):
 
-| Token           | Dark Value              | Role                       |
-| --------------- | ----------------------- | -------------------------- |
-| `--background`  | `oklch(0.13 0.005 260)` | App background             |
-| `--foreground`  | `oklch(0.93 0.005 260)` | Primary text               |
-| `--card`        | `oklch(0.16 0.005 260)` | Elevated surface           |
-| `--popover`     | `oklch(0.18 0.006 260)` | Floating surface           |
-| `--primary`     | `oklch(0.65 0.14 250)`  | Steel blue accent          |
-| `--secondary`   | `oklch(0.2 0.005 260)`  | Neutral gray surface       |
-| `--muted`       | `oklch(0.18 0.005 260)` | Subtle background          |
-| `--accent`      | `oklch(0.6 0.12 230)`   | Teal-blue secondary action |
-| `--destructive` | `oklch(0.58 0.18 22)`   | Red for danger/errors      |
-| `--border`      | `oklch(0.25 0.008 260)` | Borders                    |
-| `--input`       | `oklch(0.18 0.005 260)` | Input backgrounds          |
-| `--ring`        | `oklch(0.65 0.14 250)`  | Focus ring                 |
+| Token           | Dark Value               | Role                  |
+| --------------- | ------------------------ | --------------------- |
+| `--background`  | `oklch(0.12 0.015 230)`  | App background        |
+| `--foreground`  | `oklch(0.94 0.006 220)`  | Primary text          |
+| `--card`        | `oklch(0.155 0.018 230)` | Elevated surface      |
+| `--popover`     | `oklch(0.18 0.02 230)`   | Floating surface      |
+| `--primary`     | `oklch(0.68 0.13 205)`   | Cyan-teal accent      |
+| `--secondary`   | `oklch(0.205 0.018 230)` | Cool charcoal surface |
+| `--muted`       | `oklch(0.18 0.016 230)`  | Subtle background     |
+| `--accent`      | `oklch(0.62 0.12 190)`   | Active teal action    |
+| `--destructive` | `oklch(0.58 0.18 22)`    | Red for danger/errors |
+| `--border`      | `oklch(0.255 0.025 225)` | Borders               |
+| `--input`       | `oklch(0.185 0.018 230)` | Input backgrounds     |
+| `--ring`        | `oklch(0.68 0.13 205)`   | Focus ring            |
 
 **Semantic colors**:
 
@@ -64,10 +64,10 @@ All colors use CSS custom properties mapped through `@theme inline`. No hardcode
 | ------------------------------------------------------- | ------------------------------------------------------ |
 | `--success`                                             | Green - connected, upload complete                     |
 | `--warning`                                             | Amber - pending, caution                               |
-| `--info`                                                | Blue - informational                                   |
+| `--info`                                                | Cyan-teal - informational                              |
 | `--file-folder/document/image/code/archive/audio/video` | File type indicators                                   |
 | `--transfer-upload/download/pending`                    | Transfer status                                        |
-| `--selection` / `--selection-active`                    | File selection highlights (primary at 12%/22% opacity) |
+| `--selection` / `--selection-active`                    | File selection highlights (primary at 14%/24% opacity) |
 | `--terminal-*`                                          | 16-color ANSI palette (hex for xterm.js)               |
 | `--chart-1` through `--chart-5`                         | Data visualization                                     |
 | `--sidebar-*`                                           | Sidebar surface/text/accent variants                   |
@@ -173,7 +173,7 @@ Synthesized from code patterns across the codebase. Each principle cites specifi
    - Evidence: Tauri 2 desktop shell with window drag region (`data-tauri-drag-region`). Platform-aware modifier keys (`metaKey || ctrlKey` in 8 handlers). OS-native file drop via Tauri webview drag events (`useDropUpload`). Resizable panels with persistent collapsed state in localStorage. System keychain credential storage. `user-select: none` by default with selective `.selectable` override.
 
 4. **Dark-First** -- Designed for dark environments, light as secondary.
-   - Evidence: `:root` block defines dark theme with oklch color space (hue 260). Light theme applied via `.light` class toggle. `bg-background` resolves to `oklch(0.13 0.005 260)` in dark. Status bar, toolbar, and sidebar all use dark-optimized opacity patterns (`bg-card/80`, `bg-card/50`, `bg-card/30`).
+   - Evidence: `:root` block defines the Midnight Teal dark theme with oklch color space. Light theme applied via `.light` class toggle as Arctic Teal. `bg-background` resolves to `oklch(0.12 0.015 230)` in dark. Status bar, toolbar, and sidebar all use dark-optimized opacity patterns (`bg-card/80`, `bg-card/50`, `bg-card/30`).
 
 5. **Progressive Disclosure** -- Show essentials first, reveal details on interaction.
    - Evidence: 11 hover-reveal opacity transitions (`opacity-0` to `hover:opacity-100`) on action buttons in connection items and file list rows. Collapsible transfer sidebar with persistent toggle. Context menus expose secondary actions. Accordion sections in settings. `sr-only` DialogDescriptions (3 dialogs) keep visual UI minimal while maintaining accessibility.

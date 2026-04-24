@@ -14,4 +14,5 @@ pub mod model_download;
 pub mod paths;
 pub mod planner;
 pub mod prompt;
+pub mod rollback;
 pub mod scrubber;

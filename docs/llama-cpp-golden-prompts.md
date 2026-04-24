@@ -12,11 +12,9 @@
 
 ## Status
 
-- [ ] Suite scaffolded in code: `src-tauri/tests/llama_golden.rs` (tracked; writes start in T1.3 slice 2b)
-- [ ] Baseline outputs captured for `llama-cpp-2 = "=0.1.143"`: `docs/llama-cpp-goldens/0.1.143/` (captured at first run on real model, reviewed by founder)
-- [ ] CI workflow: triggered on `src-tauri/Cargo.toml` diff touching `llama-cpp-2` line (added in T3 when nightly injection workflow lands)
+- Closed by product decision on 2026-04-24. The standalone golden-prompt observation suite is not planned and is retained here only as historical reference.
 
-Running the suite today requires a downloaded Gemma 4 E4B GGUF at `{data_local_dir}/TunnelFiles/models/gemma4-e4b-q4_k_m.gguf`. Without the file the suite emits `SKIPPED` with a clear marker (not `PASS`).
+Running the suite today requires a downloaded Gemma 4 E4B GGUF at `{data_local_dir}/TunnelFiles/models/gemma-4-E4B-it-Q4_K_M.gguf`. Without the file the suite emits `SKIPPED` with a clear marker (not `PASS`).
 
 ---
 

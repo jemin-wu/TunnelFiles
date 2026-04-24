@@ -3,3 +3,13 @@
 TS_RS_EXPORT_DIR = { value = "../src/types/bindings", relative = true }
 # Use "number" for u64/i64 (frontend uses number, not bigint)
 TS_RS_LARGE_INT = "number"
+
+# Apple Silicon (M1+) 全部支持 ARMv8 Crypto Extensions，但 Rust 默认 aarch64
+# baseline 不开 +sha2，导致 `sha2` crate 只能走纯软件实现（sha2::soft）。
+# 实测启动时 4.6GB GGUF 软件 SHA256 跑 30 MB/s 级（sample 确认），硬件 +sha2
+# 指令后吞吐 2-4 GB/s。不改代码，只改编译 target-feature。
+#
+# 为什么不用 +crypto 合集：只用到 SHA256，避免意外启用 AES 触发其他依赖的
+# 条件编译路径。x86_64 (Intel Mac) 不需要此开关，sha2 crate 走 sha-ni 路径。
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-feature=+sha2"]

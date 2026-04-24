@@ -114,7 +114,10 @@ pub fn resource_check(probe: &dyn MemoryProbe) -> AppResult<()> {
 }
 
 /// 流式读取计算 GGUF 文件 SHA256，读缓冲避免 ~3.5GB 模型占用堆。
-const CHECKSUM_READ_BUFFER: usize = 64 * 1024;
+///
+/// 1MB 在 M 系 Mac 上跑满 SHA-NI 硬件加速；64KB 每秒触发 ~72K 次 read
+/// syscall，4.6GB 模型下成了启动瓶颈（实测 3+ 秒 CPU 满载）。
+const CHECKSUM_READ_BUFFER: usize = 1024 * 1024;
 
 /// 流式计算文件 SHA256，返回小写 hex（64 字符）。
 ///
@@ -178,6 +181,42 @@ pub fn verify_gguf_checksum(path: &Path, expected_hex: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// 同 `verify_gguf_checksum`，但先查 (size, mtime) cache；命中直接比对
+/// 缓存值与 expected_hex，绕过完整 re-hash。
+///
+/// 未命中时走完整 sha256 路径，成功后把结果写回 cache。cache IO 失败
+/// 静默忽略 —— 性能优化，不是正确性保证。
+pub fn verify_gguf_checksum_cached(path: &Path, expected_hex: &str) -> AppResult<()> {
+    if expected_hex.len() != 64 || !expected_hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppError::ai_unavailable("GGUF 校验失败")
+            .with_detail(format!(
+                "invalid expected checksum: want 64 hex chars, got {} chars",
+                expected_hex.len()
+            ))
+            .with_retryable(false));
+    }
+    let expected_lower = expected_hex.to_ascii_lowercase();
+
+    if let Some(cached) = super::checksum_cache::lookup(path) {
+        if cached == expected_lower {
+            return Ok(());
+        }
+        // Cache hit 但值与 pin 不一致：可能是 pin 升级或缓存被篡改，走完整
+        // 重算路径兜底（重算后若还不一致，才报 mismatch）。
+    }
+
+    let got_hex = compute_gguf_sha256(path)?;
+    if got_hex != expected_lower {
+        return Err(AppError::ai_unavailable("GGUF 校验失败")
+            .with_detail(format!(
+                "checksum mismatch: expected {expected_lower}, got {got_hex}"
+            ))
+            .with_retryable(false));
+    }
+    super::checksum_cache::store(path, &got_hex);
+    Ok(())
+}
+
 fn hex_lower(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut out = String::with_capacity(bytes.len() * 2);
@@ -200,6 +239,14 @@ static IS_LOADED: AtomicBool = AtomicBool::new(false);
 /// 当前进程是否已加载 LlamaRuntime。健康检查 5s 轮询调用，必须廉价。
 pub fn is_runtime_loaded() -> bool {
     IS_LOADED.load(Ordering::Acquire)
+}
+
+/// 设置层把 AI 关闭时，健康检查 / UI 必须把 runtime 视作未加载。
+///
+/// 这不会主动 unload 已存在的 runtime；它只负责把 disabled 状态映射成
+/// "不可用 / 不就绪"，满足 AI off-by-default 的 release gate 语义。
+pub fn runtime_ready_for_settings(ai_enabled: bool) -> bool {
+    ai_enabled && is_runtime_loaded()
 }
 
 /// 标记 runtime 已加载。`Release` 顺序确保对 model 的写入对后续读 happens-before。
@@ -255,11 +302,20 @@ fn ensure_backend() -> AppResult<&'static LlamaBackend> {
 pub struct LoadOptions {
     /// 上下文窗口 token 数（默认 4096，SPEC §5）。
     pub num_ctx: u32,
+    /// 是否把加载成功的 runtime 注册到进程级全局 registry。
+    ///
+    /// 生产路径需要注册，供 chat/generate 命令复用同一个模型；合同测试和
+    /// nightly smoke 测试应关闭注册，让模型在测试结束前正常 drop，避免
+    /// macOS Metal backend 在进程退出时遇到仍存活的 residency set。
+    pub register_global: bool,
 }
 
 impl Default for LoadOptions {
     fn default() -> Self {
-        Self { num_ctx: 4096 }
+        Self {
+            num_ctx: 4096,
+            register_global: true,
+        }
     }
 }
 
@@ -316,8 +372,9 @@ impl LlamaRuntime {
         // Gate 1: 廉价的 RAM 检查（µs 级，先做）
         resource_check(probe)?;
 
-        // Gate 2: 流式 sha256（依赖磁盘 IO，但远比 FFI load 廉价）
-        verify_gguf_checksum(path, expected_sha256)?;
+        // Gate 2: 流式 sha256（依赖磁盘 IO，但远比 FFI load 廉价）；
+        // (path, size, mtime_ns) 命中缓存时跳过完整重算
+        verify_gguf_checksum_cached(path, expected_sha256)?;
 
         // Gate 3: 进程级 backend 单例（C++ runtime 状态）
         let backend = ensure_backend()?;
@@ -336,13 +393,14 @@ impl LlamaRuntime {
             num_ctx: opts.num_ctx,
         });
 
-        // 注册到全局 registry（chat / generate 命令通过 `loaded_runtime()` 取）。
-        // OnceLock::set 第二次会失败（已加载）—— 那种场景只可能出现在 ignored
-        // 集成测试两次跑 load 的极端情况，生产路径只 load 一次。
-        let _ = LOADED_RUNTIME.set(runtime.clone());
+        if opts.register_global {
+            // 注册到全局 registry（chat / generate 命令通过 `loaded_runtime()` 取）。
+            // OnceLock::set 第二次会失败（已加载）—— 生产路径只 load 一次。
+            let _ = LOADED_RUNTIME.set(runtime.clone());
 
-        // 加载成功 —— 翻全局 ready 标志。健康检查后续轮询会立即看到 ready。
-        mark_runtime_loaded();
+            // 加载成功 —— 翻全局 ready 标志。健康检查后续轮询会立即看到 ready。
+            mark_runtime_loaded();
+        }
 
         Ok(runtime)
     }
@@ -378,7 +436,10 @@ impl LlamaRuntime {
     {
         use crate::services::ai::generate::{run_generation_loop, LlamaTokenLoop};
         let mut source = LlamaTokenLoop::new(self.backend, &self.model, self.num_ctx, prompt)?;
-        run_generation_loop(&mut source, options, cancel, on_token)
+        let effective_options = crate::services::ai::generate::GenerateOptions {
+            max_tokens: options.max_tokens.min(source.remaining_generation_tokens()),
+        };
+        run_generation_loop(&mut source, effective_options, cancel, on_token)
     }
 }
 
@@ -643,6 +704,19 @@ mod tests {
         reset_runtime_loaded_for_tests();
         mark_runtime_loaded();
         assert!(is_runtime_loaded());
+        reset_runtime_loaded_for_tests();
+    }
+
+    #[test]
+    fn runtime_stays_unloaded_when_disabled() {
+        let _g = LOADED_FLAG_LOCK.lock().unwrap();
+        reset_runtime_loaded_for_tests();
+        mark_runtime_loaded();
+        assert!(
+            !runtime_ready_for_settings(false),
+            "ai_enabled=false 时必须把 runtime 视为未加载"
+        );
+        assert!(runtime_ready_for_settings(true));
         reset_runtime_loaded_for_tests();
     }
 

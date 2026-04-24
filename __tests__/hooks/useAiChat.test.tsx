@@ -87,7 +87,14 @@ describe("useAiChat", () => {
 
     act(() => {
       listeners.get("ai:done")!({
-        payload: { sessionId: "tab-1", messageId: "m1", truncated: false },
+        payload: {
+          kind: "chat",
+          sessionId: "tab-1",
+          messageId: "m1",
+          planId: null,
+          truncated: false,
+          canceled: false,
+        },
       });
     });
 

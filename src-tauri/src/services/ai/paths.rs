@@ -30,6 +30,16 @@ pub fn model_file_path(model_name: &str) -> Option<PathBuf> {
     )
 }
 
+/// SHA256 缓存文件路径（与模型同目录，删模型目录即一并清理）。
+pub fn checksum_cache_file_path() -> Option<PathBuf> {
+    let base = dirs::data_local_dir()?;
+    Some(
+        base.join("TunnelFiles")
+            .join("models")
+            .join(".checksums.json"),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

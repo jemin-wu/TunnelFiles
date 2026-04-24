@@ -30,3 +30,17 @@ services:
       timeout: 3s
       retries: 5
     restart: unless-stopped
+
+  nginx-test:
+    build:
+      context: ./nginx-test
+      dockerfile: Dockerfile
+    container_name: tunnelfiles-nginx-test
+    ports:
+      - "2224:22"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "22"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped

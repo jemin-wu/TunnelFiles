@@ -1,7 +1,12 @@
-import { useCallback, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AlertTriangle, Send, Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  PromptInput,
+  PromptInputActions,
+  PromptInputTextarea,
+} from "@/components/prompt-kit/prompt-input";
 import { cn } from "@/lib/utils";
 import { detectInputWarnings } from "@/lib/inputSafetyWarnings";
 
@@ -21,19 +26,15 @@ interface ChatInputProps {
 }
 
 /**
- * 单行 form 包裹 textarea + 提交按钮。
- *
- * 键位：
- * - `Enter` 提交（与 textarea 默认换行行为相反，覆盖以匹配 chat 习惯）
- * - `Shift+Enter` 真换行
- * - `Cmd/Ctrl+Enter` 也提交（macOS 用户习惯）
- *
- * 空白文本不提交。提交后清空 value。disabled 状态下两边都锁。
+ * 基于 prompt-kit 的 `PromptInput` 构建：
+ * - auto-resize textarea
+ * - Enter 提交 / Shift+Enter 换行（PromptInputTextarea 内置）
+ * - Send / Stop 按钮切换（disabled + onStop 时）
+ * - 实时安全告警条（detectInputWarnings，不阻塞 submit）
  */
 export function ChatInput({ onSubmit, disabled, onStop, placeholder, className }: ChatInputProps) {
   const [value, setValue] = useState("");
 
-  // 实时安全告警 —— 不阻塞 submit，仅 inline 提醒。后端仍会再 scrub 一次。
   const warnings = useMemo(() => detectInputWarnings(value), [value]);
 
   const submit = useCallback(async () => {
@@ -43,31 +44,8 @@ export function ChatInput({ onSubmit, disabled, onStop, placeholder, className }
     await onSubmit(trimmed);
   }, [value, disabled, onSubmit]);
 
-  const handleSubmit = useCallback(
-    (e: FormEvent<globalThis.HTMLFormElement>) => {
-      e.preventDefault();
-      void submit();
-    },
-    [submit]
-  );
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<globalThis.HTMLTextAreaElement>) => {
-      if (e.key !== "Enter") return;
-      // Shift+Enter 保留原生换行行为
-      if (e.shiftKey) return;
-      e.preventDefault();
-      void submit();
-    },
-    [submit]
-  );
-
   return (
-    <form
-      onSubmit={handleSubmit}
-      className={cn("flex flex-col gap-1.5", className)}
-      data-slot="chat-input"
-    >
+    <div className={cn("flex flex-col gap-1.5", className)} data-slot="chat-input">
       {warnings.length > 0 && (
         <ul
           className="text-destructive border-destructive/30 bg-destructive/5 flex flex-col gap-1 rounded-md border px-2 py-1.5 text-[11px]"
@@ -88,44 +66,45 @@ export function ChatInput({ onSubmit, disabled, onStop, placeholder, className }
           ))}
         </ul>
       )}
-      <div className="flex items-end gap-2">
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          disabled={disabled}
+      <PromptInput
+        value={value}
+        onValueChange={setValue}
+        onSubmit={() => void submit()}
+        disabled={disabled}
+        maxHeight={160}
+      >
+        <PromptInputTextarea
           placeholder={placeholder ?? "Ask the local assistant..."}
-          rows={2}
           aria-label="Chat input"
-          className={cn(
-            "border-input bg-background text-foreground placeholder:text-muted-foreground",
-            "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-            "min-h-16 flex-1 resize-none rounded-md border px-3 py-2 text-xs outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60"
-          )}
+          className="text-xs"
         />
-        {disabled && onStop ? (
-          <Button
-            type="button"
-            size="icon"
-            variant="destructive"
-            onClick={onStop}
-            aria-label="Stop response"
-            data-slot="chat-stop"
-          >
-            <Square />
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            disabled={disabled || value.trim().length === 0}
-            aria-label="Send message"
-          >
-            <Send />
-          </Button>
-        )}
-      </div>
-    </form>
+        <PromptInputActions className="mt-1 justify-end">
+          {disabled && onStop ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="destructive"
+              onClick={onStop}
+              aria-label="Stop response"
+              data-slot="chat-stop"
+              className="h-8 w-8"
+            >
+              <Square />
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="icon"
+              disabled={disabled || value.trim().length === 0}
+              aria-label="Send message"
+              onClick={() => void submit()}
+              className="h-8 w-8"
+            >
+              <Send />
+            </Button>
+          )}
+        </PromptInputActions>
+      </PromptInput>
+    </div>
   );
 }

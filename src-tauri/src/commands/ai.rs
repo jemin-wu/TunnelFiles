@@ -5,6 +5,7 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
@@ -17,11 +18,15 @@ use crate::models::ai_events::{AiDownloadPhase, AiDownloadProgressPayload};
 use crate::models::ai_health::AiHealthResult;
 use crate::models::error::{AppError, AppResult, ErrorCode};
 use crate::models::settings::{Settings, SettingsPatch};
+use crate::models::{AiDoneKind, AiDonePayload, AiPlan};
+use crate::services::ai::executor::ProbeExecutor;
 use crate::services::ai::llama_runtime::{LlamaRuntime, LoadOptions, SystemRamProbe};
 use crate::services::ai::model_download::{
     self, DownloadOutcome, SysDiskProbe, MODEL_DISK_REQUIRED_BYTES, MODEL_DOWNLOAD_URL,
     MODEL_EXPECTED_SHA256_HEX, MODEL_EXPECTED_SIZE_BYTES,
 };
+use crate::services::ai::planner::{self, PlannerManager, StepRunState};
+use crate::services::ai::prompt::ConnectionSnapshot;
 use crate::services::ai::{chat, context, health, llama_runtime, paths};
 use crate::services::session_manager::SessionManager;
 use crate::services::storage_service::Database;
@@ -54,7 +59,10 @@ pub(crate) fn compute_health_with_state(
 
 /// 生产用入口：runtime_ready 来自全局 `IS_LOADED` atomic。
 pub(crate) fn compute_health(settings: &Settings) -> AiHealthResult {
-    compute_health_with_state(settings, llama_runtime::is_runtime_loaded())
+    compute_health_with_state(
+        settings,
+        llama_runtime::runtime_ready_for_settings(settings.ai_enabled),
+    )
 }
 
 /// `ai_health_check`：5 秒轮询端点，只做廉价探测（文件 stat + 编译时
@@ -132,6 +140,33 @@ fn convert_history(turns: Vec<ChatHistoryTurn>) -> Vec<crate::services::ai::prom
         .collect()
 }
 
+async fn gather_connection_snapshot(
+    db: Arc<Database>,
+    session_manager: &Arc<SessionManager>,
+    session_id: &str,
+) -> Option<ConnectionSnapshot> {
+    let session = session_manager.get_session(session_id).ok()?;
+    let profile_id = session.profile_id.clone();
+    let home_path = session.home_path.clone();
+    let db_profile = match tokio::task::spawn_blocking(move || db.profile_get(&profile_id)).await {
+        Ok(Ok(Some(profile))) => profile,
+        _ => return None,
+    };
+
+    Some(ConnectionSnapshot {
+        profile_name: db_profile.name,
+        host: db_profile.host,
+        port: db_profile.port,
+        username: db_profile.username,
+        auth_type: match db_profile.auth_type {
+            crate::models::profile::AuthType::Password => "password".to_string(),
+            crate::models::profile::AuthType::Key => "key".to_string(),
+        },
+        initial_path: db_profile.initial_path,
+        home_path,
+    })
+}
+
 /// `ai_chat_send` 入参。
 #[derive(Debug, Clone, Deserialize)]
 #[cfg_attr(test, derive(Serialize, TS))]
@@ -196,7 +231,8 @@ pub async fn ai_chat_send(
         return Err(AppError::invalid_argument("sessionId cannot be empty"));
     }
     let db = (*db).clone();
-    let settings = tokio::task::spawn_blocking(move || db.settings_load())
+    let db_for_settings = db.clone();
+    let settings = tokio::task::spawn_blocking(move || db_for_settings.settings_load())
         .await
         .map_err(|e| AppError::new(ErrorCode::Unknown, format!("settings load failed: {e}")))?
         .unwrap_or_default();
@@ -209,7 +245,12 @@ pub async fn ai_chat_send(
         terminal_manager.inner(),
         &input.session_id,
     );
-    let prompt_context = context::to_prompt_snapshot(&snapshot_result);
+    let connection_snapshot =
+        gather_connection_snapshot(db.clone(), session_manager.inner(), &input.session_id).await;
+    let prompt_context = context::to_prompt_snapshot(&snapshot_result).map(|mut snapshot| {
+        snapshot.connection = connection_snapshot;
+        snapshot
+    });
     let history = convert_history(input.history);
     tracing::debug!(
         session_id = %input.session_id,
@@ -314,6 +355,286 @@ pub async fn ai_context_snapshot(
         "AI context snapshot"
     );
     Ok(result)
+}
+
+// ---- ai_plan_* -------------------------------------------------------------
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanCreateInput {
+    pub session_id: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanCreateResult {
+    pub plan_id: String,
+    pub plan: AiPlan,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanStepExecuteInput {
+    pub plan_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanStepConfirmInput {
+    pub plan_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanStepReviseInput {
+    pub plan_id: String,
+    pub new_observation: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanCancelInput {
+    pub plan_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[cfg_attr(test, derive(Serialize, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanRollbackInput {
+    pub plan_id: String,
+    pub step_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanStepResult {
+    pub plan: AiPlan,
+    pub awaiting_confirm: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_step_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(Deserialize, PartialEq, Eq, TS))]
+#[cfg_attr(test, ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct AiPlanRollbackResult {
+    pub plan: AiPlan,
+    pub rolled_back: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snapshot_path: Option<String>,
+}
+
+fn to_step_result(result: planner::StepRunResult) -> AiPlanStepResult {
+    AiPlanStepResult {
+        plan: result.plan,
+        awaiting_confirm: matches!(result.state, StepRunState::AwaitingConfirm),
+        current_step_id: result.current_step_id,
+    }
+}
+
+#[tauri::command]
+pub async fn ai_plan_create(
+    db: State<'_, Arc<Database>>,
+    session_manager: State<'_, Arc<SessionManager>>,
+    terminal_manager: State<'_, Arc<TerminalManager>>,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    input: AiPlanCreateInput,
+) -> AppResult<AiPlanCreateResult> {
+    if input.session_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("sessionId cannot be empty"));
+    }
+    if input.text.trim().is_empty() {
+        return Err(AppError::invalid_argument("plan text cannot be empty"));
+    }
+
+    let db = (*db).clone();
+    let db_for_settings = db.clone();
+    let settings = tokio::task::spawn_blocking(move || db_for_settings.settings_load())
+        .await
+        .map_err(|e| AppError::new(ErrorCode::Unknown, format!("settings load failed: {e}")))?
+        .unwrap_or_default();
+    let max_tokens = settings.ai_output_token_cap.min(4096);
+
+    let snapshot_result = gather_snapshot_from_state(
+        session_manager.inner(),
+        terminal_manager.inner(),
+        &input.session_id,
+    );
+    let connection_snapshot =
+        gather_connection_snapshot(db.clone(), session_manager.inner(), &input.session_id).await;
+    let prompt_context = context::to_prompt_snapshot(&snapshot_result).map(|mut snapshot| {
+        snapshot.connection = connection_snapshot;
+        snapshot
+    });
+
+    let plan =
+        planner::generate_plan(&input.session_id, &input.text, prompt_context, max_tokens).await?;
+    let (plan_id, plan) = planner_manager.insert_plan(input.session_id, plan);
+    Ok(AiPlanCreateResult { plan_id, plan })
+}
+
+#[tauri::command]
+pub async fn ai_plan_step_execute(
+    app: AppHandle,
+    db: State<'_, Arc<Database>>,
+    session_manager: State<'_, Arc<SessionManager>>,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    probe_executor: State<'_, Arc<ProbeExecutor>>,
+    input: AiPlanStepExecuteInput,
+) -> AppResult<AiPlanStepResult> {
+    if input.plan_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("planId cannot be empty"));
+    }
+    let result = planner::execute_next_step(
+        planner_manager.inner(),
+        &app,
+        &input.plan_id,
+        session_manager.inner(),
+        probe_executor.inner(),
+        db.inner(),
+    )
+    .await?;
+    Ok(to_step_result(result))
+}
+
+#[tauri::command]
+pub async fn ai_plan_step_confirm(
+    app: AppHandle,
+    db: State<'_, Arc<Database>>,
+    session_manager: State<'_, Arc<SessionManager>>,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    probe_executor: State<'_, Arc<ProbeExecutor>>,
+    input: AiPlanStepConfirmInput,
+) -> AppResult<AiPlanStepResult> {
+    if input.plan_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("planId cannot be empty"));
+    }
+    let result = planner::confirm_pending_step(
+        planner_manager.inner(),
+        &app,
+        &input.plan_id,
+        session_manager.inner(),
+        probe_executor.inner(),
+        db.inner(),
+    )
+    .await?;
+    Ok(to_step_result(result))
+}
+
+#[tauri::command]
+pub async fn ai_plan_step_revise(
+    db: State<'_, Arc<Database>>,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    input: AiPlanStepReviseInput,
+) -> AppResult<AiPlanStepResult> {
+    if input.plan_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("planId cannot be empty"));
+    }
+    if input.new_observation.trim().is_empty() {
+        return Err(AppError::invalid_argument("newObservation cannot be empty"));
+    }
+
+    let db = (*db).clone();
+    let settings = tokio::task::spawn_blocking(move || db.settings_load())
+        .await
+        .map_err(|e| AppError::new(ErrorCode::Unknown, format!("settings load failed: {e}")))?
+        .unwrap_or_default();
+    let max_tokens = settings.ai_output_token_cap.min(4096);
+
+    let plan = planner::revise_plan(
+        planner_manager.inner(),
+        &input.plan_id,
+        &input.new_observation,
+        max_tokens,
+    )
+    .await?;
+
+    Ok(AiPlanStepResult {
+        plan,
+        awaiting_confirm: false,
+        current_step_id: None,
+    })
+}
+
+#[tauri::command]
+pub async fn ai_plan_cancel(
+    app: AppHandle,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    input: AiPlanCancelInput,
+) -> AppResult<AiPlanStepResult> {
+    if input.plan_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("planId cannot be empty"));
+    }
+    let session_id = planner_manager.get_session_id(&input.plan_id)?;
+    let plan = planner_manager.cancel_plan(&input.plan_id)?;
+    app.emit(
+        chat::EVENT_DONE,
+        &AiDonePayload {
+            kind: AiDoneKind::Plan,
+            session_id,
+            message_id: None,
+            plan_id: Some(input.plan_id),
+            truncated: false,
+            canceled: true,
+        },
+    )
+    .ok();
+    Ok(AiPlanStepResult {
+        plan,
+        awaiting_confirm: false,
+        current_step_id: None,
+    })
+}
+
+#[tauri::command]
+pub async fn ai_plan_rollback(
+    app: AppHandle,
+    session_manager: State<'_, Arc<SessionManager>>,
+    planner_manager: State<'_, Arc<PlannerManager>>,
+    input: AiPlanRollbackInput,
+) -> AppResult<AiPlanRollbackResult> {
+    if input.plan_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("planId cannot be empty"));
+    }
+    if input.step_id.trim().is_empty() {
+        return Err(AppError::invalid_argument("stepId cannot be empty"));
+    }
+
+    let result = tokio::time::timeout(
+        Duration::from_millis(300_000),
+        planner::rollback_step(
+            planner_manager.inner(),
+            &app,
+            &input.plan_id,
+            &input.step_id,
+            session_manager.inner(),
+        ),
+    )
+    .await
+    .map_err(|_| AppError::timeout("plan rollback timed out"))??;
+
+    Ok(AiPlanRollbackResult {
+        plan: result.plan,
+        rolled_back: result.rolled_back,
+        snapshot_path: result.snapshot_path,
+    })
 }
 
 // ---- ai_model_download ------------------------------------------------------
@@ -702,11 +1023,26 @@ mod tests {
     }
 
     #[test]
+    fn compute_health_forces_runtime_not_ready_when_ai_disabled() {
+        let mut settings = make_settings("gemma4:e4b");
+        settings.ai_enabled = false;
+        let result = compute_health(&settings);
+        assert!(
+            !result.runtime_ready,
+            "ai_enabled=false 时 ai_health_check 必须返回 runtimeReady=false"
+        );
+    }
+
+    #[test]
     fn compute_health_reads_global_runtime_loaded_state() {
         // 不变式：生产 wrapper 必须读全局 atomic 当下值。
-        let settings = make_settings("gemma4:e4b");
+        let mut settings = make_settings("gemma4:e4b");
+        settings.ai_enabled = true;
         let result = compute_health(&settings);
-        assert_eq!(result.runtime_ready, llama_runtime::is_runtime_loaded());
+        assert_eq!(
+            result.runtime_ready,
+            llama_runtime::runtime_ready_for_settings(true)
+        );
     }
 
     #[test]

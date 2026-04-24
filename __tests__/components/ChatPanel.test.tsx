@@ -4,6 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { invoke } from "@tauri-apps/api/core";
 import { ChatPanel } from "@/components/ai/ChatPanel";
 import { useAiSessionStore } from "@/stores/useAiSessionStore";
+import type { AiPlan } from "@/types/bindings/AiPlan";
+
+vi.mock("react-diff-viewer-continued", () => ({
+  default: () => <div data-slot="mock-diff-viewer" />,
+}));
 
 beforeEach(() => {
   // 重置全局 store 防 case 间状态泄漏
@@ -21,6 +26,27 @@ beforeEach(() => {
 });
 
 describe("ChatPanel", () => {
+  const demoPlan: AiPlan = {
+    summary: "给 nginx 加 gzip",
+    steps: [
+      {
+        id: "step-1",
+        kind: "probe",
+        status: "done",
+        intent: "读取 nginx.conf",
+        command: "cat /etc/nginx/nginx.conf",
+        path: null,
+        content: null,
+        targetFiles: [],
+        verifyTemplate: null,
+        expectedObservation: "看到现有 gzip 配置",
+      },
+    ],
+    risks: [],
+    assumptions: [],
+    status: "ready",
+  };
+
   it("renders empty placeholder when session has no history", () => {
     render(<ChatPanel sessionId="tab-1" />);
     expect(screen.getByText(/Ask the local assistant/i)).toBeInTheDocument();
@@ -35,7 +61,7 @@ describe("ChatPanel", () => {
 
     await waitFor(() => {
       expect(invoke).toHaveBeenCalledWith("ai_chat_send", {
-        input: { sessionId: "tab-default", text: "hello" },
+        input: { sessionId: "tab-default", text: "hello", history: [] },
       });
     });
     const session = useAiSessionStore.getState().getSession("tab-default");
@@ -240,5 +266,116 @@ describe("ChatPanel", () => {
     // 默认路径未走（不会调 terminal_get_by_session）
     const calls = vi.mocked(invoke).mock.calls.map((c) => c[0]);
     expect(calls).not.toContain("terminal_get_by_session");
+  });
+
+  it("plan mode creates a plan then auto-executes the first step", async () => {
+    const user = userEvent.setup();
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({ planId: "plan-1", plan: demoPlan })
+      .mockResolvedValueOnce({
+        plan: { ...demoPlan, status: "running" },
+        awaitingConfirm: false,
+        currentStepId: "step-1",
+      });
+
+    render(<ChatPanel sessionId="tab-plan" />);
+    await user.click(screen.getByText("Plan"));
+    await user.type(screen.getByLabelText("Chat input"), "给 nginx 加 gzip 并验证");
+    await user.click(screen.getByLabelText("Send message"));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_plan_create", {
+        input: { sessionId: "tab-plan", text: "给 nginx 加 gzip 并验证" },
+      })
+    );
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_plan_step_execute", {
+        input: { planId: "plan-1" },
+      })
+    );
+    expect(screen.getByText("给 nginx 加 gzip")).toBeInTheDocument();
+  });
+
+  it("submits revise observation through ai_plan_step_revise and updates the plan card", async () => {
+    const user = userEvent.setup();
+    const revisablePlan: AiPlan = {
+      ...demoPlan,
+      steps: [
+        {
+          ...demoPlan.steps[0],
+          status: "pending",
+          expectedObservation: "读取当前 gzip 配置",
+        },
+      ],
+    };
+
+    useAiSessionStore.getState().upsertPlan("tab-revise", "plan-1", revisablePlan, "step-1");
+    vi.mocked(invoke).mockResolvedValueOnce({
+      plan: {
+        ...revisablePlan,
+        summary: "根据 verify 失败修订的计划",
+        steps: [
+          {
+            ...revisablePlan.steps[0],
+            expectedObservation: "先修复语法，再重新 verify",
+          },
+        ],
+      },
+      awaitingConfirm: false,
+      currentStepId: null,
+    });
+
+    render(<ChatPanel sessionId="tab-revise" />);
+
+    await user.type(
+      screen.getByPlaceholderText("补充新的观察结果，修订未执行的后续步骤..."),
+      "nginx -t failed after edit"
+    );
+    await user.click(screen.getByRole("button", { name: "修订计划" }));
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_plan_step_revise", {
+        input: {
+          planId: "plan-1",
+          newObservation: "nginx -t failed after edit",
+        },
+      })
+    );
+    expect(screen.getByText("根据 verify 失败修订的计划")).toBeInTheDocument();
+    expect(screen.getByText("预期：先修复语法，再重新 verify")).toBeInTheDocument();
+  });
+
+  it("renders confirm dialog from awaitingConfirm payload and confirms write with planId", async () => {
+    const user = userEvent.setup();
+    useAiSessionStore.getState().upsertPlan("tab-confirm", "plan-1", demoPlan, "step-2");
+    useAiSessionStore.getState().setPlanAwaitConfirm("tab-confirm", {
+      sessionId: "tab-confirm",
+      planId: "plan-1",
+      stepId: "step-2",
+      stepIndex: 1,
+      kind: "write",
+      argv: ["sftp-write", "/etc/nginx/nginx.conf"],
+      targetFiles: ["/etc/nginx/nginx.conf"],
+      diff: "--- before\n+++ after\n@@ -1 +1 @@\n-old\n+new\n",
+      snapshotPath: "/tmp/snapshot",
+      warnings: [],
+    });
+    vi.mocked(invoke).mockResolvedValueOnce({
+      plan: { ...demoPlan, status: "done" },
+      awaitingConfirm: false,
+      currentStepId: "step-2",
+    });
+
+    render(<ChatPanel sessionId="tab-confirm" />);
+    expect(screen.getByRole("heading", { name: "确认写入" })).toBeInTheDocument();
+    expect(screen.getAllByText("/etc/nginx/nginx.conf").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "确认写入" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_plan_step_confirm", {
+        input: { planId: "plan-1" },
+      })
+    );
   });
 });

@@ -125,6 +125,45 @@ describe("useAiHealthCheck", () => {
     });
   });
 
+  it("does not auto-load runtime unless explicitly enabled", async () => {
+    vi.mocked(invoke).mockResolvedValue({
+      runtimeReady: false,
+      modelPresent: true,
+      modelName: "gemma-4-E4B-it-Q4_K_M",
+      acceleratorKind: "metal",
+    } satisfies AiHealthResult);
+
+    const { result } = renderHook(() => useAiHealthCheck(true), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe("loading");
+    });
+    expect(vi.mocked(invoke)).not.toHaveBeenCalledWith("ai_runtime_load");
+  });
+
+  it("auto-loads runtime when explicitly enabled and model is already present", async () => {
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === "ai_health_check") {
+        return {
+          runtimeReady: false,
+          modelPresent: true,
+          modelName: "gemma-4-E4B-it-Q4_K_M",
+          acceleratorKind: "metal",
+        } satisfies AiHealthResult;
+      }
+      if (cmd === "ai_runtime_load") {
+        return null;
+      }
+      return null;
+    });
+
+    renderHook(() => useAiHealthCheck(true, { autoLoadRuntime: true }), { wrapper });
+
+    await waitFor(() => {
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith("ai_runtime_load");
+    });
+  });
+
   it("surfaces error state when IPC rejects", async () => {
     vi.mocked(invoke).mockRejectedValue({
       code: "UNKNOWN",

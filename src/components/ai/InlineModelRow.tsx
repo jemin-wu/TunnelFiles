@@ -42,6 +42,7 @@ type RowKind =
   | "starting"
   | "downloading"
   | "verifying"
+  | "loading-runtime"
   | "ready"
   | "canceled"
   | "error";
@@ -94,8 +95,13 @@ export function deriveRowView(aiHealthStatus: AiHealthStatus, state: OnboardingS
   }
 
   // Fall back to health status
-  if (aiHealthStatus === "ready" || aiHealthStatus === "loading") {
+  if (aiHealthStatus === "ready") {
     return { kind: "ready" };
+  }
+  if (aiHealthStatus === "loading") {
+    // 文件已在磁盘但 runtime 还没就绪 —— 和右上角 badge 的"载入中"一致，
+    // 不再伪装成 Loaded（会和 badge 打架）
+    return { kind: "loading-runtime" };
   }
   // "disabled" / "model-missing" / "error" 都当成 missing（disabled 时上游不渲染）
   return { kind: "missing" };
@@ -204,6 +210,7 @@ function RowIcon({ view, deleting }: { view: RowView; deleting: boolean }) {
       return <Download className={cn(cls, "text-muted-foreground")} aria-label="Not downloaded" />;
     case "starting":
     case "verifying":
+    case "loading-runtime":
       return <Loader2 className={cn(cls, "text-muted-foreground animate-spin")} />;
     case "downloading":
       return <Loader2 className={cn(cls, "text-primary animate-spin")} />;
@@ -239,6 +246,8 @@ function RowStatusLine({ view, deleting }: { view: RowView; deleting: boolean })
     }
     case "verifying":
       return <span className="text-muted-foreground text-xs">Verifying SHA-256…</span>;
+    case "loading-runtime":
+      return <span className="text-muted-foreground text-xs">Loading runtime…</span>;
     case "ready":
       return <span className="text-muted-foreground text-xs">Ready on disk</span>;
     case "canceled":
@@ -285,6 +294,10 @@ function RowActions({
           Cancel
         </Button>
       );
+    case "loading-runtime":
+      // runtime 加载中不提供操作 —— 取消 FFI load 需要 Arc<LlamaBackend> 级别
+      // 的协作取消，目前未实现；让用户等 load 完成或出错再决定
+      return null;
     case "ready":
       return (
         <Button

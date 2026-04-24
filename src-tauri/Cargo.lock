@@ -4281,6 +4281,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
+
+[[package]]
 name = "siphasher"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5367,7 +5373,7 @@ dependencies = [
 
 [[package]]
 name = "tunnelfiles"
-version = "3.1.1"
+version = "3.2.0-beta.1"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -5386,6 +5392,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "similar",
  "ssh2",
  "tauri",
  "tauri-build",
@@ -5402,6 +5409,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-bash",
  "ts-rs",
+ "unicode-normalization",
  "uuid",
  "zeroize",
  "zip",
@@ -5476,6 +5484,15 @@ name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-normalization"
+version = "0.1.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
+dependencies = [
+ "tinyvec",
+]
 
 [[package]]
 name = "unicode-segmentation"

@@ -8,7 +8,7 @@
 //! 运行：`cargo test --test scrubber_blackbox`
 //!
 //! ⚠️ 不得修改 secret fixture 使其"更容易通过" —— 若需弱化，必须同时
-//! 新增等强或更强的 case。参考 `docs/checkpoint-b-rubric.md` G5。
+//! 新增等强或更强的 case，保持 scrubber release gate 覆盖不倒退。
 
 use tunnelfiles_lib::services::ai::prompt::{build, ContextSnapshot, PromptInput, PromptMode};
 
@@ -100,6 +100,7 @@ fn secret_in_context_pwd_is_redacted_for_all_fixtures() {
         let input = PromptInput {
             user_text: "where am I".to_string(),
             context: Some(ContextSnapshot {
+                connection: None,
                 pwd: format!("/work/{}", fixture.secret),
                 recent_output: "ok".to_string(),
             }),
@@ -118,6 +119,7 @@ fn secret_in_context_recent_output_is_redacted_for_all_fixtures() {
         let input = PromptInput {
             user_text: "summarize that".to_string(),
             context: Some(ContextSnapshot {
+                connection: None,
                 pwd: "/tmp".to_string(),
                 recent_output: format!(
                     "$ env | grep -i key\nAPI_TOKEN={}\n$ history | tail",

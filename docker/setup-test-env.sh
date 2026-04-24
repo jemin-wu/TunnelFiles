@@ -29,7 +29,7 @@ docker compose up -d --build
 # Wait for SSH servers to be ready
 echo "等待 SSH 服务器就绪..."
 for i in {1..30}; do
-    if nc -z localhost 2222 2>/dev/null && nc -z localhost 2223 2>/dev/null; then
+    if nc -z localhost 2222 2>/dev/null && nc -z localhost 2223 2>/dev/null && nc -z localhost 2224 2>/dev/null; then
         echo "SSH 服务器已就绪!"
         break
     fi
@@ -45,6 +45,7 @@ echo ""
 echo "=== 测试环境信息 ==="
 echo "SSH 服务器 1: localhost:2222"
 echo "SSH 服务器 2: localhost:2223"
+echo "Nginx 测试机: localhost:2224"
 echo "用户名: testuser"
 echo "密码: testpass123"
 echo "SSH 密钥: $SSH_KEYS_DIR/id_ed25519"
@@ -55,6 +56,11 @@ echo "  /home/testuser/test-files/  - 包含测试文件"
 echo "  /home/testuser/empty-dir/   - 空目录"
 echo "  /home/testuser/readonly-dir/ - 只读目录"
 echo "  /home/testuser/uploads/     - 上传目标目录"
+echo ""
+echo "Nginx 测试机登录:"
+echo "  用户名: root"
+echo "  密码: rootpass123"
+echo "  配置文件: /etc/nginx/nginx.conf"
 echo ""
 echo "运行集成测试: cd src-tauri && cargo test --features integration-test"
 echo "停止测试环境: docker compose down"

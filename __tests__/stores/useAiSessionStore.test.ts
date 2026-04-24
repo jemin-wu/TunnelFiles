@@ -1,11 +1,33 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createAiSessionStore, type ChatSession } from "@/stores/useAiSessionStore";
+import type { AiPlan } from "@/types/bindings/AiPlan";
 
 type Store = ReturnType<typeof createAiSessionStore>;
 
 function getState(store: Store) {
   return store.getState();
 }
+
+const demoPlan: AiPlan = {
+  summary: "检查 nginx",
+  steps: [
+    {
+      id: "step-1",
+      kind: "probe",
+      status: "pending",
+      intent: "读取配置",
+      command: "cat /etc/nginx/nginx.conf",
+      path: null,
+      content: null,
+      targetFiles: [],
+      verifyTemplate: null,
+      expectedObservation: "看到配置",
+    },
+  ],
+  risks: [],
+  assumptions: [],
+  status: "ready",
+};
 
 describe("useAiSessionStore", () => {
   let store: Store;
@@ -146,6 +168,30 @@ describe("useAiSessionStore", () => {
     it("new session starts with probeQueuePosition = null", () => {
       getState(store).appendUserMessage("tab-1", "hi");
       expect(getState(store).getSession("tab-1")!.probeQueuePosition).toBeNull();
+    });
+  });
+
+  describe("plan event lifecycle", () => {
+    it("marks the plan failed when a step failure event arrives", () => {
+      getState(store).upsertPlan("tab-plan", "plan-1", demoPlan, "step-1");
+
+      getState(store).applyPlanStepEvent("tab-plan", {
+        sessionId: "tab-plan",
+        planId: "plan-1",
+        stepId: "step-1",
+        stepIndex: 0,
+        kind: "probe",
+        status: "failed",
+        stdout: null,
+        stderr: null,
+        exitCode: null,
+        message: "probe 前置检查失败",
+      });
+
+      const stored = getState(store).getSession("tab-plan")!.plans[0];
+      expect(stored.plan.status).toBe("failed");
+      expect(stored.plan.steps[0].status).toBe("failed");
+      expect(stored.currentStepId).toBe("step-1");
     });
   });
 

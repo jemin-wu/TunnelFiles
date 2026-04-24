@@ -107,6 +107,12 @@ const ALLOW_RULES: &[AllowRule] = &[
     AllowRule::subcommand("nginx", &["-t"]),
 ];
 
+/// 需要显式用户确认的受限状态变更命令。
+const ACTION_RULES: &[&[&str]] = &[
+    &["nginx", "-s", "reload"],
+    &["systemctl", "reload", "nginx"],
+];
+
 // ── 公开 API ──────────────────────────────────────────────────────────────────
 
 /// 检查 shell 命令字符串是否在白名单中。
@@ -114,77 +120,11 @@ const ALLOW_RULES: &[AllowRule] = &[
 /// 任何策略违规返回 `Decision::Deny(reason)`。
 /// Fail-closed：未显式允许的命令一律拒绝。
 pub fn check(input: &str) -> Decision {
-    let trimmed = input.trim();
-
-    if trimmed.is_empty() {
-        return Decision::Deny("空命令".to_string());
-    }
-
-    // 长度保护，防止解析器复杂度攻击
-    if trimmed.len() > 10_000 {
-        return Decision::Deny("命令过长".to_string());
-    }
-
-    // Unicode 方向控制字符 — 可混淆 UI 显示，一律拒绝
-    if trimmed.chars().any(|c| UNICODE_DIR_OVERRIDES.contains(&c)) {
-        return Decision::Deny("输入包含 Unicode 方向控制字符".to_string());
-    }
-
-    let mut parser = Parser::new();
-    if let Err(e) = parser.set_language(&bash_language()) {
-        return Decision::Deny(format!("语言加载失败: {e}"));
-    }
-
-    let tree = match parser.parse(trimmed, None) {
-        Some(t) => t,
-        None => return Decision::Deny("AST 解析失败".to_string()),
+    let argv = match parse_argv(input) {
+        Ok(argv) => argv,
+        Err(reason) => return Decision::Deny(reason),
     };
 
-    let root = tree.root_node();
-    let src = trimmed.as_bytes();
-
-    // Step 1：扫描全 AST，拒绝危险节点
-    if let Some(reason) = scan_dangerous(&root, src) {
-        return Decision::Deny(reason);
-    }
-
-    // Step 2：顶层必须是且仅是一个 `command` 节点（无管道/列表/if/for）
-    let meaningful: Vec<Node> = (0..root.child_count())
-        .filter_map(|i| root.child(i))
-        .filter(|n| n.is_named() && n.kind() != "comment")
-        .collect();
-
-    if meaningful.len() != 1 {
-        let kinds: Vec<&str> = meaningful.iter().map(|n| n.kind()).collect();
-        return Decision::Deny(format!("不允许多语句结构: {:?}", kinds));
-    }
-
-    let stmt = &meaningful[0];
-    if stmt.kind() != "command" {
-        return Decision::Deny(format!("不允许的语句类型: {}", stmt.kind()));
-    }
-
-    // Step 3：提取 argv
-    let argv = extract_argv(stmt, src);
-    if argv.is_empty() {
-        return Decision::Deny("无法提取命令名".to_string());
-    }
-
-    // Step 4a：拒绝包含敏感路径的参数
-    for arg in &argv {
-        for prefix in SENSITIVE_PATH_PREFIXES {
-            if arg.as_str() == *prefix || arg.starts_with(&format!("{}/", prefix)) {
-                return Decision::Deny(format!("不允许访问敏感路径: {}", arg));
-            }
-        }
-    }
-
-    // Step 4b：拒绝直接调用 shell 解释器
-    if SHELL_INTERPRETERS.contains(&argv[0].as_str()) {
-        return Decision::Deny(format!("不允许调用 shell 解释器: {}", argv[0]));
-    }
-
-    // Step 5：匹配白名单规则（fail-closed）
     for rule in ALLOW_RULES {
         if argv[0] != rule.cmd {
             continue;
@@ -210,6 +150,98 @@ pub fn check(input: &str) -> Decision {
     }
 
     Decision::Deny(format!("命令 '{}' 不在白名单中", argv[0]))
+}
+
+/// 检查一个需要显式确认的状态变更命令。
+pub fn check_action(input: &str) -> Decision {
+    let argv = match parse_argv(input) {
+        Ok(argv) => argv,
+        Err(reason) => return Decision::Deny(reason),
+    };
+
+    if ACTION_RULES
+        .iter()
+        .any(|rule| argv.iter().map(String::as_str).eq(rule.iter().copied()))
+    {
+        return Decision::RequireConfirm(CheckedCommand { argv });
+    }
+
+    Decision::Deny(format!("命令 '{}' 不在 action 白名单中", argv.join(" ")))
+}
+
+/// 解析单条 shell 命令，并应用共享的 shell 安全检查后返回 argv。
+pub(crate) fn parse_argv(input: &str) -> Result<Vec<String>, String> {
+    let trimmed = input.trim();
+
+    if trimmed.is_empty() {
+        return Err("空命令".to_string());
+    }
+
+    // 长度保护，防止解析器复杂度攻击
+    if trimmed.len() > 10_000 {
+        return Err("命令过长".to_string());
+    }
+
+    // Unicode 方向控制字符 — 可混淆 UI 显示，一律拒绝
+    if trimmed.chars().any(|c| UNICODE_DIR_OVERRIDES.contains(&c)) {
+        return Err("输入包含 Unicode 方向控制字符".to_string());
+    }
+
+    let mut parser = Parser::new();
+    if let Err(e) = parser.set_language(&bash_language()) {
+        return Err(format!("语言加载失败: {e}"));
+    }
+
+    let tree = match parser.parse(trimmed, None) {
+        Some(t) => t,
+        None => return Err("AST 解析失败".to_string()),
+    };
+
+    let root = tree.root_node();
+    let src = trimmed.as_bytes();
+
+    // Step 1：扫描全 AST，拒绝危险节点
+    if let Some(reason) = scan_dangerous(&root, src) {
+        return Err(reason);
+    }
+
+    // Step 2：顶层必须是且仅是一个 `command` 节点（无管道/列表/if/for）
+    let meaningful: Vec<Node> = (0..root.child_count())
+        .filter_map(|i| root.child(i))
+        .filter(|n| n.is_named() && n.kind() != "comment")
+        .collect();
+
+    if meaningful.len() != 1 {
+        let kinds: Vec<&str> = meaningful.iter().map(|n| n.kind()).collect();
+        return Err(format!("不允许多语句结构: {:?}", kinds));
+    }
+
+    let stmt = &meaningful[0];
+    if stmt.kind() != "command" {
+        return Err(format!("不允许的语句类型: {}", stmt.kind()));
+    }
+
+    // Step 3：提取 argv
+    let argv = extract_argv(stmt, src);
+    if argv.is_empty() {
+        return Err("无法提取命令名".to_string());
+    }
+
+    // Step 4a：拒绝包含敏感路径的参数
+    for arg in &argv {
+        for prefix in SENSITIVE_PATH_PREFIXES {
+            if arg.as_str() == *prefix || arg.starts_with(&format!("{}/", prefix)) {
+                return Err(format!("不允许访问敏感路径: {}", arg));
+            }
+        }
+    }
+
+    // Step 4b：拒绝直接调用 shell 解释器
+    if SHELL_INTERPRETERS.contains(&argv[0].as_str()) {
+        return Err(format!("不允许调用 shell 解释器: {}", argv[0]));
+    }
+
+    Ok(argv)
 }
 
 // ── 内部工具函数 ──────────────────────────────────────────────────────────────
@@ -305,6 +337,13 @@ mod tests {
         match check(input) {
             Decision::Allow(cmd) => cmd.argv,
             other => panic!("期望 Allow，但得到 {:?} for {:?}", other, input),
+        }
+    }
+
+    fn require_confirm_argv(input: &str) -> Vec<String> {
+        match check_action(input) {
+            Decision::RequireConfirm(cmd) => cmd.argv,
+            other => panic!("expected RequireConfirm, got {other:?}"),
         }
     }
 
@@ -447,6 +486,26 @@ mod tests {
     #[test]
     fn deny_nginx_start() {
         assert_deny("nginx -s reload");
+    }
+
+    #[test]
+    fn action_nginx_reload_requires_confirm() {
+        let argv = require_confirm_argv("nginx -s reload");
+        assert_eq!(argv, vec!["nginx", "-s", "reload"]);
+    }
+
+    #[test]
+    fn action_systemctl_reload_requires_confirm() {
+        let argv = require_confirm_argv("systemctl reload nginx");
+        assert_eq!(argv, vec!["systemctl", "reload", "nginx"]);
+    }
+
+    #[test]
+    fn action_rejects_unapproved_state_change() {
+        match check_action("systemctl restart nginx") {
+            Decision::Deny(reason) => assert!(reason.contains("action 白名单")),
+            other => panic!("expected deny, got {other:?}"),
+        }
     }
 
     #[test]

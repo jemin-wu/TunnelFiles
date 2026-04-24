@@ -19,8 +19,9 @@ use tunnelfiles_lib::services::ai::llama_runtime::{
     compute_gguf_sha256, LlamaRuntime, LoadOptions, SystemRamProbe,
 };
 use tunnelfiles_lib::services::ai::paths::model_file_path;
+use tunnelfiles_lib::services::ai::prompt::{build_budgeted, PromptInput, PromptMode};
 
-const MODEL_NAME: &str = "gemma4:e4b";
+const MODEL_NAME: &str = "gemma-4-E4B-it-Q4_K_M";
 
 #[test]
 #[ignore = "requires Gemma 4 E4B GGUF at the standard data_local_dir path; run with --ignored"]
@@ -45,8 +46,11 @@ fn load_real_gemma_when_present() {
 
     let probe = SystemRamProbe;
     eprintln!("Loading model (Metal on macOS, CPU elsewhere) ...");
-    let runtime = LlamaRuntime::load(&path, &sha, LoadOptions::default(), &probe)
-        .expect("load real Gemma model");
+    let opts = LoadOptions {
+        register_global: false,
+        ..LoadOptions::default()
+    };
+    let runtime = LlamaRuntime::load(&path, &sha, opts, &probe).expect("load real Gemma model");
 
     assert_eq!(runtime.num_ctx(), 4096);
     // model() / backend() 拿到非空引用即可证明 FFI 句柄有效
@@ -56,15 +60,20 @@ fn load_real_gemma_when_present() {
 
     // 跑一个最小生成 —— 32 token cap，验证 token loop + sampler + detokenize 链
     eprintln!("Running tiny generation (max 32 tokens) ...");
+    let prompt = build_budgeted(
+        &PromptInput {
+            user_text: "Reply with exactly: ready.".to_string(),
+            context: None,
+            history: vec![],
+        },
+        PromptMode::Chat,
+    );
     let cancel = CancellationToken::new();
     let mut emitted = String::new();
     let outcome = runtime
-        .generate(
-            "Respond with exactly: ready.",
-            GenerateOptions { max_tokens: 32 },
-            &cancel,
-            |t| emitted.push_str(t),
-        )
+        .generate(&prompt, GenerateOptions { max_tokens: 32 }, &cancel, |t| {
+            emitted.push_str(t)
+        })
         .expect("generate should succeed on real model");
     eprintln!("Outcome: {outcome:?}; emitted: {emitted:?}");
     assert!(

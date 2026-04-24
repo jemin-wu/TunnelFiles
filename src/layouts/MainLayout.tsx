@@ -9,6 +9,8 @@ import { Settings, Moon, Sun, ChevronLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAiHealthCheck } from "@/hooks/useAiHealthCheck";
+import { useSettings } from "@/hooks/useSettings";
 import { useTheme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +19,9 @@ export function MainLayout() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { theme, setTheme } = useTheme();
+  const { settings } = useSettings();
+
+  useAiHealthCheck(settings.aiEnabled, { autoLoadRuntime: true });
 
   const isFilesPage = location.pathname.startsWith("/files/");
   const isSettingsPage = location.pathname === "/settings";
@@ -58,7 +63,7 @@ export function MainLayout() {
       <header
         className={cn(
           "border-border flex h-11 items-center border-b px-3",
-          "bg-card/80 shrink-0 backdrop-blur-sm select-none"
+          "bg-background dark:bg-card/80 shrink-0 backdrop-blur-sm select-none"
         )}
         data-tauri-drag-region
       >
@@ -144,7 +149,7 @@ export function MainLayout() {
       <footer
         className={cn(
           "border-border flex h-6 items-center justify-between border-t px-3",
-          "bg-card/50 text-muted-foreground shrink-0 text-xs"
+          "bg-background dark:bg-card/50 text-muted-foreground shrink-0 text-xs"
         )}
       >
         <div className="flex items-center gap-3">

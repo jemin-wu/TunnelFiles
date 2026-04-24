@@ -6,6 +6,12 @@ import {
   aiChatCancel,
   aiContextSnapshot,
   aiLicenseAccept,
+  aiPlanCancel,
+  aiPlanCreate,
+  aiPlanRollback,
+  aiPlanStepConfirm,
+  aiPlanStepExecute,
+  aiPlanStepRevise,
   aiModelDelete,
   aiModelDownload,
   aiModelDownloadCancel,
@@ -113,11 +119,29 @@ describe("lib/ai", () => {
   });
 
   describe("aiChatSend", () => {
-    it("invokes ai_chat_send with input wrapper carrying sessionId + text", async () => {
+    it("invokes ai_chat_send with input wrapper carrying sessionId + text + history", async () => {
       mockedInvoke.mockResolvedValueOnce({ messageId: "abc-123" });
       await aiChatSend("tab-1", "hello");
       expect(mockedInvoke).toHaveBeenCalledWith("ai_chat_send", {
-        input: { sessionId: "tab-1", text: "hello" },
+        input: { sessionId: "tab-1", text: "hello", history: [] },
+      });
+    });
+
+    it("passes explicit history array when provided", async () => {
+      mockedInvoke.mockResolvedValueOnce({ messageId: "m" });
+      await aiChatSend("tab-1", "new q", [
+        { role: "user", content: "prev q" },
+        { role: "assistant", content: "prev a" },
+      ]);
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_chat_send", {
+        input: {
+          sessionId: "tab-1",
+          text: "new q",
+          history: [
+            { role: "user", content: "prev q" },
+            { role: "assistant", content: "prev a" },
+          ],
+        },
       });
     });
 
@@ -283,6 +307,103 @@ describe("lib/ai", () => {
       };
       mockedInvoke.mockRejectedValueOnce(appError);
       await expect(aiLicenseAccept()).rejects.toBe(appError);
+    });
+  });
+
+  describe("aiPlan*", () => {
+    const plan = {
+      summary: "给 nginx 加 gzip",
+      steps: [
+        {
+          id: "step-1",
+          kind: "probe",
+          status: "pending",
+          intent: "读取 nginx.conf",
+          command: "cat /etc/nginx/nginx.conf",
+          path: null,
+          content: null,
+          targetFiles: [],
+          verifyTemplate: null,
+          expectedObservation: "看到现有 gzip 配置",
+        },
+      ],
+      risks: ["reload 可能失败"],
+      assumptions: ["服务名为 nginx"],
+      status: "ready",
+    } as const;
+
+    it("aiPlanCreate invokes ai_plan_create with input wrapper", async () => {
+      mockedInvoke.mockResolvedValueOnce({ planId: "plan-1", plan });
+      await aiPlanCreate("tab-1", "给 nginx 加 gzip 并验证");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_create", {
+        input: { sessionId: "tab-1", text: "给 nginx 加 gzip 并验证" },
+      });
+    });
+
+    it("aiPlanStepExecute invokes ai_plan_step_execute with planId", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        plan,
+        awaitingConfirm: false,
+        currentStepId: "step-1",
+      });
+      await aiPlanStepExecute("plan-1");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_step_execute", {
+        input: { planId: "plan-1" },
+      });
+    });
+
+    it("aiPlanStepConfirm invokes ai_plan_step_confirm with planId", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        plan: { ...plan, status: "done" },
+        awaitingConfirm: false,
+        currentStepId: "step-2",
+      });
+      await aiPlanStepConfirm("plan-1");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_step_confirm", {
+        input: { planId: "plan-1" },
+      });
+    });
+
+    it("aiPlanStepRevise invokes ai_plan_step_revise with planId + newObservation", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        plan: {
+          ...plan,
+          summary: "根据 verify 失败重排后续步骤",
+        },
+        awaitingConfirm: false,
+        currentStepId: null,
+      });
+      await aiPlanStepRevise("plan-1", "nginx -t failed after edit");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_step_revise", {
+        input: {
+          planId: "plan-1",
+          newObservation: "nginx -t failed after edit",
+        },
+      });
+    });
+
+    it("aiPlanCancel invokes ai_plan_cancel with planId", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        plan: { ...plan, status: "canceled" },
+        awaitingConfirm: false,
+        currentStepId: null,
+      });
+      await aiPlanCancel("plan-1");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_cancel", {
+        input: { planId: "plan-1" },
+      });
+    });
+
+    it("aiPlanRollback invokes ai_plan_rollback with planId + stepId", async () => {
+      mockedInvoke.mockResolvedValueOnce({
+        plan: { ...plan, status: "failed" },
+        rolledBack: true,
+        snapshotPath: "/tmp/snapshot",
+      });
+      await aiPlanRollback("plan-1", "step-2");
+      expect(mockedInvoke).toHaveBeenCalledWith("ai_plan_rollback", {
+        input: { planId: "plan-1", stepId: "step-2" },
+      });
     });
   });
 

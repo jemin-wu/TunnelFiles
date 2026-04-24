@@ -10,8 +10,14 @@ import { z } from "zod";
 import { parseInvokeResult, timedInvoke } from "./error";
 import type { AiHealthResult } from "@/types/bindings/AiHealthResult";
 import type { AiChatSendResult } from "@/types/bindings/AiChatSendResult";
+import type { ChatHistoryTurn } from "@/types/bindings/ChatHistoryTurn";
 import type { AiChatCancelResult } from "@/types/bindings/AiChatCancelResult";
 import type { AiContextSnapshotResult } from "@/types/bindings/AiContextSnapshotResult";
+import type { AiPlan } from "@/types/bindings/AiPlan";
+import type { AiPlanCreateResult } from "@/types/bindings/AiPlanCreateResult";
+import type { AiPlanRollbackResult } from "@/types/bindings/AiPlanRollbackResult";
+import type { AiPlanStepReviseInput } from "@/types/bindings/AiPlanStepReviseInput";
+import type { AiPlanStepResult } from "@/types/bindings/AiPlanStepResult";
 import type { AiModelDeleteResult } from "@/types/bindings/AiModelDeleteResult";
 import type { AiModelDownloadCancelResult } from "@/types/bindings/AiModelDownloadCancelResult";
 import type { Settings } from "@/types/settings";
@@ -21,12 +27,80 @@ import type { Settings } from "@/types/settings";
 // ============================================================================
 
 const AcceleratorKindSchema = z.enum(["metal", "cpu", "none"]);
+const AiStepKindSchema = z.enum(["probe", "write", "verify", "action"]);
+const AiStepStatusSchema = z.enum([
+  "pending",
+  "running",
+  "awaiting_confirm",
+  "executing",
+  "verifying",
+  "done",
+  "failed",
+  "canceled",
+  "rolled_back",
+]);
+const AiPlanStatusSchema = z.enum([
+  "draft",
+  "planning",
+  "ready",
+  "running",
+  "awaiting_confirm",
+  "done",
+  "failed",
+  "canceled",
+]);
+const AiVerifyTemplateSchema = z.union([
+  z.literal("nginx_check"),
+  z.literal("systemctl_is_active"),
+  z.literal("curl_head"),
+  z.object({ custom: z.string() }),
+]);
+const NullableStringSchema = z.string().nullable().default(null);
+const NullableVerifyTemplateSchema = AiVerifyTemplateSchema.nullable().default(null);
 
 const AiHealthResultSchema: z.ZodType<AiHealthResult> = z.object({
   runtimeReady: z.boolean(),
   modelPresent: z.boolean(),
   modelName: z.string(),
   acceleratorKind: AcceleratorKindSchema,
+});
+
+const AiPlanSchema: z.ZodType<AiPlan> = z.object({
+  summary: z.string(),
+  steps: z.array(
+    z.object({
+      id: z.string(),
+      kind: AiStepKindSchema,
+      status: AiStepStatusSchema,
+      intent: z.string(),
+      command: z.string(),
+      path: NullableStringSchema,
+      content: NullableStringSchema,
+      targetFiles: z.array(z.string()),
+      verifyTemplate: NullableVerifyTemplateSchema,
+      expectedObservation: z.string(),
+    })
+  ),
+  risks: z.array(z.string()),
+  assumptions: z.array(z.string()),
+  status: AiPlanStatusSchema,
+});
+
+const AiPlanCreateResultSchema: z.ZodType<AiPlanCreateResult> = z.object({
+  planId: z.string(),
+  plan: AiPlanSchema,
+});
+
+const AiPlanStepResultSchema: z.ZodType<AiPlanStepResult> = z.object({
+  plan: AiPlanSchema,
+  awaitingConfirm: z.boolean(),
+  currentStepId: NullableStringSchema,
+});
+
+const AiPlanRollbackResultSchema: z.ZodType<AiPlanRollbackResult> = z.object({
+  plan: AiPlanSchema,
+  rolledBack: z.boolean(),
+  snapshotPath: NullableStringSchema,
 });
 
 // ============================================================================
@@ -54,11 +128,18 @@ const AiChatSendResultSchema: z.ZodType<AiChatSendResult> = z.object({
  * Submit a chat message. Returns the assigned messageId immediately;
  * the actual response streams over `ai:token` events tagged with that id.
  *
- * v0.1: backend is an echo stub until LlamaRuntime::generate lands.
+ * `history` carries the prior multi-turn conversation (ascending), **not**
+ * including the current `text`. Caller should pass the last N turns (N ~ 20
+ * for ~3K token ceiling under Gemma 4 8K context budget). Empty array for
+ * first turn or if multi-turn is disabled.
  */
-export async function aiChatSend(sessionId: string, text: string): Promise<AiChatSendResult> {
+export async function aiChatSend(
+  sessionId: string,
+  text: string,
+  history: ChatHistoryTurn[] = []
+): Promise<AiChatSendResult> {
   const result = await timedInvoke("ai_chat_send", {
-    input: { sessionId, text },
+    input: { sessionId, text, history },
   });
   return parseInvokeResult(AiChatSendResultSchema, result, "ai_chat_send");
 }
@@ -148,6 +229,63 @@ export async function aiContextSnapshot(sessionId: string): Promise<AiContextSna
 }
 
 // ============================================================================
+// Plan Mode (T3)
+// ============================================================================
+
+export async function aiPlanCreate(sessionId: string, text: string): Promise<AiPlanCreateResult> {
+  const result = await timedInvoke("ai_plan_create", {
+    input: { sessionId, text },
+  });
+  return parseInvokeResult(AiPlanCreateResultSchema, result, "ai_plan_create");
+}
+
+export async function aiPlanStepExecute(planId: string): Promise<AiPlanStepResult> {
+  const result = await timedInvoke("ai_plan_step_execute", {
+    input: { planId },
+  });
+  return parseInvokeResult(AiPlanStepResultSchema, result, "ai_plan_step_execute");
+}
+
+export async function aiPlanStepConfirm(planId: string): Promise<AiPlanStepResult> {
+  const result = await timedInvoke("ai_plan_step_confirm", {
+    input: { planId },
+  });
+  return parseInvokeResult(AiPlanStepResultSchema, result, "ai_plan_step_confirm");
+}
+
+export async function aiPlanStepRevise(
+  planId: string,
+  newObservation: string
+): Promise<AiPlanStepResult> {
+  const input: AiPlanStepReviseInput = { planId, newObservation };
+  const result = await timedInvoke("ai_plan_step_revise", {
+    input,
+  });
+  return parseInvokeResult(AiPlanStepResultSchema, result, "ai_plan_step_revise");
+}
+
+export async function aiPlanCancel(planId: string): Promise<AiPlanStepResult> {
+  const result = await timedInvoke("ai_plan_cancel", {
+    input: { planId },
+  });
+  return parseInvokeResult(AiPlanStepResultSchema, result, "ai_plan_cancel");
+}
+
+export async function aiPlanRollback(
+  planId: string,
+  stepId: string
+): Promise<AiPlanRollbackResult> {
+  const result = await timedInvoke(
+    "ai_plan_rollback",
+    {
+      input: { planId, stepId },
+    },
+    300_000
+  );
+  return parseInvokeResult(AiPlanRollbackResultSchema, result, "ai_plan_rollback");
+}
+
+// ============================================================================
 // Model Download (T1.5)
 // ============================================================================
 
@@ -207,12 +345,12 @@ export async function aiModelDelete(): Promise<AiModelDeleteResult> {
  * The download command chains this internally after verify-sha256, so callers
  * only need to invoke this explicitly during health-check-driven recovery.
  *
- * May take 2–5 s on Metal (GGUF mmap + backend buffer init) — runs in a
- * spawn_blocking so it won't peg the async runtime, but the IPC round-trip
- * waits for completion.
+ * Cold-path cost on first launch: sha256 verify of the 4.6GB GGUF (~5 s with
+ * hardware SHA on Apple Silicon, cache miss) + LlamaModel::load_from_file
+ * mmap + Metal shader compile (~5–15 s). Warm path (cache hit) is < 1 s.
+ * Budget of 5 min matches sftp_delete_recursive — covers degraded disk IO
+ * without hiding genuine hangs.
  */
 export async function aiRuntimeLoad(): Promise<void> {
-  // Loading can take ~5 s cold; give the IPC a generous budget even though
-  // the backend itself has no timeout.
-  await timedInvoke("ai_runtime_load", undefined, 60_000);
+  await timedInvoke("ai_runtime_load", undefined, 300_000);
 }

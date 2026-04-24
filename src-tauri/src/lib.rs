@@ -14,6 +14,8 @@ pub mod services;
 pub mod utils;
 
 use services::ai::executor::ProbeExecutor;
+use services::ai::planner::PlannerManager;
+use services::ai::rollback;
 use services::session_manager::SessionManager;
 use services::storage_service::Database;
 use services::terminal_manager::TerminalManager;
@@ -90,9 +92,10 @@ pub fn run() {
     let terminal_manager = Arc::new(TerminalManager::new());
 
     // 5.5 初始化 probe 并发执行器（T2.8）
-    let probe_executor = Arc::new(ProbeExecutor::new(
-        settings.max_concurrent_ai_probes as u32,
-    ));
+    let probe_executor = Arc::new(ProbeExecutor::new(settings.max_concurrent_ai_probes as u32));
+
+    // 5.6 初始化 planner 状态机（T3）
+    let planner_manager = Arc::new(PlannerManager::new());
 
     // 6. 启动时清理旧日志（保留 7 天）
     if let Err(e) = cleanup_old_logs(7) {
@@ -103,6 +106,13 @@ pub fn run() {
     // 曾以 "gemma4-e4b.gguf" 保存；T1.5 改 pin 到 "gemma-4-E4B-it-Q4_K_M" 后
     // 路径 resolver 不再找得到旧文件。此处无感改名，避免用户白白再下 5GB。
     migrate_legacy_gguf_filename();
+
+    // 6.6 启动清理过期 AI snapshots（T3.2a）。crash 残留按 session 目录 TTL 24h 清理。
+    match rollback::cleanup_orphans_at_startup(rollback::SNAPSHOT_TTL_HOURS_DEFAULT) {
+        Ok(removed) if removed > 0 => tracing::info!(removed, "已清理过期 AI snapshots"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "启动清理 AI snapshots 失败"),
+    }
 
     // 7. 构建 Tauri 应用
     let sm_for_cleanup = session_manager.clone();
@@ -151,6 +161,7 @@ pub fn run() {
         .manage(transfer_manager)
         .manage(terminal_manager)
         .manage(probe_executor)
+        .manage(planner_manager)
         .invoke_handler(tauri::generate_handler![
             // Profile 命令
             commands::profile::profile_list,
@@ -208,6 +219,12 @@ pub fn run() {
             commands::ai::ai_chat_send,
             commands::ai::ai_chat_cancel,
             commands::ai::ai_context_snapshot,
+            commands::ai::ai_plan_create,
+            commands::ai::ai_plan_step_execute,
+            commands::ai::ai_plan_step_confirm,
+            commands::ai::ai_plan_step_revise,
+            commands::ai::ai_plan_cancel,
+            commands::ai::ai_plan_rollback,
             commands::ai::ai_license_accept,
             commands::ai::ai_model_download,
             commands::ai::ai_model_download_cancel,

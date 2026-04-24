@@ -1,6 +1,15 @@
 import "@testing-library/jest-dom/vitest";
 import { vi, beforeAll, afterEach } from "vitest";
 
+// jsdom 不实现 ResizeObserver —— use-stick-to-bottom / Radix ScrollArea 等依赖它
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 // Mock Tauri APIs
 beforeAll(() => {
   vi.mock("@tauri-apps/api/core", () => ({

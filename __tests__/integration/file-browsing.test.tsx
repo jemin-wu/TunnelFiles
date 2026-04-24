@@ -179,4 +179,24 @@ describe("File browsing integration", () => {
     // Should show loading indicator
     expect(screen.getByText("Initializing SFTP...")).toBeInTheDocument();
   });
+
+  it("only shows AI launcher in terminal mode when AI is enabled", async () => {
+    setupDefaultRouter({
+      settings_get: () => ({ ...DEFAULT_SETTINGS, aiEnabled: true }),
+    });
+
+    renderWithProviders(["/files/session-1"]);
+
+    await waitFor(() => {
+      expect(screen.getByText("documents")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText("Open AI chat")).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Terminal"));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Open AI chat")).toBeInTheDocument();
+    });
+  });
 });

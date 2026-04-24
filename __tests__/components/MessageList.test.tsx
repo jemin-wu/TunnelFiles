@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MessageList } from "@/components/ai/MessageList";
 import type { ChatMessage } from "@/stores/useAiSessionStore";
 
@@ -44,7 +44,7 @@ describe("MessageList", () => {
     expect(items[1]).toHaveTextContent("ss -tlnp");
   });
 
-  it("preserves multiline content (whitespace-pre-wrap)", () => {
+  it("preserves multiline content (whitespace-pre-wrap) on user messages", () => {
     render(
       <MessageList
         messages={[
@@ -55,10 +55,12 @@ describe("MessageList", () => {
         ]}
       />
     );
-    const item = document.querySelector("[data-slot='message']");
-    // user 消息走单 span path；assistant 走 AssistantContent 拆 blocks
-    const span = item?.querySelector("span");
-    expect(span?.getAttribute("class")).toMatch(/whitespace-pre-wrap/);
+    const item = document.querySelector("[data-slot='message'][data-role='user']");
+    // 新架构：user 消息内容挂在 MessageContent（div），保留 whitespace-pre-wrap
+    const bubble = item?.querySelector("[class*='whitespace-pre-wrap']");
+    expect(bubble).not.toBeNull();
+    expect(bubble?.textContent).toContain("line1\nline2\n  indented");
+    expect(bubble).toHaveClass("selectable");
   });
 
   it("shows streaming caret only on the last assistant message during streaming", () => {
@@ -85,36 +87,9 @@ describe("MessageList", () => {
     expect(carets).toHaveLength(0);
   });
 
-  it("calls scrollIntoView when a new message is appended", () => {
-    const scrollSpy = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>;
-    const initial = [msg({ role: "user", content: "hi" })];
-    const { rerender } = render(<MessageList messages={initial} />);
-    scrollSpy.mockClear();
-    rerender(
-      <MessageList messages={[...initial, msg({ role: "assistant", content: "Hello!" })]} />
-    );
-    expect(scrollSpy).toHaveBeenCalled();
-  });
-
-  it("calls scrollIntoView when assistant content grows (streaming append)", () => {
-    const scrollSpy = Element.prototype.scrollIntoView as ReturnType<typeof vi.fn>;
-    const userMsg = msg({ role: "user", content: "go" });
-    const assistantId = "assistant-1";
-    const { rerender } = render(
-      <MessageList
-        isStreaming
-        messages={[userMsg, msg({ id: assistantId, role: "assistant", content: "Hel" })]}
-      />
-    );
-    scrollSpy.mockClear();
-    rerender(
-      <MessageList
-        isStreaming
-        messages={[userMsg, msg({ id: assistantId, role: "assistant", content: "Hello world" })]}
-      />
-    );
-    expect(scrollSpy).toHaveBeenCalled();
-  });
+  // 注：MessageList 不再手写 scrollIntoView —— 自动滚动由父级 ChatContainerRoot
+  // (use-stick-to-bottom) 接管，保留 scroll-up 暂停语义。这部分回归测试移至
+  // ChatPanel 集成测试覆盖。
 
   describe("assistant code blocks + insert button", () => {
     it("renders fenced bash block as a distinct code element", () => {
@@ -132,6 +107,22 @@ describe("MessageList", () => {
       expect(code).not.toBeNull();
       expect(code?.getAttribute("data-language")).toBe("bash");
       expect(code).toHaveTextContent("ls -la");
+      expect(code).toHaveClass("selectable");
+    });
+
+    it("marks assistant text bubbles as selectable for mouse copy", () => {
+      render(
+        <MessageList
+          messages={[
+            msg({
+              role: "assistant",
+              content: "你可以先运行 pwd 查看当前目录。",
+            }),
+          ]}
+        />
+      );
+      const bubble = document.querySelector("[data-slot='message'][data-role='assistant'] > div");
+      expect(bubble).toHaveClass("selectable");
     });
 
     it("does not show Insert button when onInsertCommand is not provided", () => {
@@ -148,6 +139,20 @@ describe("MessageList", () => {
       expect(screen.queryByLabelText("Insert command to terminal")).not.toBeInTheDocument();
     });
 
+    it("always shows Copy button for assistant code blocks", () => {
+      render(
+        <MessageList
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```bash\nls\n```",
+            }),
+          ]}
+        />
+      );
+      expect(screen.getByLabelText("Copy command")).toBeInTheDocument();
+    });
+
     it("shows Insert button for bash code block when onInsertCommand provided", () => {
       render(
         <MessageList
@@ -162,6 +167,19 @@ describe("MessageList", () => {
       );
       const buttons = screen.getAllByLabelText("Insert command to terminal");
       expect(buttons.length).toBe(1);
+    });
+
+    it("adds Insert button when onInsertCommand becomes available after initial render", () => {
+      const message = msg({
+        role: "assistant",
+        content: "```bash\nsudo systemctl restart nginx\n```",
+      });
+      const { rerender } = render(<MessageList messages={[message]} />);
+      expect(screen.queryByLabelText("Insert command to terminal")).not.toBeInTheDocument();
+
+      rerender(<MessageList onInsertCommand={vi.fn()} messages={[message]} />);
+
+      expect(screen.getByLabelText("Insert command to terminal")).toBeInTheDocument();
     });
 
     it("does not show Insert button for non-shell languages (eg python)", () => {
@@ -211,6 +229,28 @@ describe("MessageList", () => {
       await user.click(screen.getByLabelText("Insert command to terminal"));
       expect(onInsertCommand).toHaveBeenCalledTimes(1);
       expect(onInsertCommand).toHaveBeenCalledWith("sudo systemctl restart nginx");
+    });
+
+    it("clicking Copy writes code to clipboard and shows copied state", async () => {
+      const user = (await import("@testing-library/user-event")).default.setup();
+      const writeTextSpy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+      render(
+        <MessageList
+          messages={[
+            msg({
+              role: "assistant",
+              content: "```bash\nsudo systemctl restart nginx\n```",
+            }),
+          ]}
+        />
+      );
+
+      await user.click(screen.getByLabelText("Copy command"));
+
+      await waitFor(() => {
+        expect(writeTextSpy).toHaveBeenCalledWith("sudo systemctl restart nginx");
+      });
+      expect(screen.getByText("Copied")).toBeInTheDocument();
     });
 
     it("renders multiple code blocks each with their own button", () => {

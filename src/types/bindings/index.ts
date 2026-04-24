@@ -24,6 +24,32 @@ export type { TransferStatusPayload } from "./TransferStatusPayload";
 export type { ErrorCode } from "./ErrorCode";
 export type { AppError } from "./AppError";
 
+// Models: ai_plan / ai_step / ai_policy
+export type { AiPlan } from "./AiPlan";
+export type { AiPlanStatus } from "./AiPlanStatus";
+export type { AiStep } from "./AiStep";
+export type { AiStepKind } from "./AiStepKind";
+export type { AiStepStatus } from "./AiStepStatus";
+export type { AiVerifyTemplate } from "./AiVerifyTemplate";
+export type { AiAllowlistDecision } from "./AiAllowlistDecision";
+export type { AiScrubMode } from "./AiScrubMode";
+export type { AiScrubRecord } from "./AiScrubRecord";
+
+// Models: ai_events
+export type { AiAwaitConfirmPayload } from "./AiAwaitConfirmPayload";
+export type { AiDoneKind } from "./AiDoneKind";
+export type { AiDonePayload } from "./AiDonePayload";
+export type { AiErrorPayload } from "./AiErrorPayload";
+export type { AiProbeQueuedPayload } from "./AiProbeQueuedPayload";
+export type { AiRollbackProgressPayload } from "./AiRollbackProgressPayload";
+export type { AiServiceStateWarningPayload } from "./AiServiceStateWarningPayload";
+export type { AiStepEventPayload } from "./AiStepEventPayload";
+export type { AiThinkingPayload } from "./AiThinkingPayload";
+export type { AiTokenPayload } from "./AiTokenPayload";
+export type { AiDownloadDonePayload } from "./AiDownloadDonePayload";
+export type { AiDownloadPhase } from "./AiDownloadPhase";
+export type { AiDownloadProgressPayload } from "./AiDownloadProgressPayload";
+
 // Models: settings
 export type { LogLevel } from "./LogLevel";
 export type { Settings } from "./Settings";
@@ -56,3 +82,23 @@ export type { TrustHostKeyInput } from "./TrustHostKeyInput";
 export type { TerminalOpenInput } from "./TerminalOpenInput";
 export type { TerminalInputData } from "./TerminalInputData";
 export type { TerminalResizeInput } from "./TerminalResizeInput";
+
+// Commands: ai
+export type { AiChatCancelInput } from "./AiChatCancelInput";
+export type { AiChatCancelResult } from "./AiChatCancelResult";
+export type { AiChatSendInput } from "./AiChatSendInput";
+export type { AiChatSendResult } from "./AiChatSendResult";
+export type { AiContextSnapshotInput } from "./AiContextSnapshotInput";
+export type { AiContextSnapshotResult } from "./AiContextSnapshotResult";
+export type { AiModelDeleteResult } from "./AiModelDeleteResult";
+export type { AiModelDownloadCancelResult } from "./AiModelDownloadCancelResult";
+export type { AiPlanCancelInput } from "./AiPlanCancelInput";
+export type { AiPlanCreateInput } from "./AiPlanCreateInput";
+export type { AiPlanCreateResult } from "./AiPlanCreateResult";
+export type { AiPlanRollbackInput } from "./AiPlanRollbackInput";
+export type { AiPlanRollbackResult } from "./AiPlanRollbackResult";
+export type { AiPlanStepConfirmInput } from "./AiPlanStepConfirmInput";
+export type { AiPlanStepExecuteInput } from "./AiPlanStepExecuteInput";
+export type { AiPlanStepResult } from "./AiPlanStepResult";
+export type { AiHealthResult } from "./AiHealthResult";
+export type { ChatHistoryTurn } from "./ChatHistoryTurn";

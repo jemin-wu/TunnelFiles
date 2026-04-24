@@ -7,7 +7,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================
-   TunnelFiles - Precision Engineering Theme
+   TunnelFiles - Midnight Teal Theme
    Clean, restrained design system
    ============================================ */
 
@@ -30,196 +30,196 @@
   /* Border Radius - Slightly rounded */
   --radius: 0.375rem;
 
-  /* === Dark Theme (Default - Precision Engineering) === */
+  /* === Dark Theme (Default - Midnight Teal) === */
 
-  /* Core Colors - Near-achromatic backgrounds, restrained blue */
-  --background: oklch(0.13 0.005 260);
-  --foreground: oklch(0.93 0.005 260);
+  /* Core Colors - Charcoal backgrounds, restrained cyan-teal */
+  --background: oklch(0.12 0.015 230);
+  --foreground: oklch(0.94 0.006 220);
 
   /* Card & Popover - Elevated surfaces */
-  --card: oklch(0.16 0.005 260);
-  --card-foreground: oklch(0.93 0.005 260);
-  --popover: oklch(0.18 0.006 260);
-  --popover-foreground: oklch(0.93 0.005 260);
+  --card: oklch(0.155 0.018 230);
+  --card-foreground: oklch(0.94 0.006 220);
+  --popover: oklch(0.18 0.02 230);
+  --popover-foreground: oklch(0.94 0.006 220);
 
-  /* Primary - Steel blue */
-  --primary: oklch(0.65 0.14 250);
-  --primary-foreground: oklch(0.98 0.002 260);
+  /* Primary - Cyan teal */
+  --primary: oklch(0.68 0.13 205);
+  --primary-foreground: oklch(0.1 0.018 230);
 
   /* Secondary - Neutral gray */
-  --secondary: oklch(0.2 0.005 260);
-  --secondary-foreground: oklch(0.78 0.005 260);
+  --secondary: oklch(0.205 0.018 230);
+  --secondary-foreground: oklch(0.8 0.012 220);
 
   /* Muted - Subtle backgrounds */
-  --muted: oklch(0.18 0.005 260);
-  --muted-foreground: oklch(0.63 0.01 260);
+  --muted: oklch(0.18 0.016 230);
+  --muted-foreground: oklch(0.66 0.018 220);
 
-  /* Accent - Teal-blue */
-  --accent: oklch(0.6 0.12 230);
-  --accent-foreground: oklch(0.98 0.002 260);
+  /* Accent - Active teal */
+  --accent: oklch(0.62 0.12 190);
+  --accent-foreground: oklch(0.1 0.018 230);
 
   /* Destructive - Muted red */
   --destructive: oklch(0.58 0.18 22);
   --destructive-foreground: oklch(0.98 0 0);
 
   /* Borders & Inputs */
-  --border: oklch(0.25 0.008 260);
-  --input: oklch(0.18 0.005 260);
-  --ring: oklch(0.65 0.14 250);
+  --border: oklch(0.255 0.025 225);
+  --input: oklch(0.185 0.018 230);
+  --ring: oklch(0.68 0.13 205);
 
   /* === Semantic Colors === */
 
   /* Status */
-  --success: oklch(0.62 0.14 155);
-  --warning: oklch(0.72 0.12 80);
-  --info: oklch(0.6 0.12 230);
+  --success: oklch(0.64 0.13 155);
+  --warning: oklch(0.74 0.12 82);
+  --info: oklch(0.68 0.13 205);
 
   /* File Type Indicators */
-  --file-folder: oklch(0.72 0.12 80);
-  --file-document: oklch(0.55 0.01 260);
-  --file-image: oklch(0.62 0.14 320);
-  --file-code: oklch(0.62 0.14 155);
-  --file-archive: oklch(0.6 0.1 55);
-  --file-audio: oklch(0.62 0.12 290);
-  --file-video: oklch(0.58 0.14 15);
+  --file-folder: oklch(0.74 0.12 82);
+  --file-document: oklch(0.58 0.018 220);
+  --file-image: oklch(0.65 0.13 315);
+  --file-code: oklch(0.64 0.13 155);
+  --file-archive: oklch(0.62 0.1 55);
+  --file-audio: oklch(0.64 0.12 285);
+  --file-video: oklch(0.6 0.14 18);
 
   /* Transfer Status */
-  --transfer-upload: oklch(0.62 0.14 155);
-  --transfer-download: oklch(0.6 0.12 230);
-  --transfer-pending: oklch(0.55 0.01 260);
+  --transfer-upload: oklch(0.64 0.13 155);
+  --transfer-download: oklch(0.68 0.13 205);
+  --transfer-pending: oklch(0.58 0.018 220);
 
   /* Selection */
-  --selection: oklch(0.65 0.14 250 / 0.12);
-  --selection-active: oklch(0.65 0.14 250 / 0.22);
+  --selection: oklch(0.68 0.13 205 / 0.14);
+  --selection-active: oklch(0.68 0.13 205 / 0.24);
 
   /* Terminal Colors (hex values for xterm.js compatibility) */
-  --terminal-background: #1e1e24;
-  --terminal-foreground: #d4d4d8;
-  --terminal-cursor: #6b9eff;
-  --terminal-cursor-accent: #1e1e24;
-  --terminal-selection: rgba(107, 158, 255, 0.25);
-  --terminal-black: #1e1e24;
-  --terminal-red: #e05566;
-  --terminal-green: #4caf7a;
-  --terminal-yellow: #d4a040;
-  --terminal-blue: #6b9eff;
-  --terminal-magenta: #c084d8;
-  --terminal-cyan: #56b6c2;
-  --terminal-white: #d4d4d8;
-  --terminal-bright-black: #555566;
-  --terminal-bright-red: #f06070;
-  --terminal-bright-green: #5cc08a;
-  --terminal-bright-yellow: #e4b050;
-  --terminal-bright-blue: #7baaff;
-  --terminal-bright-magenta: #d094e8;
-  --terminal-bright-cyan: #66c6d2;
+  --terminal-background: #111b20;
+  --terminal-foreground: #d7e1e4;
+  --terminal-cursor: #33c7d2;
+  --terminal-cursor-accent: #111b20;
+  --terminal-selection: rgba(51, 199, 210, 0.26);
+  --terminal-black: #111b20;
+  --terminal-red: #e05a6a;
+  --terminal-green: #55bd8d;
+  --terminal-yellow: #d7aa48;
+  --terminal-blue: #4ab3f4;
+  --terminal-magenta: #c48adb;
+  --terminal-cyan: #33c7d2;
+  --terminal-white: #d7e1e4;
+  --terminal-bright-black: #52666d;
+  --terminal-bright-red: #f06b7a;
+  --terminal-bright-green: #66cf9e;
+  --terminal-bright-yellow: #e7bd59;
+  --terminal-bright-blue: #62c5ff;
+  --terminal-bright-magenta: #d79bea;
+  --terminal-bright-cyan: #55d9e2;
   --terminal-bright-white: #ffffff;
 
   /* Charts */
-  --chart-1: oklch(0.65 0.14 250);
-  --chart-2: oklch(0.6 0.12 230);
-  --chart-3: oklch(0.72 0.12 80);
-  --chart-4: oklch(0.62 0.14 320);
+  --chart-1: oklch(0.68 0.13 205);
+  --chart-2: oklch(0.62 0.12 190);
+  --chart-3: oklch(0.74 0.12 82);
+  --chart-4: oklch(0.65 0.13 315);
   --chart-5: oklch(0.58 0.18 22);
 
   /* Sidebar */
-  --sidebar: oklch(0.14 0.005 260);
-  --sidebar-foreground: oklch(0.78 0.005 260);
-  --sidebar-primary: oklch(0.65 0.14 250);
-  --sidebar-primary-foreground: oklch(0.98 0.002 260);
-  --sidebar-accent: oklch(0.65 0.14 250 / 0.1);
-  --sidebar-accent-foreground: oklch(0.93 0.005 260);
-  --sidebar-border: oklch(0.22 0.006 260);
-  --sidebar-ring: oklch(0.65 0.14 250);
+  --sidebar: oklch(0.135 0.018 230);
+  --sidebar-foreground: oklch(0.8 0.012 220);
+  --sidebar-primary: oklch(0.68 0.13 205);
+  --sidebar-primary-foreground: oklch(0.1 0.018 230);
+  --sidebar-accent: oklch(0.68 0.13 205 / 0.12);
+  --sidebar-accent-foreground: oklch(0.94 0.006 220);
+  --sidebar-border: oklch(0.24 0.024 225);
+  --sidebar-ring: oklch(0.68 0.13 205);
 }
 
-/* === Light Theme (Clean White) === */
+/* === Light Theme (Arctic Teal) === */
 .light {
-  --background: oklch(0.975 0.003 260);
-  --foreground: oklch(0.18 0.01 260);
+  --background: oklch(0.975 0.008 215);
+  --foreground: oklch(0.18 0.018 220);
 
-  --card: oklch(0.99 0.002 260);
-  --card-foreground: oklch(0.18 0.01 260);
-  --popover: oklch(0.99 0.002 260);
-  --popover-foreground: oklch(0.18 0.01 260);
+  --card: oklch(0.992 0.005 215);
+  --card-foreground: oklch(0.18 0.018 220);
+  --popover: oklch(0.995 0.004 215);
+  --popover-foreground: oklch(0.18 0.018 220);
 
-  /* Primary - Steel blue at lower luminance */
-  --primary: oklch(0.5 0.14 250);
-  --primary-foreground: oklch(0.99 0.002 260);
+  /* Primary - Teal at lower luminance */
+  --primary: oklch(0.48 0.13 205);
+  --primary-foreground: oklch(0.99 0.005 215);
 
-  --secondary: oklch(0.94 0.003 260);
-  --secondary-foreground: oklch(0.35 0.01 260);
+  --secondary: oklch(0.94 0.01 215);
+  --secondary-foreground: oklch(0.34 0.018 220);
 
-  --muted: oklch(0.95 0.003 260);
-  --muted-foreground: oklch(0.4 0.01 260);
+  --muted: oklch(0.95 0.009 215);
+  --muted-foreground: oklch(0.4 0.018 220);
 
-  --accent: oklch(0.48 0.12 230);
-  --accent-foreground: oklch(0.99 0.002 260);
+  --accent: oklch(0.46 0.11 190);
+  --accent-foreground: oklch(0.99 0.005 215);
 
   --destructive: oklch(0.52 0.18 22);
   --destructive-foreground: oklch(0.98 0 0);
 
-  --border: oklch(0.88 0.005 260);
-  --input: oklch(0.93 0.003 260);
-  --ring: oklch(0.5 0.14 250);
+  --border: oklch(0.87 0.014 215);
+  --input: oklch(0.93 0.01 215);
+  --ring: oklch(0.48 0.13 205);
 
   /* Semantic */
-  --success: oklch(0.5 0.14 155);
+  --success: oklch(0.5 0.13 155);
   --warning: oklch(0.58 0.12 80);
-  --info: oklch(0.48 0.12 230);
+  --info: oklch(0.48 0.13 205);
 
   --file-folder: oklch(0.58 0.12 80);
-  --file-document: oklch(0.45 0.01 260);
-  --file-image: oklch(0.5 0.14 320);
-  --file-code: oklch(0.5 0.14 155);
+  --file-document: oklch(0.45 0.018 220);
+  --file-image: oklch(0.5 0.13 315);
+  --file-code: oklch(0.5 0.13 155);
   --file-archive: oklch(0.48 0.1 55);
   --file-audio: oklch(0.5 0.12 290);
   --file-video: oklch(0.46 0.14 15);
 
-  --transfer-upload: oklch(0.5 0.14 155);
-  --transfer-download: oklch(0.48 0.12 230);
-  --transfer-pending: oklch(0.5 0.01 260);
+  --transfer-upload: oklch(0.5 0.13 155);
+  --transfer-download: oklch(0.48 0.13 205);
+  --transfer-pending: oklch(0.5 0.018 220);
 
-  --selection: oklch(0.5 0.14 250 / 0.1);
-  --selection-active: oklch(0.5 0.14 250 / 0.18);
+  --selection: oklch(0.48 0.13 205 / 0.11);
+  --selection-active: oklch(0.48 0.13 205 / 0.2);
 
   /* Terminal Colors (light theme) */
-  --terminal-background: #f5f5f7;
-  --terminal-foreground: #2a2a35;
-  --terminal-cursor: #3d6ec0;
-  --terminal-cursor-accent: #f5f5f7;
-  --terminal-selection: rgba(61, 110, 192, 0.2);
-  --terminal-black: #2a2a35;
-  --terminal-red: #c43c50;
-  --terminal-green: #2d7a4e;
-  --terminal-yellow: #b8860b;
-  --terminal-blue: #3d6ec0;
-  --terminal-magenta: #9050a0;
-  --terminal-cyan: #2a8fa0;
-  --terminal-white: #f5f5f7;
-  --terminal-bright-black: #555566;
-  --terminal-bright-red: #e05566;
-  --terminal-bright-green: #3d9a5e;
-  --terminal-bright-yellow: #d9a61b;
-  --terminal-bright-blue: #4d7ed0;
-  --terminal-bright-magenta: #a060b0;
-  --terminal-bright-cyan: #3aafb0;
+  --terminal-background: #f4f8fa;
+  --terminal-foreground: #223036;
+  --terminal-cursor: #008b98;
+  --terminal-cursor-accent: #f4f8fa;
+  --terminal-selection: rgba(0, 139, 152, 0.18);
+  --terminal-black: #223036;
+  --terminal-red: #c74458;
+  --terminal-green: #2e7d59;
+  --terminal-yellow: #ae7f00;
+  --terminal-blue: #1f78b4;
+  --terminal-magenta: #8b529c;
+  --terminal-cyan: #008b98;
+  --terminal-white: #f4f8fa;
+  --terminal-bright-black: #53656c;
+  --terminal-bright-red: #de596b;
+  --terminal-bright-green: #399568;
+  --terminal-bright-yellow: #c89512;
+  --terminal-bright-blue: #2e8fd0;
+  --terminal-bright-magenta: #9f64b0;
+  --terminal-bright-cyan: #00a6b5;
   --terminal-bright-white: #ffffff;
 
-  --chart-1: oklch(0.5 0.14 250);
-  --chart-2: oklch(0.48 0.12 230);
+  --chart-1: oklch(0.48 0.13 205);
+  --chart-2: oklch(0.46 0.11 190);
   --chart-3: oklch(0.58 0.12 80);
-  --chart-4: oklch(0.5 0.14 320);
+  --chart-4: oklch(0.5 0.13 315);
   --chart-5: oklch(0.52 0.18 22);
 
-  --sidebar: oklch(0.96 0.003 260);
-  --sidebar-foreground: oklch(0.25 0.01 260);
-  --sidebar-primary: oklch(0.5 0.14 250);
-  --sidebar-primary-foreground: oklch(0.99 0.002 260);
-  --sidebar-accent: oklch(0.5 0.14 250 / 0.08);
-  --sidebar-accent-foreground: oklch(0.25 0.01 260);
-  --sidebar-border: oklch(0.9 0.003 260);
-  --sidebar-ring: oklch(0.5 0.14 250);
+  --sidebar: oklch(0.96 0.009 215);
+  --sidebar-foreground: oklch(0.25 0.018 220);
+  --sidebar-primary: oklch(0.48 0.13 205);
+  --sidebar-primary-foreground: oklch(0.99 0.005 215);
+  --sidebar-accent: oklch(0.48 0.13 205 / 0.09);
+  --sidebar-accent-foreground: oklch(0.25 0.018 220);
+  --sidebar-border: oklch(0.89 0.012 215);
+  --sidebar-ring: oklch(0.48 0.13 205);
 }
 
 /* === Theme Mapping for Tailwind === */

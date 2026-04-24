@@ -47,7 +47,15 @@ export interface UseAiHealthCheckReturn {
   refetch: () => void;
 }
 
-export function useAiHealthCheck(aiEnabled: boolean): UseAiHealthCheckReturn {
+interface UseAiHealthCheckOptions {
+  autoLoadRuntime?: boolean;
+}
+
+export function useAiHealthCheck(
+  aiEnabled: boolean,
+  options: UseAiHealthCheckOptions = {}
+): UseAiHealthCheckReturn {
+  const { autoLoadRuntime = false } = options;
   const query = useQuery({
     queryKey: AI_HEALTH_QUERY_KEY,
     queryFn: aiHealthCheck,
@@ -65,6 +73,10 @@ export function useAiHealthCheck(aiEnabled: boolean): UseAiHealthCheckReturn {
   // 损坏，反复试也徒劳。
   const loadTriggeredRef = useRef(false);
   useEffect(() => {
+    if (!autoLoadRuntime) {
+      loadTriggeredRef.current = false;
+      return;
+    }
     if (!aiEnabled) {
       // 禁用 AI 时允许下次启用重试
       loadTriggeredRef.current = false;
@@ -86,7 +98,7 @@ export function useAiHealthCheck(aiEnabled: boolean): UseAiHealthCheckReturn {
         loadTriggeredRef.current = false;
         showErrorToast(err);
       });
-  }, [aiEnabled, query.data]);
+  }, [aiEnabled, autoLoadRuntime, query.data]);
 
   return {
     status: deriveAiHealthStatus(aiEnabled, query.data, query.error),

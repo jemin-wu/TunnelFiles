@@ -67,8 +67,10 @@ describe("deriveRowView", () => {
       expect(deriveRowView("ready", IDLE).kind).toBe("ready");
     });
 
-    it("idle + loading → ready (runtime 正在载入，但文件已在)", () => {
-      expect(deriveRowView("loading", IDLE).kind).toBe("ready");
+    it("idle + loading → loading-runtime (与 badge '载入中' 同步，不再伪装 Loaded)", () => {
+      // Regression: 修复前 loading 被并入 ready → 右上角 badge 显示"载入中"
+      // 而卡片显示 "Loaded"，两者矛盾（见 2026-04-18 投屏截图）
+      expect(deriveRowView("loading", IDLE).kind).toBe("loading-runtime");
     });
 
     it("idle + model-missing → missing", () => {

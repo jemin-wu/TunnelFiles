@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+target/
 *.local
 
 # Editor directories and files
@@ -35,4 +36,5 @@ test/e2e/.tmp/
 
 # Claude Code
 .claude/
+.codex/
 .gstack/
